@@ -1,0 +1,271 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:mandate_name",
+ "creation": "2025-12-08 02:03:39.220406",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "general_information_tab",
+  "company_profile_section",
+  "mandate_name",
+  "email",
+  "contact_person",
+  "contact_phone",
+  "website_url",
+  "logo",
+  "company_description",
+  "year_established",
+  "compliance_and_legal_tab",
+  "rera_number",
+  "gst_number",
+  "pan_number",
+  "kyc_status",
+  "is_verified",
+  "is_active",
+  "location_and_address_tab",
+  "location_section",
+  "office_address",
+  "city",
+  "postal_code",
+  "state",
+  "country",
+  "location",
+  "get_current_location",
+  "projects_and_portfolio_tab",
+  "projects_section",
+  "projects",
+  "bank_details_tab",
+  "bank_details_section",
+  "bank_name",
+  "account_number",
+  "ifsc_code",
+  "branch"
+ ],
+ "fields": [
+  {
+   "fieldname": "general_information_tab",
+   "fieldtype": "Tab Break",
+   "label": "General Information"
+  },
+  {
+   "fieldname": "company_profile_section",
+   "fieldtype": "Section Break",
+   "label": "Company Profile"
+  },
+  {
+   "fieldname": "mandate_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mandate Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Email",
+   "reqd": 1
+  },
+  {
+   "fieldname": "contact_person",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Contact Person",
+   "reqd": 1
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Phone",
+   "in_list_view": 1,
+   "label": "Contact Phone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "website_url",
+   "fieldtype": "HTML",
+   "label": "Website URL"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "company_description",
+   "fieldtype": "Small Text",
+   "label": "Company Description"
+  },
+  {
+   "fieldname": "year_established",
+   "fieldtype": "Int",
+   "label": "Year Established"
+  },
+  {
+   "fieldname": "compliance_and_legal_tab",
+   "fieldtype": "Tab Break",
+   "label": "Compliance And Legal"
+  },
+  {
+   "fieldname": "rera_number",
+   "fieldtype": "Data",
+   "label": "RERA Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "gst_number",
+   "fieldtype": "Data",
+   "label": "GST Number"
+  },
+  {
+   "fieldname": "pan_number",
+   "fieldtype": "Data",
+   "label": "PAN Number"
+  },
+  {
+   "fieldname": "kyc_status",
+   "fieldtype": "Select",
+   "label": "KYC Status",
+   "options": "\nPending\nVerified\nRejected",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_verified",
+   "fieldtype": "Check",
+   "label": "Is Verified"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "location_and_address_tab",
+   "fieldtype": "Tab Break",
+   "label": "Location And Address"
+  },
+  {
+   "fieldname": "location_section",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "office_address",
+   "fieldtype": "Small Text",
+   "label": "Office Address",
+   "reqd": 1
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City",
+   "reqd": 1
+  },
+  {
+   "fieldname": "postal_code",
+   "fieldtype": "Data",
+   "label": "Postal Code",
+   "reqd": 1
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State",
+   "reqd": 1
+  },
+  {
+   "default": "India",
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "Country",
+   "reqd": 1
+  },
+  {
+   "fieldname": "projects_and_portfolio_tab",
+   "fieldtype": "Tab Break",
+   "label": "Projects And Portfolio"
+  },
+  {
+   "fieldname": "projects_section",
+   "fieldtype": "Section Break",
+   "label": "Projects"
+  },
+  {
+   "fieldname": "projects",
+   "fieldtype": "Table",
+   "label": "Assigned Projects",
+   "options": "Mandate Project"
+  },
+  {
+   "fieldname": "bank_details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Bank Details"
+  },
+  {
+   "fieldname": "bank_details_section",
+   "fieldtype": "Section Break",
+   "label": "Bank Details"
+  },
+  {
+   "fieldname": "bank_name",
+   "fieldtype": "Data",
+   "label": "Bank Name"
+  },
+  {
+   "fieldname": "account_number",
+   "fieldtype": "Data",
+   "label": "Account Number"
+  },
+  {
+   "fieldname": "ifsc_code",
+   "fieldtype": "Data",
+   "label": "IFSC Code"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Data",
+   "label": "Branch"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Geolocation",
+   "label": "Location Coordinates"
+  },
+  {
+   "fieldname": "get_current_location",
+   "fieldtype": "Button",
+   "label": "Get Current Location"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-08 12:40:02.683994",
+ "modified_by": "Administrator",
+ "module": "Homesol App",
+ "name": "Mandate",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

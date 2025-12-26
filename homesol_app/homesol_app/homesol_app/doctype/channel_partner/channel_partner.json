@@ -1,0 +1,294 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:email",
+ "creation": "2025-12-07 17:18:02.605922",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "general_tab",
+  "general_information_section",
+  "owner_name",
+  "mobile_number",
+  "rera_number",
+  "column_break_abzh",
+  "firm_name",
+  "email",
+  "territory",
+  "category",
+  "location_section",
+  "location",
+  "get_current_location",
+  "full_address",
+  "classifications_tab",
+  "classifications_section",
+  "work_type_column",
+  "is_digital",
+  "is_reference",
+  "is_data_calling",
+  "business_mode_column",
+  "is_retail",
+  "is_under_construction",
+  "is_rental",
+  "is_ready_to_move",
+  "cp_requirements_section",
+  "req_calling_support",
+  "req_digital_kit",
+  "req_standees",
+  "req_sms_blast",
+  "req_whatsapp_blast",
+  "contacts_and_documents_tab",
+  "team_details_section",
+  "team_column",
+  "contact_persons",
+  "compliance_section",
+  "documents_column",
+  "documents"
+ ],
+ "fields": [
+  {
+   "fieldname": "general_information_section",
+   "fieldtype": "Section Break",
+   "label": "General Information"
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Owner Name",
+   "options": "Title Field",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "mobile_number",
+   "fieldtype": "Phone",
+   "in_list_view": 1,
+   "label": "Mobile Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rera_number",
+   "fieldtype": "Data",
+   "label": "RERA Number"
+  },
+  {
+   "fieldname": "column_break_abzh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "firm_name",
+   "fieldtype": "Data",
+   "label": "Firm Name"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "territory",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Territory",
+   "options": "Territory",
+   "reqd": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "Individual\nCompany\nIPC"
+  },
+  {
+   "fieldname": "general_tab",
+   "fieldtype": "Tab Break",
+   "label": "General"
+  },
+  {
+   "fieldname": "classifications_tab",
+   "fieldtype": "Tab Break",
+   "label": "Classifications"
+  },
+  {
+   "fieldname": "classifications_section",
+   "fieldtype": "Section Break",
+   "label": "Classifications"
+  },
+  {
+   "fieldname": "work_type_column",
+   "fieldtype": "Column Break",
+   "label": "Work Type"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_digital",
+   "fieldtype": "Check",
+   "label": "Is Digital"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_reference",
+   "fieldtype": "Check",
+   "label": "Is Reference"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_data_calling",
+   "fieldtype": "Check",
+   "label": "Is Data Calling"
+  },
+  {
+   "fieldname": "business_mode_column",
+   "fieldtype": "Column Break",
+   "label": "Business Mode"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_retail",
+   "fieldtype": "Check",
+   "label": "Is Retail"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_under_construction",
+   "fieldtype": "Check",
+   "label": "Is Under Construction"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_rental",
+   "fieldtype": "Check",
+   "label": "Is Rental"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_ready_to_move",
+   "fieldtype": "Check",
+   "label": "Is Ready to Move"
+  },
+  {
+   "fieldname": "cp_requirements_section",
+   "fieldtype": "Section Break",
+   "label": "CP Requirements"
+  },
+  {
+   "default": "0",
+   "fieldname": "req_calling_support",
+   "fieldtype": "Check",
+   "label": "Req Calling Support"
+  },
+  {
+   "default": "0",
+   "fieldname": "req_digital_kit",
+   "fieldtype": "Check",
+   "label": "Req Digital Kit"
+  },
+  {
+   "default": "0",
+   "fieldname": "req_standees",
+   "fieldtype": "Check",
+   "label": "Req Standees"
+  },
+  {
+   "default": "0",
+   "fieldname": "req_sms_blast",
+   "fieldtype": "Check",
+   "label": "Req SMS Blast"
+  },
+  {
+   "default": "0",
+   "fieldname": "req_whatsapp_blast",
+   "fieldtype": "Check",
+   "label": "Req WhatsApp Blast"
+  },
+  {
+   "fieldname": "contacts_and_documents_tab",
+   "fieldtype": "Tab Break",
+   "label": "Contacts and Documents"
+  },
+  {
+   "fieldname": "team_details_section",
+   "fieldtype": "Section Break",
+   "label": "Team Details"
+  },
+  {
+   "fieldname": "team_column",
+   "fieldtype": "Column Break",
+   "label": "Team"
+  },
+  {
+   "fieldname": "contact_persons",
+   "fieldtype": "Table",
+   "label": "Contact Persons",
+   "options": "Channel Partner Contact"
+  },
+  {
+   "fieldname": "compliance_section",
+   "fieldtype": "Section Break",
+   "label": "Compliance"
+  },
+  {
+   "fieldname": "documents_column",
+   "fieldtype": "Column Break",
+   "label": "Documents"
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "Documents",
+   "options": "Channel Partner Document"
+  },
+  {
+   "fieldname": "location_section",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Geolocation",
+   "label": "Location"
+  },
+  {
+   "fieldname": "get_current_location",
+   "fieldtype": "Button",
+   "label": "Get Current Location"
+  },
+  {
+   "fieldname": "full_address",
+   "fieldtype": "Small Text",
+   "label": "Full Address"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-12 21:15:40.999050",
+ "modified_by": "Administrator",
+ "module": "Homesol App",
+ "name": "Channel Partner",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

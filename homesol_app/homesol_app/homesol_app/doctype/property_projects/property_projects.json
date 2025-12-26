@@ -1,0 +1,333 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:PROJ-{#####}",
+ "creation": "2025-12-06 00:47:55.298130",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "project_details_tab",
+  "project_overview_section",
+  "project_name",
+  "developer",
+  "developer_name",
+  "mandate",
+  "mandate_name",
+  "rera_id",
+  "construction_status",
+  "property_type",
+  "description",
+  "project_rm",
+  "about_project_tab",
+  "location_details_section",
+  "location_name",
+  "city",
+  "state",
+  "location",
+  "get_current_location",
+  "column_break_gndg",
+  "nearby_landmarks",
+  "project_approval",
+  "development_scheme",
+  "inventory_and_pricing_section",
+  "price_range_min",
+  "price_range_max",
+  "parking_type",
+  "configurations",
+  "timeline_and_teams_section",
+  "launch_date",
+  "possession_date",
+  "target_possession",
+  "project_timeline",
+  "column_break_pagn",
+  "architect",
+  "contractor",
+  "electrical_contractor",
+  "rera_liasoning",
+  "brokerage_and_media_tab",
+  "brokerages_section",
+  "brokerage_slabs",
+  "media_section_section",
+  "gallery_images",
+  "documents",
+  "amenities"
+ ],
+ "fields": [
+  {
+   "fieldname": "project_overview_section",
+   "fieldtype": "Section Break",
+   "label": "Project Overview"
+  },
+  {
+   "fieldname": "project_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Project Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "developer",
+   "fieldtype": "Link",
+   "label": "Developer",
+   "options": "Developer"
+  },
+  {
+   "depends_on": "developer.developer_name;",
+   "fieldname": "developer_name",
+   "fieldtype": "Data",
+   "label": "Developer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rera_id",
+   "fieldtype": "Data",
+   "label": "RERA ID"
+  },
+  {
+   "fieldname": "construction_status",
+   "fieldtype": "Select",
+   "label": "Construction Status",
+   "options": "New Launch\nUnder Construction\nReady to Move"
+  },
+  {
+   "fieldname": "property_type",
+   "fieldtype": "Select",
+   "label": "Property Type",
+   "options": "Residential\nCommercial\nMixed Use"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "project_rm",
+   "fieldtype": "Link",
+   "label": "Project RM",
+   "options": "User"
+  },
+  {
+   "fieldname": "project_details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Project Details"
+  },
+  {
+   "description": "(In Crore)",
+   "fieldname": "about_project_tab",
+   "fieldtype": "Tab Break",
+   "label": "About Project",
+   "options": "0",
+   "placeholder": "0"
+  },
+  {
+   "fieldname": "location_details_section",
+   "fieldtype": "Section Break",
+   "label": "Location Details"
+  },
+  {
+   "fieldname": "location_name",
+   "fieldtype": "Data",
+   "label": "Location Name"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "column_break_gndg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nearby_landmarks",
+   "fieldtype": "Small Text",
+   "label": "Nearby Landmarks"
+  },
+  {
+   "fieldname": "project_approval",
+   "fieldtype": "Data",
+   "label": "Project Approval"
+  },
+  {
+   "fieldname": "development_scheme",
+   "fieldtype": "Data",
+   "label": "Development Scheme"
+  },
+  {
+   "fieldname": "inventory_and_pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Inventory and Pricing"
+  },
+  {
+   "description": "(In Crore)",
+   "fieldname": "price_range_min",
+   "fieldtype": "Int",
+   "label": "Price Range Min",
+   "placeholder": "0"
+  },
+  {
+   "description": "(In Crore)",
+   "fieldname": "price_range_max",
+   "fieldtype": "Int",
+   "label": "Price Range Max",
+   "placeholder": "0"
+  },
+  {
+   "fieldname": "parking_type",
+   "fieldtype": "Select",
+   "label": "Parking Type",
+   "options": "Covered\nOpen\nPodium"
+  },
+  {
+   "fieldname": "configurations",
+   "fieldtype": "Table",
+   "label": "Configurations",
+   "options": "Project Configuration"
+  },
+  {
+   "fieldname": "brokerage_and_media_tab",
+   "fieldtype": "Tab Break",
+   "label": "Brokerage and Media"
+  },
+  {
+   "fieldname": "timeline_and_teams_section",
+   "fieldtype": "Section Break",
+   "label": "Timeline and Teams"
+  },
+  {
+   "fieldname": "launch_date",
+   "fieldtype": "Date",
+   "label": "Launch Date"
+  },
+  {
+   "fieldname": "possession_date",
+   "fieldtype": "Date",
+   "label": "Possession Date"
+  },
+  {
+   "fieldname": "target_possession",
+   "fieldtype": "Date",
+   "label": "Target Possession"
+  },
+  {
+   "fieldname": "project_timeline",
+   "fieldtype": "Table",
+   "label": "Project Timeline",
+   "options": "Project Timeline"
+  },
+  {
+   "fieldname": "column_break_pagn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "architect",
+   "fieldtype": "Data",
+   "label": "Architect"
+  },
+  {
+   "fieldname": "contractor",
+   "fieldtype": "Data",
+   "label": "Contractor"
+  },
+  {
+   "fieldname": "electrical_contractor",
+   "fieldtype": "Data",
+   "label": "Electrical Contractor"
+  },
+  {
+   "fieldname": "rera_liasoning",
+   "fieldtype": "Data",
+   "label": "RERA Liasoning"
+  },
+  {
+   "fieldname": "brokerages_section",
+   "fieldtype": "Section Break",
+   "label": "Brokerages"
+  },
+  {
+   "fieldname": "brokerage_slabs",
+   "fieldtype": "Table",
+   "label": "Brokerage Slabs",
+   "options": "Project Brokerage Slab"
+  },
+  {
+   "fieldname": "media_section_section",
+   "fieldtype": "Section Break",
+   "label": "Media Section"
+  },
+  {
+   "fieldname": "gallery_images",
+   "fieldtype": "Table",
+   "label": "Gallery Images",
+   "options": "Project Image"
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "Documents",
+   "options": "Project Document"
+  },
+  {
+   "fieldname": "amenities",
+   "fieldtype": "Table",
+   "label": "Amenities",
+   "options": "Project Amenity"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Geolocation",
+   "label": "Location Coordinates"
+  },
+  {
+   "fieldname": "get_current_location",
+   "fieldtype": "Button",
+   "label": "Get Current Location"
+  },
+  {
+   "fieldname": "mandate",
+   "fieldtype": "Link",
+   "label": "Mandates",
+   "options": "Mandate"
+  },
+  {
+   "depends_on": "mandate.mandate_name;",
+   "fieldname": "mandate_name",
+   "fieldtype": "Date",
+   "label": "Mandate_name"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-22 02:22:04.920591",
+ "modified_by": "Administrator",
+ "module": "Homesol App",
+ "name": "Property Projects",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "project_name"
+}

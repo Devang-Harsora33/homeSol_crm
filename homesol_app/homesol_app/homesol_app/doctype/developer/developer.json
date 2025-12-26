@@ -1,0 +1,283 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:DEV-{#####}",
+ "creation": "2025-12-05 21:52:18.742953",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_a_tab",
+  "developers_section",
+  "company_overview_column",
+  "developer_name",
+  "year_established",
+  "website_url",
+  "logo",
+  "company_description",
+  "is_active",
+  "is_verified",
+  "contact_details_section",
+  "column_break_bvbz",
+  "contact_person",
+  "contact_phone",
+  "contact_email",
+  "office_address",
+  "column_break_rmct",
+  "location",
+  "get_current_location",
+  "section_b_tab",
+  "legal_and_financials_section",
+  "rera_number",
+  "gst_number",
+  "pan_number",
+  "column_break_wgxe",
+  "kyc_status",
+  "bank_details",
+  "projects_section",
+  "projects_list",
+  "business_profile_section",
+  "company_size",
+  "specializations",
+  "certifications",
+  "column_break_atuf",
+  "total_projects_completed",
+  "current_projects_count",
+  "system_access_section",
+  "username",
+  "email"
+ ],
+ "fields": [
+  {
+   "fieldname": "developer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "developer_name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "developers_section",
+   "fieldtype": "Section Break",
+   "label": "Company Overview"
+  },
+  {
+   "fieldname": "company_overview_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "year_established",
+   "fieldtype": "Date",
+   "label": "Year Established"
+  },
+  {
+   "fieldname": "website_url",
+   "fieldtype": "Data",
+   "label": "Website URL",
+   "options": "URL"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "company_description",
+   "fieldtype": "Text Editor",
+   "label": "Company Description"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_verified",
+   "fieldtype": "Check",
+   "label": "Is Verified"
+  },
+  {
+   "fieldname": "section_a_tab",
+   "fieldtype": "Tab Break",
+   "label": "Company Details"
+  },
+  {
+   "fieldname": "contact_details_section",
+   "fieldtype": "Section Break",
+   "label": "Contact Details"
+  },
+  {
+   "fieldname": "column_break_bvbz",
+   "fieldtype": "Column Break",
+   "options": "Email"
+  },
+  {
+   "fieldname": "contact_person",
+   "fieldtype": "Data",
+   "label": "Contact Person"
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Phone",
+   "label": "Contact Phone"
+  },
+  {
+   "fieldname": "contact_email",
+   "fieldtype": "Data",
+   "label": "Contact Email"
+  },
+  {
+   "fieldname": "office_address",
+   "fieldtype": "Small Text",
+   "label": "Office Address"
+  },
+  {
+   "fieldname": "column_break_rmct",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_b_tab",
+   "fieldtype": "Tab Break",
+   "label": "About Company"
+  },
+  {
+   "fieldname": "legal_and_financials_section",
+   "fieldtype": "Section Break",
+   "label": "Legal and Financials"
+  },
+  {
+   "fieldname": "rera_number",
+   "fieldtype": "Data",
+   "label": "RERA Number"
+  },
+  {
+   "fieldname": "gst_number",
+   "fieldtype": "Data",
+   "label": "GST Number"
+  },
+  {
+   "fieldname": "pan_number",
+   "fieldtype": "Data",
+   "label": "PAN Number"
+  },
+  {
+   "fieldname": "column_break_wgxe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "kyc_status",
+   "fieldtype": "Select",
+   "label": "KYC Status",
+   "options": "Pending\nVerified\nRejected"
+  },
+  {
+   "fieldname": "bank_details",
+   "fieldtype": "Small Text",
+   "label": "Bank Details"
+  },
+  {
+   "fieldname": "business_profile_section",
+   "fieldtype": "Section Break",
+   "label": "Business Profile"
+  },
+  {
+   "fieldname": "company_size",
+   "fieldtype": "Select",
+   "label": "Company Size",
+   "options": "1-10\n11-50\n50+"
+  },
+  {
+   "fieldname": "specializations",
+   "fieldtype": "Data",
+   "label": "Specializations"
+  },
+  {
+   "fieldname": "certifications",
+   "fieldtype": "Data",
+   "label": "Certifications"
+  },
+  {
+   "fieldname": "column_break_atuf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_projects_completed",
+   "fieldtype": "Int",
+   "label": "Total Projects Completed"
+  },
+  {
+   "fieldname": "current_projects_count",
+   "fieldtype": "Int",
+   "label": "Current Projects Count"
+  },
+  {
+   "fieldname": "system_access_section",
+   "fieldtype": "Section Break",
+   "label": "System Access"
+  },
+  {
+   "fieldname": "username",
+   "fieldtype": "Link",
+   "label": "Username",
+   "options": "User"
+  },
+  {
+   "depends_on": "username.email;",
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email",
+   "read_only": 1
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Geolocation",
+   "label": "Location Coordinates"
+  },
+  {
+   "fieldname": "get_current_location",
+   "fieldtype": "Button",
+   "label": "Get Current Location"
+  },
+  {
+   "fieldname": "projects_list",
+   "fieldtype": "Table",
+   "label": "Projects List",
+   "options": "Developer Projects"
+  },
+  {
+   "fieldname": "projects_section",
+   "fieldtype": "Section Break",
+   "label": "Projects"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-11 12:13:26.838882",
+ "modified_by": "Administrator",
+ "module": "Homesol App",
+ "name": "Developer",
+ "naming_rule": "Expression",
+ "owner": "devangkh1206@gmail.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "developer_name"
+}

@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:CP_VISIT-{#####}",
+ "creation": "2025-12-12 21:16:21.463863",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "visit_details_section",
+  "channel_partner",
+  "project",
+  "remark",
+  "column_break_xoxx",
+  "visit_date",
+  "status",
+  "otp_section",
+  "btn_send_otp",
+  "otp_input",
+  "btn_verify_otp",
+  "is_verified"
+ ],
+ "fields": [
+  {
+   "fieldname": "visit_details_section",
+   "fieldtype": "Section Break",
+   "label": "Visit Details"
+  },
+  {
+   "fieldname": "channel_partner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Channel Partner",
+   "options": "Channel Partner",
+   "reqd": 1
+  },
+  {
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Project",
+   "options": "Property Projects",
+   "reqd": 1
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Remark",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_xoxx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Now",
+   "fieldname": "visit_date",
+   "fieldtype": "Datetime",
+   "label": "Visit Date"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "\nVisit\nRevisit\nVisit Scheduled\nRescheduled\nNo Show",
+   "reqd": 1
+  },
+  {
+   "fieldname": "btn_send_otp",
+   "fieldtype": "Button",
+   "label": "Send OTP"
+  },
+  {
+   "fieldname": "otp_input",
+   "fieldtype": "Data",
+   "label": "Enter OTP"
+  },
+  {
+   "fieldname": "btn_verify_otp",
+   "fieldtype": "Button",
+   "label": "Verify OTP"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_verified",
+   "fieldtype": "Check",
+   "label": "Is Verified"
+  },
+  {
+   "fieldname": "otp_section",
+   "fieldtype": "Section Break",
+   "label": "Verification"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-12 21:40:07.807787",
+ "modified_by": "Administrator",
+ "module": "Homesol App",
+ "name": "Channel Partner Visit",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
