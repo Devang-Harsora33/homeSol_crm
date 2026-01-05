@@ -64,3 +64,41 @@ class SiteVisit(Document):
             return True
         else:
             return False
+
+
+@frappe.whitelist()
+def flutter_trigger_otp(site_visit_name):
+    """
+    API Endpoint for Mobile App to trigger OTP.
+    It reuses the exact same logic but handles the object fetching manually.
+    """
+    if not site_visit_name:
+        frappe.throw(_("Site Visit Name is required"))
+    
+    # 1. Load the document
+    doc = frappe.get_doc("Site Visit", site_visit_name)
+    
+    # 2. Call the existing function (so logic stays consistent)
+    # This ensures your CRM and App use the exact same cache keys and rules.
+    return doc.trigger_otp()
+
+@frappe.whitelist()
+def flutter_verify_otp(site_visit_name, user_otp):
+    """
+    API Endpoint for Mobile App to verify OTP.
+    """
+    if not site_visit_name:
+        frappe.throw(_("Site Visit Name is required"))
+        
+    doc = frappe.get_doc("Site Visit", site_visit_name)
+    
+    # Call the existing function
+    result = doc.verify_client_otp(user_otp)
+    
+    if result is True:
+        # If verified, we also update the document status immediately for the App
+        doc.db_set("is_verified", 1)
+        doc.save()
+        return "success"
+    else:
+        return "failed"
