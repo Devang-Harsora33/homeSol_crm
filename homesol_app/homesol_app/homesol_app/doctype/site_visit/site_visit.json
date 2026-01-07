@@ -14,38 +14,7 @@
   "column_break_yovw",
   "visit_date",
   "status",
-  "partner_details_section",
-  "channel_partner",
-  "cp_contact_person",
-  "cp_mobile",
-  "visit_by",
-  "location_details_tab",
-  "location_details_section",
-  "location_name",
-  "location",
-  "get_current_location",
-  "options_and_requirements_tab",
-  "options_section",
-  "is_digital",
-  "is_reference",
-  "is_data_calling",
-  "is_retail",
-  "column_break_epph",
-  "is_under_construction",
-  "is_rental",
-  "is_ready_to_move",
-  "requirements_section",
-  "req_calling_support",
-  "req_digital_kit",
-  "req_standees",
-  "column_break_rqmf",
-  "req_sms_blast",
-  "req_whatsapp_blast",
-  "otp_section",
-  "btn_send_otp",
-  "otp_input",
-  "btn_verify_otp",
-  "is_verified"
+  "visit_scheduled_datetime"
  ],
  "fields": [
   {
@@ -95,193 +64,19 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Scheduled\nCompleted\nCancelled\nNo Show",
+   "options": "\nScheduled\nVisit Done\nRevisit Done\nCancelled",
    "reqd": 1
   },
   {
-   "fieldname": "partner_details_section",
-   "fieldtype": "Section Break",
-   "label": "Partner Details"
-  },
-  {
-   "fieldname": "channel_partner",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Channel Partner",
-   "options": "Channel Partner",
-   "reqd": 1
-  },
-  {
-   "fieldname": "cp_contact_person",
-   "fieldtype": "Data",
-   "label": "CP Contact Person",
-   "options": "Name of the broker staff present"
-  },
-  {
-   "fieldname": "cp_mobile",
-   "fieldtype": "Phone",
-   "label": "CP Mobile",
-   "options": "Broker staff mobile"
-  },
-  {
-   "fieldname": "visit_by",
-   "fieldtype": "Link",
-   "label": "Visit By",
-   "options": "User"
-  },
-  {
-   "fieldname": "location_details_tab",
-   "fieldtype": "Tab Break",
-   "label": "Location Details"
-  },
-  {
-   "fieldname": "location_details_section",
-   "fieldtype": "Section Break",
-   "label": "Location Details"
-  },
-  {
-   "fieldname": "location_name",
-   "fieldtype": "Data",
-   "label": "Location Name",
-   "reqd": 1
-  },
-  {
-   "fieldname": "location",
-   "fieldtype": "Geolocation",
-   "label": "Geolocation"
-  },
-  {
-   "fieldname": "get_current_location",
-   "fieldtype": "Button",
-   "label": "Get Current Location"
-  },
-  {
-   "fieldname": "options_and_requirements_tab",
-   "fieldtype": "Tab Break",
-   "label": "Verification And Options"
-  },
-  {
-   "fieldname": "options_section",
-   "fieldtype": "Section Break",
-   "label": "Options"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_digital",
-   "fieldtype": "Check",
-   "label": "Is Digital"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_reference",
-   "fieldtype": "Check",
-   "label": "Is Reference"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_data_calling",
-   "fieldtype": "Check",
-   "label": "Is Data Calling"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_retail",
-   "fieldtype": "Check",
-   "label": "Is Retail"
-  },
-  {
-   "fieldname": "column_break_epph",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_under_construction",
-   "fieldtype": "Check",
-   "label": "Is Under Construction"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_rental",
-   "fieldtype": "Check",
-   "label": "Is Rental"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_ready_to_move",
-   "fieldtype": "Check",
-   "label": "Is Ready to Move"
-  },
-  {
-   "fieldname": "requirements_section",
-   "fieldtype": "Section Break",
-   "label": "Requirements"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_calling_support",
-   "fieldtype": "Check",
-   "label": "Req Calling Support"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_digital_kit",
-   "fieldtype": "Check",
-   "label": "Req Digital Kit"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_standees",
-   "fieldtype": "Check",
-   "label": "Req Standees"
-  },
-  {
-   "fieldname": "column_break_rqmf",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_sms_blast",
-   "fieldtype": "Check",
-   "label": "Req SMS Blast"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_whatsapp_blast",
-   "fieldtype": "Check",
-   "label": "Req WhatsApp Blast"
-  },
-  {
-   "fieldname": "otp_section",
-   "fieldtype": "Section Break",
-   "label": "Verification"
-  },
-  {
-   "fieldname": "btn_send_otp",
-   "fieldtype": "Button",
-   "label": "Send OTP"
-  },
-  {
-   "fieldname": "otp_input",
-   "fieldtype": "Data",
-   "label": "Enter OTP"
-  },
-  {
-   "fieldname": "btn_verify_otp",
-   "fieldtype": "Button",
-   "label": "Verify OTP"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_verified",
-   "fieldtype": "Check",
-   "label": "Is Verified",
-   "read_only": 1
+   "fieldname": "visit_scheduled_datetime",
+   "fieldtype": "Datetime",
+   "label": "Visit Scheduled DateTime"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-08 12:25:24.550012",
+ "modified": "2026-01-07 19:14:06.049553",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Site Visit",
