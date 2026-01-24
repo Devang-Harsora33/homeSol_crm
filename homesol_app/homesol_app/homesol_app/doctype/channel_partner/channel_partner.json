@@ -8,11 +8,10 @@
  "field_order": [
   "general_tab",
   "general_information_section",
-  "owner_name",
+  "firm_name",
   "mobile_number",
   "rera_number",
   "column_break_abzh",
-  "firm_name",
   "email",
   "territory",
   "category",
@@ -52,20 +51,10 @@
    "label": "General Information"
   },
   {
-   "fieldname": "owner_name",
+   "fieldname": "mobile_number",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Owner Name",
-   "options": "Title Field",
-   "reqd": 1,
-   "unique": 1
-  },
-  {
-   "fieldname": "mobile_number",
-   "fieldtype": "Phone",
-   "in_list_view": 1,
-   "label": "Mobile Number",
-   "reqd": 1
+   "label": "Mobile Number"
   },
   {
    "fieldname": "rera_number",
@@ -79,7 +68,8 @@
   {
    "fieldname": "firm_name",
    "fieldtype": "Data",
-   "label": "Firm Name"
+   "label": "Firm Name",
+   "reqd": 1
   },
   {
    "fieldname": "email",
@@ -266,7 +256,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-12 21:15:40.999050",
+ "modified": "2026-01-20 16:53:02.776715",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Channel Partner",

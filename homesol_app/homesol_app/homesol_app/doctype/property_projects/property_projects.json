@@ -59,11 +59,13 @@
    "label": "Project Overview"
   },
   {
+   "bold": 1,
    "fieldname": "project_name",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Project Name",
-   "reqd": 1
+   "reqd": 1,
+   "unique": 1
   },
   {
    "fieldname": "developer",
@@ -304,7 +306,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-22 02:22:04.920591",
+ "modified": "2026-01-09 04:18:31.898050",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Property Projects",
