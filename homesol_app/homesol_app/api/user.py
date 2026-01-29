@@ -12,3 +12,46 @@ def get_my_profile():
 
     doc = frappe.get_doc("Employee", employee_name)
     return doc.as_dict()
+
+
+@frappe.whitelist()
+def get_my_tickets():
+    return frappe.get_all(
+        "Tickets",
+        fields=[
+            "name",           
+            "creation",       
+            "status",        
+            "priority",       
+            "category",       
+            "description",   
+            "raised_by"
+        ],
+        filters={
+            "raised_by": frappe.session.user
+        },
+        order_by="creation desc"    )
+
+@frappe.whitelist()
+def get_my_site_visits():
+    user = frappe.session.user
+    
+    visits = frappe.get_all(
+        "Site Visit",
+        fields=[
+            "name",           
+            "lead",          
+            "project",       
+            "visit_date",   
+            "status",        
+            "remark",        
+            "creation",      
+            "visit_scheduled_datetime" # Scheduled Time
+        ],
+        filters={
+            "owner": user  
+        },
+        order_by="visit_date desc" 
+    )
+    
+    return visits
