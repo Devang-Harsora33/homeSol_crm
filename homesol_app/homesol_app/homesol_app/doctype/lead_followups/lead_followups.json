@@ -1,0 +1,87 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-02-07 15:34:15.356988",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "follow_ups_section",
+  "status",
+  "created_at",
+  "follow_up_date",
+  "type",
+  "remarks",
+  "next_follow_up",
+  "assigned_to"
+ ],
+ "fields": [
+  {
+   "fieldname": "follow_ups_section",
+   "fieldtype": "Section Break",
+   "label": "Follow Ups"
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "\nOpen\nCompleted\nCancelled"
+  },
+  {
+   "default": "Now",
+   "fieldname": "created_at",
+   "fieldtype": "Datetime",
+   "label": "Created At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "follow_up_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Follow Up Date"
+  },
+  {
+   "default": "Call",
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "Call\nVisit\nWhatsApp\nEmail"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "next_follow_up",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Next Follow Up"
+  },
+  {
+   "fieldname": "assigned_to",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Assigned To",
+   "options": "User"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-02-07 15:48:45.070958",
+ "modified_by": "administrator@homesolinda.com",
+ "module": "Homesol App",
+ "name": "Lead FollowUps",
+ "owner": "administrator@homesolinda.com",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
