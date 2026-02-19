@@ -264,3 +264,70 @@ def get_team_site_visits():
     )
     
     return visits
+
+
+@frappe.whitelist()
+def get_team_followups_list():
+    """
+    Fetches follow-ups using standard ORM (No SQL).
+    Merges Parent (Lead) details into the Child (FollowUp) list.
+    """
+    user = frappe.session.user
+    
+    # --- 1. Get Team User IDs (Same as before) ---
+    users_to_fetch = [user]
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+
+    if employee:
+        team_member = frappe.db.get_value("Sales Team Member", {"employee": employee}, ["parent", "role"], as_dict=True)
+        if team_member and team_member.role == "Team Lead":
+            team_employees = frappe.get_all("Sales Team Member", filters={"parent": team_member.parent}, fields=["employee"])
+            emp_ids = [e.employee for e in team_employees]
+            linked_users = frappe.get_all("Employee", filters={"name": ["in", emp_ids]}, fields=["user_id"])
+            users_to_fetch = [u.user_id for u in linked_users if u.user_id]
+
+    # --- 2. Fetch Relevant LEADS (Parent Data) ---
+    # We fetch ID, Name, and Phone so we can show them on the task card later.
+    leads = frappe.get_all(
+        "Lead",
+        filters={
+            "lead_owner": ["in", users_to_fetch]
+        },
+        fields=["name", "lead_name", "mobile_no", "lead_owner"]
+    )
+
+    if not leads:
+        return []
+
+    # Create a lookup map: { 'LEAD-001': {'lead_name': 'Tony', 'mobile': '123'} }
+    lead_map = { d.name: d for d in leads }
+    lead_ids = list(lead_map.keys())
+
+    follow_ups = frappe.get_all(
+        "Lead FollowUps",  
+        filters={
+            "parent": ["in", lead_ids],
+            # "status": "Open"  # Optional: Only show open tasks
+        },
+        fields=["name", "follow_up_date", "status", "type", "remarks", "parent", "assigned_to"],
+        order_by="follow_up_date asc"
+    )
+
+    # --- 4. Python Merge (The "Join") ---
+    final_data = []
+    for task in follow_ups:
+        # Grab the parent lead details from our map
+        parent_lead = lead_map.get(task.parent)
+        
+        if parent_lead:
+            # Combine Task + Lead details into one object
+            row = task.copy()
+            row.update({
+                "lead_id": parent_lead.name,
+                "lead_name": parent_lead.lead_name,
+                "mobile_no": parent_lead.mobile_no,
+                "lead_owner": parent_lead.lead_owner
+            })
+            final_data.append(row)
+
+    return final_data
