@@ -1,0 +1,2167 @@
+{
+  "info": {
+    "_postman_id": "246aff1a-9253-4602-966d-c1839d3566ce",
+    "name": "HomeSol Frappe Cloud",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "42942173",
+    "_collection_link": "https://go.postman.co/collection/42942173-246aff1a-9253-4602-966d-c1839d3566ce?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Property Projects",
+      "item": [
+        {
+          "name": "Get Property Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Property Projects",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Property Projects"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Property Project",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Property Projects/PROJ-00025",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Property Projects",
+                "PROJ-00025"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Property Project",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"location\": \"{\\\"type\\\":\\\"FeatureCollection\\\",\\\"features\\\":[{\\\"type\\\":\\\"Feature\\\",\\\"properties\\\":{\\\"point_type\\\":\\\"marker\\\"},\\\"geometry\\\":{\\\"type\\\":\\\"Point\\\",\\\"coordinates\\\":[72.8433147,19.1909662]}}]}\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Property Projects/PROJ-00002",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Property Projects",
+                "PROJ-00002"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Property Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_all_projects",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_all_projects"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Developers",
+      "item": [
+        {
+          "name": "Developers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Developer",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Developer"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Developer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Developer/DEV-00024",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Developer",
+                "DEV-00024"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Developers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_all_developers",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_all_developers"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Mandate",
+      "item": [
+        {
+          "name": "Mandates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Mandate",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Mandate"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Mandate",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{baseurl_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Mandate/HomesolMandate",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Mandate",
+                "HomesolMandate"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "My Profile",
+          "item": [
+            {
+              "name": "Get My Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_my_profile",
+                  "host": [
+                    "{{baseurl_production}}"
+                  ],
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.get_my_profile"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get My Holidays",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.get_my_holidays",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.get_my_holidays"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Shifts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_shift_types",
+                  "host": [
+                    "{{baseurl_production}}"
+                  ],
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.get_shift_types"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "All Holiday list",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.get_all_holiday_lists",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.get_all_holiday_lists"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Check In",
+          "item": [
+            {
+              "name": "Check in",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"log_type\": \"IN\",\n    \"latitude\": 19.0760,\n    \"longitude\": 72.8777,\n    \"device_id\": \"unique-device-id-123\",\n    \"device_type\": \"Postman Test\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:8000/api/method/homesol_app.api.employee_checkin",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8000",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.employee_checkin"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Check Checkin",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/resource/Employee%20Checkin?fields=[\"name\",\"time\",\"log_type\"]&filters=[[\"employee\",\"=\",\"HR-EMP-00005\"],[\"log_type\",\"=\",\"IN\"]]&order_by=time%20desc&limit_page_length=1",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "Employee%20Checkin"
+                  ],
+                  "query": [
+                    {
+                      "key": "fields",
+                      "value": "[\"name\",\"time\",\"log_type\"]"
+                    },
+                    {
+                      "key": "filters",
+                      "value": "[[\"employee\",\"=\",\"HR-EMP-00005\"],[\"log_type\",\"=\",\"IN\"]]"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "time%20desc"
+                    },
+                    {
+                      "key": "limit_page_length",
+                      "value": "1"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Check Checkout",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/resource/Employee%20Checkin?fields=[\"name\",\"time\",\"log_type\"]&filters=[[\"employee\",\"=\",\"HR-EMP-00005\"],[\"log_type\",\"=\",\"OUT\"]]&order_by=time%20desc&limit_page_length=1",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "Employee%20Checkin"
+                  ],
+                  "query": [
+                    {
+                      "key": "fields",
+                      "value": "[\"name\",\"time\",\"log_type\"]"
+                    },
+                    {
+                      "key": "filters",
+                      "value": "[[\"employee\",\"=\",\"HR-EMP-00005\"],[\"log_type\",\"=\",\"OUT\"]]"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "time%20desc"
+                    },
+                    {
+                      "key": "limit_page_length",
+                      "value": "1"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Leave Management",
+          "item": [
+            {
+              "name": "Get My Leave Applications",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.get_my_leave_applications",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.get_my_leave_applications"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get My Leave Balance",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_my_leave_balance",
+                  "host": [
+                    "{{baseurl_production}}"
+                  ],
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.get_my_leave_balance"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Leave application",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"leave_type\": \"Casual Leave\",\n    \"from_date\": \"2026-01-10\",\n    \"to_date\": \"2026-01-12\",\n    \"reason\": \"Family function attending in native place\",\n    \"is_half_day\": 0\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.apply_leave_by_employee",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.apply_leave_by_employee"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Adding Leave Type",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"leave_type_name\": \"Leave Without Pay\",\n    \"is_paid\": 0,\n    \"is_lwp\": 1,\n    \"is_carry_forward\": 0,\n    \"include_holiday\": 0\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/resource/Leave Type",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "Leave Type"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Leave Types",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}"
+                  }
+                ],
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/resource/Leave Type?fields=[\"name\"]",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "Leave Type"
+                  ],
+                  "query": [
+                    {
+                      "key": "fields",
+                      "value": "[\"name\"]"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Salary",
+          "item": [
+            {
+              "name": "Salary",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.hrms.get_my_salary_slips",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.hrms.get_my_salary_slips"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Salary Slip Download",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"salary_slip_id\": \"SLIP-2025-00001\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.hrms.download_salary_slip",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.hrms.download_salary_slip"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Salary Breakdown",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseurl_production}}/api/method/homesol_app.api.hrms.get_salary_breakdown",
+                  "host": [
+                    "{{baseurl_production}}"
+                  ],
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.hrms.get_salary_breakdown"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Attendance",
+          "item": [
+            {
+              "name": "Attendance",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"month\": 1,\n    \"year\": 2026\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.hrms.get_my_attendance_history",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.hrms.get_my_attendance_history"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Tax infos",
+          "item": [
+            {
+              "name": "Get my tax info",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.hrms.get_my_tax_info",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.hrms.get_my_tax_info"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "tax declaration info",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "token 4da513f76ad7e3c:f779cc3f4684121"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:8002/api/method/homesol_app.api.hrms.get_tax_declaration_options",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8002",
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.hrms.get_tax_declaration_options"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Employee",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Employee"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Employee",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Employee/HR-EMP-00003",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Employee",
+                "HR-EMP-00003"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Leads",
+      "item": [
+        {
+          "name": "Create Lead",
+          "item": [
+            {
+              "name": "Create Lead",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lead_owner\": \"prachi@homesolindia.com\",\n  \"status\": \"Lead\",\n  \"custom_lead_status\": \"Open\",\n  \"custom_latest_visit_status\": \"Visit Scheduled\",\n  \"is_verified\": 1,\n  \"custom_lead_quality\": 0.8,\n  \"custom_occupation\": \"Job\",\n  \"custom_tagging\": \"No Tagging\",\n  \"source\": \"Direct\",\n  \"custom_source_type\": \"Walk-in\",\n  \"custom_attended_by\": \"prachi@homesolindia.com\",\n  \"first_name\": \"Devang\",\n  \"last_name\": \"Harsroa\",\n  \"custom_current_residence_type\": \"1BHK\",\n  \"company_name\": \"Homesol\",\n  \"industry\": \"Real Estate\",\n  \"market_segment\": \"Middle Income\",\n  \"custom_stages\": \"Lead Generated\",\n  \"campaign_name\": \"ABC\",\n  \"whatsapp_no\": \"9082512330\",\n  \"email_id\": \"devangkh@gmail.com\",\n  \"custom_preferred_contact_method\": \"Email\",\n  \"custom_postal_code\": \"400067\",\n  \"mobile_no\": \"9082512330\",\n  \"custom_interested_project\": \"PROJ-00002\",\n  \"custom_configuration\": \"1BHK, 1.5BHK, 2BHK\",\n  \"custom_budget_min\": 1.0,\n  \"custom_budget_max\": 5.0,\n  \"custom_looking_for_property_type\": \"Under-Construction\",\n  \"custom_financing_details\": \"Loan Required\",\n  \"custom_purpose_of_purchase\": \"Investment\",\n  \"custom_remark\": \"This is a test remark.\",\n  \"custom_expected_time_of_purchase\": \"3-6 months\",\n  \"qualified_on\": \"2026-02-15\",\n  \"custom_sales_manager\": \"rajesh@homesolindia.com\",\n  \"qualified_by\": \"prachi@homesolindia.com\",\n  \"location_coordinates\": {\n    \"type\": \"FeatureCollection\",\n    \"features\": [\n      {\n        \"type\": \"Feature\",\n        \"properties\": {\n          \"point_type\": \"marker\"\n        },\n        \"geometry\": {\n          \"type\": \"Point\",\n          \"coordinates\": [72.8777, 19.0760]\n        }\n      }\n    ]\n  },\n  \"custom_lead_date\": \"2026-02-15 10:30:00\"\n}\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/resource/Lead",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "Lead"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Campaign",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseurl_production}}/api/resource/Campaign",
+                  "host": [
+                    "{{baseurl_production}}"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "Campaign"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseurl_production}}/api/resource/User",
+                  "host": [
+                    "{{baseurl_production}}"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "User"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Lead Follow ups",
+          "item": [
+            {
+              "name": "Get My Leads FollowUps",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_team_followups_list",
+                  "host": [
+                    "{{baseurl_production}}"
+                  ],
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.get_team_followups_list"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Leads FollowUps",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n           \"status\": \"Completed\",\n           \"remarks\": \"Customer agreed to visit tomorrow.\"\n         }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/resource/Lead FollowUps/FOLLOW-UP-00017",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "Lead FollowUps",
+                    "FOLLOW-UP-00017"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "FollowUps",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/resource/Lead FollowUps/FOLLOW-UP-00017",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "resource",
+                    "Lead FollowUps",
+                    "FOLLOW-UP-00017"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "OTPs",
+          "item": [
+            {
+              "name": "Lead Send OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"mobile_no\": \"9082512330\",\n    \"lead_name\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/method/homesol_app.api.crm.trigger_otp_lead",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.crm.trigger_otp_lead"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Lead Verify OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{token_production}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"mobile_no\": \"9082512330\",\n    \"user_otp\": \"722982\",\n    \"lead_name\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://erp.homesolindia.com/api/method/homesol_app.api.verify_otp_lead",
+                  "protocol": "https",
+                  "host": [
+                    "erp",
+                    "homesolindia",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "method",
+                    "homesol_app.api.verify_otp_lead"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Lead/",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Lead",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Lead",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Lead/CRM-LEAD-2026-00011",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Lead",
+                "CRM-LEAD-2026-00011"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_my_leads",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_my_leads"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Leads for manager",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_team_leads",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_team_leads"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Site Visits",
+      "item": [
+        {
+          "name": "Site Visits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "token 4da513f76ad7e3c:f779cc3f4684121",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8002/api/resource/Site Visit",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8002",
+              "path": [
+                "api",
+                "resource",
+                "Site Visit"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Site Visit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "token 4da513f76ad7e3c:f779cc3f4684121",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8002/api/resource/Site Visit/SV-00003",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8002",
+              "path": [
+                "api",
+                "resource",
+                "Site Visit",
+                "SV-00003"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get all Site Visits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "https://erp.homesolindia.com/api/method/homesol_app.api.get_all_site_visits",
+              "protocol": "https",
+              "host": [
+                "erp",
+                "homesolindia",
+                "com"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_all_site_visits"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Site Visits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_my_site_visits",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_my_site_visits"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Site Visits for manager",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production3}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_team_site_visits",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_team_site_visits"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Site Visit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"lead\": \"CRM-LEAD-2026-00001\",\n    \"project\": \"PROJ-00002\",\n    \"visit_date\": \"2026-01-05 10:00:00\",\n    \"status\": \"Scheduled\",\n    \"location_name\": \"Mumbai\",\n    \"remark\": \"Created via API\",\n    \"channel_partner\": \"devang@gmail.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Site Visit",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Site Visit"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Site Visit Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"site_visit_name\": \"SV-00007\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.homesol_app.doctype.site_visit.site_visit.flutter_trigger_otp",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.homesol_app.doctype.site_visit.site_visit.flutter_trigger_otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Site Visit Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"site_visit_name\": \"SV-00004\",\n    \"user_otp\": \"548683\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.homesol_app.doctype.site_visit.site_visit.flutter_verify_otp",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.homesol_app.doctype.site_visit.site_visit.flutter_verify_otp"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Channel Partners",
+      "item": [
+        {
+          "name": "Channel Partners",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Channel Partner",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Channel Partner"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Channel Partner",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Channel Partner/devang@gmail.com",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Channel Partner",
+                "devang@gmail.com"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Channel Partner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "token YOUR_API_KEY:YOUR_API_SECRET"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firm_name\": \"HomeSol\",\n    \"category\": \"Individual\",\n    \"mobile_number\": \"9082512330\",\n    \"email\": \"devang@gmail.com\",\n    \"rera_number\": \"SASD12123123\",\n    \"territory\": \"India\",\n    \n    \"full_address\": \"123, Street Name, City, State, Zip\",\n    \"location\": \"{\\\"type\\\":\\\"FeatureCollection\\\",\\\"features\\\":[{\\\"type\\\":\\\"Feature\\\",\\\"properties\\\":{\\\"point_type\\\":\\\"marker\\\"},\\\"geometry\\\":{\\\"type\\\":\\\"Point\\\",\\\"coordinates\\\":[72.8529999565857,19.209900272681622]}}]}\",\n\n    \"contact_persons\": [\n        {\n            \"full_name\": \"Steve\",\n            \"roles\": \"Owner\",\n            \"mobile\": \"9082512330\",\n            \"email\": \"steve@example.com\"\n        },\n        {\n            \"full_name\": \"Jarvis\",\n            \"roles\": \"Manager\",\n            \"mobile\": \"9082512330\",\n            \"email\": \"jarvis@example.com\"\n        }\n    ],\n\n    \"documents\": [\n        {\n            \"document_name\": \"Aadhar\",\n            \"document_attachment\": \"/files/aadhar_card.png\"\n        }\n    ],\n\n    \"is_digital\": 1,\n    \"is_reference\": 1,\n    \"is_data_calling\": 1,\n    \"is_retail\": 1,\n    \"is_under_construction\": 1,\n    \"is_rental\": 1,\n    \"is_ready_to_move\": 1,\n\n    \"req_calling_support\": 1,\n    \"req_digital_kit\": 1,\n    \"req_standees\": 1,\n    \"req_sms_blast\": 1,\n    \"req_whatsapp_blast\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Channel Partner",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Channel Partner"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sales Team",
+      "item": [
+        {
+          "name": "Property Sales Teams",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "token 4da513f76ad7e3c:f779cc3f4684121",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8002/api/resource/Property Sales Team",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8002",
+              "path": [
+                "api",
+                "resource",
+                "Property Sales Team"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Property Sales Team",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production3}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Property Sales Team/Team DB INFRA",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Property Sales Team",
+                "Team DB INFRA"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get all sales team",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_all_sales_team",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_all_sales_team"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Login",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "usr",
+                  "value": "administrator",
+                  "type": "text",
+                  "uuid": "1b8b09a3-b193-4067-95d1-99593d18c064"
+                },
+                {
+                  "key": "pwd",
+                  "value": "admin@123",
+                  "type": "text",
+                  "uuid": "cafc0dee-4d58-4d36-8ae9-bc2988ccd401"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/login",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Extras",
+      "item": [
+        {
+          "name": "Territories",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Territory",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Territory"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Uploading Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "token YOUR_API_KEY:YOUR_API_SECRET"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"filename\": \"my_image.png\",\r\n    \"filedata\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=\",\r\n    \"is_private\": 0,\r\n    \"folder\": \"Home\",\r\n    \"doctype\": \"Channel Partner\",\r\n    \"docname\": \"CRM-CP-2026-00001\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/upload_file",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "upload_file"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Adding Holiday as List",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"holiday_list_name\": \"Standard Sundays 2026\",\n    \"from_date\": \"2026-01-01\",\n    \"to_date\": \"2026-12-31\",\n    \"weekly_off\": \"Sunday\",\n    \"holidays\": [\n        {\"holiday_date\": \"2026-01-04\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-01-11\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-01-18\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-01-25\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-02-01\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-02-08\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-02-15\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-02-22\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-03-01\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-03-08\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-03-15\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-03-22\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-03-29\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-04-05\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-04-12\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-04-19\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-04-26\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-05-03\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-05-10\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-05-17\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-05-24\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-05-31\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-06-07\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-06-14\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-06-21\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-06-28\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-07-05\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-07-12\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-07-19\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-07-26\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-08-02\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-08-09\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-08-16\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-08-23\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-08-30\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-09-06\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-09-13\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-09-20\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-09-27\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-10-04\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-10-11\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-10-18\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-10-25\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-11-01\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-11-08\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-11-15\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-11-22\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-11-29\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-12-06\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-12-13\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-12-20\", \"description\": \"Weekly Off\"},\n        {\"holiday_date\": \"2026-12-27\", \"description\": \"Weekly Off\"}\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://erp.homesolindia.com/api/resource/Holiday List",
+              "protocol": "https",
+              "host": [
+                "erp",
+                "homesolindia",
+                "com"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Holiday List"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sources",
+      "item": [
+        {
+          "name": "Get Sources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Lead Source",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Lead Source"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Industry Type",
+      "item": [
+        {
+          "name": "Get Industry Type",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Industry Type",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Industry Type"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Market Segment",
+      "item": [
+        {
+          "name": "Get Market Segment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Market Segment",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Market Segment"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "item": [
+        {
+          "name": "Get All Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_all_tickets",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_all_tickets"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseurl_production}}/api/method/homesol_app.api.get_my_tickets",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "homesol_app.api.get_my_tickets"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{token_production}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"category\": \"General\",\n    \"priority\": \"High\",\n    \"description\": \"I have not received the payout for the Lodha Park deal.\",\n    \"status\": \"Open\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseurl_production}}/api/resource/Tickets",
+              "host": [
+                "{{baseurl_production}}"
+              ],
+              "path": [
+                "api",
+                "resource",
+                "Tickets"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Test Backend",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "token 4da513f76ad7e3c:f779cc3f4684121",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8002/api/resource/DocType?filters=[[\"module\", \"=\", \"Homesol App\"]]",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8002",
+          "path": [
+            "api",
+            "resource",
+            "DocType"
+          ],
+          "query": [
+            {
+              "key": "filters",
+              "value": "[[\"module\", \"=\", \"Homesol App\"]]"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "token_production",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "baseurl",
+      "value": ""
+    },
+    {
+      "key": "baseurl_production",
+      "value": ""
+    },
+    {
+      "key": "token_production",
+      "value": "",
+      "type": "default"
+    },
+    {
+      "key": "token_production3",
+      "value": "",
+      "type": "default"
+    }
+  ]
+}

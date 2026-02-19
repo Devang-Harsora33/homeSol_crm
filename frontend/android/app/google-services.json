@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "430718961228",
+    "project_id": "homesolreports",
+    "storage_bucket": "homesolreports.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:430718961228:android:f6b1ef7c9bee8b0cc6d6e9",
+        "android_client_info": {
+          "package_name": "com.example.homesol"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAl9PGXRCtOe9CBFTR9kue9JLyV7OGlcbg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

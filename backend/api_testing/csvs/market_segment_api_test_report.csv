@@ -1,0 +1,4 @@
+Endpoint,Method,URL,Role,Status,Time_ms,Result,Response_Snippet
+Get Market Segment,GET,https://erp.homesolindia.com/api/resource/Market Segment,Admin,200,102,PASS,"{""data"":[{""name"":""Lower Income""},{""name"":""Middle Income""},{""name"":""Upper Income""}]}"
+Get Market Segment,GET,https://erp.homesolindia.com/api/resource/Market Segment,Manager,200,89,PASS,"{""data"":[{""name"":""Lower Income""},{""name"":""Middle Income""},{""name"":""Upper Income""}]}"
+Get Market Segment,GET,https://erp.homesolindia.com/api/resource/Market Segment,Employee,200,96,PASS,"{""data"":[{""name"":""Lower Income""},{""name"":""Middle Income""},{""name"":""Upper Income""}]}"

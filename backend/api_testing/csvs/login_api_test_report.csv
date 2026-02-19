@@ -1,0 +1,2 @@
+Endpoint,Method,URL,Role,Status,Time_ms,Result,Response_Snippet
+Login,POST,https://erp.homesolindia.com/api/method/login,Test_User,200,234,PASS,"{""message"":""Logged In"",""home_page"":""/app"",""full_name"":""Administrator""}"

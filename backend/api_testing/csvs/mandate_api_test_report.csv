@@ -1,0 +1,7 @@
+Endpoint,Method,URL,Role,Status,Time_ms,Result,Response_Snippet
+Mandates,GET,https://erp.homesolindia.com/api/resource/Mandate,Admin,200,98,PASS,"{""data"":[{""name"":""HomeSol""}]}"
+Mandates,GET,https://erp.homesolindia.com/api/resource/Mandate,Manager,403,87,AUTH_RESTRICTED,"{""exception"":""frappe.exceptions.PermissionError"",""exc_type"":""PermissionError"",""exc"":""[\""Traceback (most recent call last):\\n  File \\\""apps/frappe/fr"
+Mandates,GET,https://erp.homesolindia.com/api/resource/Mandate,Employee,403,70,AUTH_RESTRICTED,"{""exception"":""frappe.exceptions.PermissionError"",""exc_type"":""PermissionError"",""exc"":""[\""Traceback (most recent call last):\\n  File \\\""apps/frappe/fr"
+Get Mandate,GET,https://erp.homesolindia.com/api/resource/Mandate/HomeSol,Admin,200,78,PASS,"{""data"":{""name"":""HomeSol"",""owner"":""administrator@homesolinda.com"",""creation"":""2026-02-06 17:31:06.794121"",""modified"":""2026-02-13 00:54:22.950401"",""mod"
+Get Mandate,GET,https://erp.homesolindia.com/api/resource/Mandate/HomeSol,Manager,403,96,AUTH_RESTRICTED,"{""exception"":""frappe.exceptions.PermissionError"",""exc_type"":""PermissionError"",""exc"":""[\""Traceback (most recent call last):\\n  File \\\""apps/frappe/fr"
+Get Mandate,GET,https://erp.homesolindia.com/api/resource/Mandate/HomeSol,Employee,403,87,AUTH_RESTRICTED,"{""exception"":""frappe.exceptions.PermissionError"",""exc_type"":""PermissionError"",""exc"":""[\""Traceback (most recent call last):\\n  File \\\""apps/frappe/fr"

@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@android:color/white">
+    <!-- Simplified HomeSol H logo in white -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M6,2v20h2V14h8v8h2V2h-2v8H8V2H6z"/>
+    <!-- House roof on top of H -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,0L8,4h8L12,0z"/>
+</vector>
