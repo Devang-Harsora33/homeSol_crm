@@ -6,10 +6,6 @@ import 'package:Homesol/services/image_cache_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-
-
-
-
 class ProjectService {
   static String get baseUrl => AuthService.baseUrl;
   static List<Project>? _projectsCache;
@@ -17,6 +13,45 @@ class ProjectService {
   static List<Map<String, String>>? _apiProjectsCache;
   static DateTime? _apiProjectsLastFetch;
   static const String _lastSyncTimestampKey = "last_sync_timestamp_projects";
+
+  // Test mocks
+  static http.Client? _testClient;
+  static AuthService? _testAuthService;
+  static SharedPreferences? _testSharedPreferences;
+  static ProjectDatabase? _testProjectDatabase;
+  static ImageCacheManager? _testImageCacheManager;
+
+  // Static setters for test mocks
+  static void setTestMocks({
+    http.Client? client,
+    AuthService? authService,
+    SharedPreferences? sharedPreferences,
+    ProjectDatabase? projectDatabase,
+    ImageCacheManager? imageCacheManager,
+  }) {
+    _testClient = client;
+    _testAuthService = authService;
+    _testSharedPreferences = sharedPreferences;
+    _testProjectDatabase = projectDatabase;
+    _testImageCacheManager = imageCacheManager;
+  }
+
+  static void clearTestMocks() {
+    _testClient = null;
+    _testAuthService = null;
+    _testSharedPreferences = null;
+    _testProjectDatabase = null;
+    _testImageCacheManager = null;
+  }
+
+  static void clearCache() {
+    _projectsCache = null;
+    _projectsLastFetch = null;
+    _apiProjectsCache = null;
+    _apiProjectsLastFetch = null;
+  }
+
+
 
   static Future<Map<String, String>> _getHeaders() async {
     final cookie = await AuthService.getCookie();
@@ -26,39 +61,36 @@ class ProjectService {
   }
 
   /// Cache gallery images for a project
-  static Future<void> _cacheProjectGalleryImages(Map<String, dynamic> projectJson) async {
-    try {
-      final galleryImages = projectJson['gallery_images'] as List<dynamic>?;
-      if (galleryImages != null && galleryImages.isNotEmpty) {
-        print('Caching ${galleryImages.length} gallery images for project: ${projectJson['name']}');
-        
-        final cachedImagePaths = <String>[];
-        
-        for (var imageItem in galleryImages) {
-          if (imageItem is Map<String, dynamic>) {
-            final imageUrl = imageItem['images'] as String?;
-            if (imageUrl != null && imageUrl.isNotEmpty) {
-              final cachedPath = await ImageCacheManager.downloadAndCacheImage(imageUrl);
-              if (cachedPath != null) {
-                cachedImagePaths.add(cachedPath);
-              }
+      static Future<void> _cacheProjectGalleryImages(Map<String, dynamic> projectJson) async {
+        try {
+          final galleryImages = projectJson['gallery_images'] as List<dynamic>?;
+          if (galleryImages != null && galleryImages.isNotEmpty) {
+            print('Caching ${galleryImages.length} gallery images for project: ${projectJson['name']}');
+    
+            final cachedImagePaths = <String>[];
+    
+            for (var imageItem in galleryImages) {
+              if (imageItem is Map<String, dynamic>) {
+                                                    final imageUrl = imageItem['images'] as String?;
+                                                    if (imageUrl != null && imageUrl.isNotEmpty) {
+                                                      final cachedPath = await ImageCacheManager.downloadAndCacheImage(imageUrl);
+                                                      if (cachedPath != null) {
+                                                        cachedImagePaths.add(cachedPath);
+                                                      }
+                                                    }              }
             }
+            // Store cached paths in the project data for later retrieval
+            projectJson['_cached_gallery_image_paths'] = cachedImagePaths;
           }
+        } catch (e) {
+          print('Error caching project gallery images: $e');
         }
-        
-        // Store cached paths in the project data for later retrieval
-        projectJson['_cached_gallery_image_paths'] = cachedImagePaths;
       }
-    } catch (e) {
-      print('Error caching project gallery images: $e');
-    }
-  }
-
   // Helper to fetch all project names from server for deletion comparison
   static Future<List<String>> fetchProjectNamesFromServer() async {
     try {
       final headers = await _getHeaders();
-      final response = await http.get(
+      final response = await (_testClient ?? http.Client()).get(
         Uri.parse(
           '${AuthService.baseUrl}/api/resource/Property Projects?fields=["name"]',
         ),
@@ -81,7 +113,7 @@ class ProjectService {
 
   // Sync projects from API and store in local database
   static Future<List<Project>> syncProjects({bool forceRefresh = false}) async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final SharedPreferences prefs = _testSharedPreferences ?? await SharedPreferences.getInstance();
     String lastSyncTimestamp =
         prefs.getString(_lastSyncTimestampKey) ?? "2000-01-01 00:00:00";
 
@@ -95,12 +127,12 @@ class ProjectService {
     );
 
     final Uri uri = Uri.parse(
-        '$baseUrl/api/method/homesol_app.api.get_all_projects?filters=$filters');
+        '${AuthService.baseUrl}/api/method/homesol_app.api.get_all_projects?filters=$filters');
     print('Requesting URL: $uri');
 
     try {
       final headers = await _getHeaders();
-      final response = await http
+      final response = await (_testClient ?? http.Client())
           .get(uri, headers: headers)
           .timeout(const Duration(seconds: 30));
 
@@ -108,7 +140,7 @@ class ProjectService {
         final Map<String, dynamic> responseBody = json.decode(response.body);
         final List<dynamic> message = responseBody['message'] ?? [];
 
-        final ProjectDatabase projectDatabase = ProjectDatabase();
+        final ProjectDatabase projectDatabase = _testProjectDatabase ?? ProjectDatabase();
 
         // Step 1: Get all local Project IDs
         final List<Map<String, dynamic>> localProjectsRaw = await projectDatabase.getAllProjects();
@@ -192,7 +224,7 @@ class ProjectService {
         print('Failed to load projects: ${response.statusCode}');
         print('Response body: ${response.body}');
         // Return existing projects from database on error
-        final ProjectDatabase projectDatabase = ProjectDatabase();
+        final ProjectDatabase projectDatabase = _testProjectDatabase ?? ProjectDatabase();
         final List<Map<String, dynamic>> rawProjects =
             await projectDatabase.getAllProjects();
         return rawProjects.map((data) {
@@ -203,7 +235,7 @@ class ProjectService {
     } catch (e) {
       print('Error during project sync: $e');
       // Return existing projects from database on error
-      final ProjectDatabase projectDatabase = ProjectDatabase();
+      final ProjectDatabase projectDatabase = _testProjectDatabase ?? ProjectDatabase();
       final List<Map<String, dynamic>> rawProjects =
           await projectDatabase.getAllProjects();
       return rawProjects.map((data) {
@@ -222,7 +254,7 @@ class ProjectService {
       }
 
       // Load projects from local database
-      final ProjectDatabase projectDatabase = ProjectDatabase();
+      final ProjectDatabase projectDatabase = _testProjectDatabase ?? ProjectDatabase();
       final List<Map<String, dynamic>> rawProjects =
           await projectDatabase.getAllProjects();
 
@@ -251,7 +283,7 @@ class ProjectService {
     try {
       print('Fetching project from: $baseUrl/Property Projects/$id');
       final headers = await _getHeaders();
-      final response = await http
+      final response = await (_testClient ?? http.Client())
           .get(Uri.parse('$baseUrl/api/resource/Property Projects/$id'), headers: headers)
           .timeout(const Duration(seconds: 30));
 
@@ -292,7 +324,7 @@ class ProjectService {
 
     try {
       final headers = await _getHeaders();
-      final response = await http.get(
+      final response = await (_testClient ?? http.Client()).get(
         Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_all_projects'),
         headers: headers,
       );

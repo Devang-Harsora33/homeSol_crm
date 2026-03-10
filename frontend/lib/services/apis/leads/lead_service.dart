@@ -22,7 +22,18 @@ class LeadService {
   static DateTime? _leadsLastFetch;
   final String _lastSyncTimestampKey = "last_sync_timestamp_leads";
   static const String _lastSyncFollowupsTimestampKey = "last_sync_timestamp_followups";
-  final http.Client _client; // Add http.Client here
+
+  // Client for instance methods (can be mocked)
+  final http.Client _client;
+
+  // Static client for static methods (can be mocked for testing)
+  static http.Client? _testClient;
+  static http.Client get _httpClient => _testClient ?? http.Client();
+
+  // Setter for injecting mock client for static methods in tests
+  static void setTestClient(http.Client? client) {
+    _testClient = client;
+  }
 
 LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initialize with provided client or a new one
 
@@ -53,7 +64,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
   static Future<String?> sendOTP(String mobileNo) async {
     final headers = await _getHeaders();
-    final response = await http.post(
+    final response = await _httpClient.post(
       Uri.parse('$baseUrl/api/method/homesol_app.api.crm.trigger_otp_lead'),
       headers: headers,
       body: jsonEncode({
@@ -85,7 +96,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
   static Future<bool> verifyOTP(String mobileNo, String otp) async {
     final headers = await _getHeaders();
-    final response = await http.post(
+    final response = await _httpClient.post(
       Uri.parse('$baseUrl/api/method/homesol_app.api.crm.verify_otp_lead'),
       headers: headers,
       body: jsonEncode({
@@ -103,10 +114,73 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     }
   }
 
+  static Future<bool> recordButtonPress(String leadId, String buttonName) async {
+    try {
+      final now = DateTime.now();
+      final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+      
+      final userData = await AuthService.getUserData();
+      final pressedBy = userData?['email'] ?? 'Unknown';
+
+      final newRecord = {
+        "date_and_time": formattedDate,
+        "button_pressed": buttonName,
+        "pressed_by": pressedBy,
+        "doctype": "Buttons Pressed Logs"
+      };
+
+      // Fetch existing lead data from local DB to get existing button press records
+      final localLead = await LeadDatabase().getLeadByName(leadId);
+      List<dynamic> existingRecords = [];
+      
+      // Try both field names just in case, but prioritize custom_button_logs
+      if (localLead != null) {
+        if (localLead.containsKey('custom_button_logs')) {
+          existingRecords = List.from(localLead['custom_button_logs'] ?? []);
+        } else if (localLead.containsKey('custom_button_press_records')) {
+          existingRecords = List.from(localLead['custom_button_press_records'] ?? []);
+        }
+      }
+      
+      // Append the new record
+      existingRecords.add(newRecord);
+
+      final body = {
+        "custom_button_logs": existingRecords
+      };
+
+      final headers = await AuthService.getHeaders();
+      final response = await _httpClient.put(
+        Uri.parse('$baseUrl/api/resource/Lead/$leadId'),
+        headers: headers,
+        body: json.encode(body),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        print('Button press recorded successfully for lead $leadId: $buttonName');
+        // Update local DB with the new records to keep it in sync
+        if (localLead != null) {
+          // Update the correct field in the local map
+          localLead['custom_button_logs'] = existingRecords;
+          // Also remove the old field if it exists to clean up
+          localLead.remove('custom_button_press_records');
+          await LeadDatabase().upsertLead(localLead);
+        }
+        return true;
+      } else {
+        print('Failed to record button press for lead $leadId: ${response.statusCode} - ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error recording button press for lead $leadId: $e');
+      return false;
+    }
+  }
+
   static Future<bool> markLeadAsLost(String leadId) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http.put(
+      final headers = await AuthService.getHeaders();
+      final response = await _httpClient.put(
         Uri.parse('$baseUrl/api/resource/Lead/$leadId'),
         headers: headers,
         body: jsonEncode({
@@ -143,8 +217,9 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     }
 
     try {
-      final headers = await _getHeaders();
-      final response = await http.get(Uri.parse(endpoint), headers: headers).timeout(const Duration(seconds: 20));
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse(endpoint);
+      final response = await _httpClient.get(url, headers: headers).timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['data'] is List) {
@@ -243,11 +318,9 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     }
 
     try {
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/resource/User?fields=["name","full_name"]'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 20));
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse('$baseUrl/api/resource/User?fields=["name","full_name"]');
+      final response = await _httpClient.get(url, headers: headers).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
@@ -278,10 +351,13 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
   static Future<List<Lead>> fetchBrokerLeads(String brokerId) async {
     try {
       print('🔍 Fetching leads for broker: $brokerId');
-      final headers = await _getHeaders();
-      final response = await http
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse('$baseUrl/api/resource/Lead/?filters=[["lead_owner","=","$brokerId"]]');
+      print('DEBUG: fetchBrokerLeads URL: $url');
+      print('DEBUG: fetchBrokerLeads Headers: $headers');
+      final response = await _httpClient
           .get(
-            Uri.parse('$baseUrl/Lead/?filters=[["lead_owner","=","$brokerId"]]'),
+            url,
             headers: headers,
           )
           .timeout(const Duration(seconds: 30));
@@ -290,7 +366,8 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       print('📄 Broker leads response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final List<dynamic> jsonData = json.decode(response.body);
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> jsonData = responseData['data'] ?? [];
         print('📊 Broker leads JSON data: $jsonData');
         return jsonData.map((json) => Lead.fromJson(json)).toList();
       } else {
@@ -319,9 +396,13 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
   static Future<List<Lead>> fetchAllLeads() async {
     try {
       print('🔍 Fetching all leads from: $baseUrl/api/resource/Lead');
-      final response = await http.get(
-            Uri.parse('$baseUrl/api/resource/Lead'),
-            headers: await _getHeaders(),
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse('$baseUrl/api/resource/Lead');
+      print('DEBUG: fetchAllLeads URL: $url');
+      print('DEBUG: fetchAllLeads Headers: $headers');
+      final response = await _httpClient.get(
+            url,
+            headers: headers,
           )
           .timeout(const Duration(seconds: 30));
 
@@ -359,10 +440,14 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
   static Future<Lead> createLead(Lead lead) async {
     try {
       print('🔍 Creating lead: ${lead.toJson()}');
-      final response = await http
+      final headers = {'Content-Type': 'application/json'};
+      final url = Uri.parse('$baseUrl/api/resource/Lead/');
+      print('DEBUG: createLead URL: $url');
+      print('DEBUG: createLead Headers: $headers');
+      final response = await _httpClient
           .post(
-            Uri.parse('$baseUrl/Lead/'),
-            headers: {'Content-Type': 'application/json'},
+            url,
+            headers: headers,
             body: json.encode(lead.toJson()),
           )
           .timeout(const Duration(seconds: 30));
@@ -478,11 +563,14 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
       print('🔍 [EMULATOR] Fetching hierarchy leads from: $uri');
 
-      final headers = await _getHeaders();
+      final headers = await AuthService.getHeaders();
       
       // 3. Use POST (or GET) depending on your setup. 
       // POST is often safer for custom methods to avoid caching issues.
-      final response = await http.post(uri, headers: headers)
+      final url = uri;
+      print('DEBUG: fetchMyLeads URL: $url');
+      print('DEBUG: fetchMyLeads Headers: $headers');
+      final response = await _httpClient.post(url, headers: headers)
           .timeout(const Duration(seconds: 30));
 
       print('✅ [EMULATOR] Leads response status: ${response.statusCode}');
@@ -616,10 +704,16 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
   static Future<Lead?> fetchLead(String id) async {
     try {
-      print('Fetching lead from: $baseUrl/Lead/$id');
-      final headers = await _getHeaders();
-      final response = await http
-          .get(Uri.parse('$baseUrl/Lead/$id'), headers: headers)
+      print('Fetching lead from: $baseUrl/api/resource/Lead/$id');
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse('$baseUrl/api/resource/Lead/$id');
+      print('DEBUG: fetchLead URL: $url');
+      print('DEBUG: fetchLead Headers: $headers');
+      final response = await _httpClient
+          .get(
+            url,
+            headers: headers,
+          )
           .timeout(const Duration(seconds: 30));
 
       print('Lead response status: ${response.statusCode}');
@@ -651,15 +745,17 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       print(
         'Fetching team followups for lead $leadId from: ${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
       );
-      final headers = await _getHeaders();
+      final headers = await AuthService.getHeaders();
       // Construct the URI with the lead_id as a query parameter
       final uri = Uri.parse(
         '${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
       ).replace(queryParameters: {'lead_id': leadId});
-
-      final response = await http
+      final url = uri;
+      print('DEBUG: fetchTeamFollowups URL: $url');
+      print('DEBUG: fetchTeamFollowups Headers: $headers');
+      final response = await _httpClient
           .get(
-            uri,
+            url,
             headers: headers,
           )
           .timeout(const Duration(seconds: 30));
@@ -714,7 +810,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       print(
         'Syncing all followups from: ${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
       );
-      final headers = await _getHeaders();
+      final headers = await AuthService.getHeaders();
       // No lead_id parameter, so it should fetch all for the team/user
       final uri = Uri.parse(
         '${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
@@ -726,9 +822,12 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
         filters['filters'] = [["modified", ">", lastSyncTimestamp]];
       }
 
-      final response = await http
+      final url = uri;
+      print('DEBUG: syncMyFollowups URL: $url');
+      print('DEBUG: syncMyFollowups Headers: $headers');
+      final response = await _httpClient
           .get(
-            uri,
+            url,
             headers: headers,
           )
           .timeout(const Duration(seconds: 30));
@@ -795,10 +894,16 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
   static Future<FollowUp?> fetchFollowUp(String followUpName) async {
     try {
-      print('Fetching follow-up $followUpName from: $baseUrl/Lead FollowUps/$followUpName');
-      final headers = await _getHeaders();
-      final response = await http
-          .get(Uri.parse('$baseUrl/Lead%20FollowUps/$followUpName'), headers: headers)
+      print('Fetching follow-up $followUpName from: $baseUrl/api/resource/Lead FollowUps/$followUpName');
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse('$baseUrl/api/resource/Lead%20FollowUps/$followUpName');
+      print('DEBUG: fetchFollowUp URL: $url');
+      print('DEBUG: fetchFollowUp Headers: $headers');
+      final response = await _httpClient
+          .get(
+            url,
+            headers: headers,
+          )
           .timeout(const Duration(seconds: 30));
 
       print('Follow-up response status: ${response.statusCode}');
@@ -806,7 +911,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        // Frappe's /api/resource endpoints return single documents under 'data'
         final Map<String, dynamic> jsonData = responseData['data'];
         print('Follow-up JSON data: $jsonData');
         return FollowUp.fromJson(jsonData);
@@ -832,7 +936,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
   static Future<bool> updateFollowUp(String followUpName, String status, String remarks, {String? nextFollowUp}) async {
     try {
       print('Updating follow-up $followUpName with status: $status, remarks: $remarks, nextFollowUp: $nextFollowUp');
-      final headers = await _getHeaders();
+      final headers = await AuthService.getHeaders();
       
       final Map<String, dynamic> body = {
         "status": status,
@@ -842,8 +946,8 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
         body["next_follow_up"] = nextFollowUp;
       }
 
-      final response = await http.put(
-        Uri.parse('$baseUrl/Lead%20FollowUps/$followUpName'),
+      final response = await _httpClient.put(
+        Uri.parse('$baseUrl/api/resource/Lead%20FollowUps/$followUpName'),
         headers: headers,
         body: json.encode(body),
       ).timeout(const Duration(seconds: 30));
@@ -872,7 +976,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     
   static Future<Lead?> createLeadFromForm(Map<String, dynamic> formData) async {
     try {
-      final headers = await _getHeaders();
+      final headers = await AuthService.getHeaders();
       final userData = await AuthService.getUserData();
       final owner = userData?['email'] ?? 'Administrator';
 
@@ -888,8 +992,11 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
       print('Submitting lead with body: ${jsonEncode(body)}');
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/resource/Lead'), // Use baseurl/api/resource/Lead
+      final url = Uri.parse('$baseUrl/api/resource/Lead');
+      print('DEBUG: createLeadFromForm URL: $url');
+      print('DEBUG: createLeadFromForm Headers: $headers');
+      final response = await _httpClient.post(
+        url,
         headers: headers,
         body: jsonEncode(body),
       );
@@ -924,12 +1031,14 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
   // Helper to fetch all followup names from server for deletion comparison
   static Future<List<String>> fetchFollowupNamesFromServer() async {
     try {
-      final headers = await _getHeaders();
+      final headers = await AuthService.getHeaders();
       final uri = Uri.parse(
         '${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
       );
-
-      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 30));
+      final url = uri;
+      print('DEBUG: fetchFollowupNamesFromServer URL: $url');
+      print('DEBUG: fetchFollowupNamesFromServer Headers: $headers');
+      final response = await _httpClient.get(url, headers: headers).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -984,4 +1093,3 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
   }
 
 }
-

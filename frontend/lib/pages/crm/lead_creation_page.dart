@@ -69,6 +69,7 @@ class _LeadCreationPageState extends State<LeadCreationPage>
     'custom_occupation': 'Job',
     'custom_lead_status': 'Open',
     'custom_tagging': 'No Tagging',
+    'custom_current_residence_type': '1BHK',
   };
 
   int _step = 0;
@@ -143,7 +144,7 @@ class _LeadCreationPageState extends State<LeadCreationPage>
 
   // Helper getter
   bool get _isEditing => widget.lead != null;
-  int get _totalSteps => _isEditing ? 3 : 4;
+  int get _totalSteps => 3; // _isEditing ? 3 : 4;
 
   @override
   void initState() {
@@ -322,6 +323,16 @@ class _LeadCreationPageState extends State<LeadCreationPage>
           if (projectMap.isNotEmpty) {
             _formData['custom_interested_project'] = projectMap;
           }
+        }
+
+        // Default to the first available project if none is selected
+        if (_formData['custom_interested_project'] == null && _teamProjects.isNotEmpty) {
+          _formData['custom_interested_project'] = _teamProjects.first;
+        }
+
+        // Default to the first available sales manager if none is selected
+        if (_formData['custom_sales_manager'] == null && _teamLeads.isNotEmpty) {
+          _formData['custom_sales_manager'] = _teamLeads.first;
         }
 
         // Resolve ChannelPartner object if in edit mode and ID was stored
@@ -516,7 +527,7 @@ class _LeadCreationPageState extends State<LeadCreationPage>
 
   Widget _stepHeader() {
     final allSteps = ['Personal', 'Contact', 'Details', 'Verify'];
-    final steps = _isEditing ? allSteps.sublist(0, 3) : allSteps;
+    final steps = allSteps.sublist(0, 3); // _isEditing ? allSteps.sublist(0, 3) : allSteps;
 
     return Container(
       color: Colors.white,
@@ -769,43 +780,58 @@ class _LeadCreationPageState extends State<LeadCreationPage>
   // }
 
   Widget _starRating(String label) {
-    // Convert float value back to number of stars for display
-    int currentRating = ((_formData['custom_lead_quality'] ?? 0.0) / 0.2)
-        .round();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(5, (index) {
-            int starValue = index + 1;
-            bool isActive = starValue <= currentRating;
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  // Store as a float value from 0.2 to 1.0
-                  _formData['custom_lead_quality'] = starValue * 0.2;
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  isActive ? Icons.star_rounded : Icons.star_outline_rounded,
-                  color: isActive ? Colors.amber[600] : Colors.grey[300],
-                  size: 32,
+    return FormField<double>(
+      initialValue: (_formData['custom_lead_quality'] as num?)?.toDouble(),
+      validator: (v) => (v == null || v == 0.0) ? 'Required' : null,
+      builder: (state) {
+        int currentRating = ((state.value ?? 0.0) / 0.2).round();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: state.hasError ? Colors.red.shade700 : Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(5, (index) {
+                int starValue = index + 1;
+                bool isActive = starValue <= currentRating;
+                return GestureDetector(
+                  onTap: () {
+                    final newVal = starValue * 0.2;
+                    setState(() {
+                      _formData['custom_lead_quality'] = newVal;
+                    });
+                    state.didChange(newVal);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      isActive ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: isActive ? Colors.amber[600] : Colors.grey[300],
+                      size: 32,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            if (state.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  state.errorText!,
+                  style: TextStyle(color: Colors.red.shade700, fontSize: 12),
                 ),
               ),
-            );
-          }),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -857,7 +883,7 @@ class _LeadCreationPageState extends State<LeadCreationPage>
 Widget _buildConfigurationButtons() {
   final configurations = [
     "1BHK", "1.5BHK", "2BHK", "2.5BHK",
-    "3BHK", "4BHK", "5BHK", "Studio",
+    "3BHK","3.5BHK", "4BHK+", "Studio",
   ];
 
   return Column(
@@ -945,7 +971,78 @@ Widget _buildConfigurationButtons() {
     ],
   );
 }
-  // ───────────────────────── STEPS CONTENT ─────────────────────────
+
+Widget _buildResidenceTypeButtons() {
+  final types = [
+    "1BHK", "1.5BHK", "2BHK", "2.5BHK",
+    "3BHK","3.5BHK", "4BHK+", "Studio",
+  ];
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        "Current Residence Type",
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey[700],
+        ),
+      ),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 10.0,
+        runSpacing: 10.0,
+        children: types.map((type) {
+          final isSelected = _formData['custom_current_residence_type'] == type;
+          
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                setState(() {
+                  _formData['custom_current_residence_type'] = type;
+                });
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isSelected ? kAccent : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? kAccent : Colors.grey.shade300,
+                    width: 1.5,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: kAccent.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          )
+                        ]
+                      : [],
+                ),
+                child: Text(
+                  type,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.grey[800],
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    ],
+  );
+}
 
   Widget _stepBody() {
     switch (_step) {
@@ -964,12 +1061,6 @@ Widget _buildConfigurationButtons() {
                       'First Name',
                       (v) => _formData['first_name'] = v,
                       required: true,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'First Name is required';
-                        }
-                        return null;
-                      },
                     ),
                   ),
                 ],
@@ -978,19 +1069,10 @@ Widget _buildConfigurationButtons() {
                 'last_name',
                 'Last Name',
                 (v) => _formData['last_name'] = v,
+                required: true,
               ),
               _starRating('Lead Quality (Rate 1-5)'),
-               _text(
-                'custom_current_residence_type',
-                'Current Residence Type',
-                (v) => _formData['custom_current_residence_type'] = v,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Current Residence Type is required';
-                  }
-                  return null;
-                },
-              ),
+              _buildResidenceTypeButtons(),
             ]),
             _card([
               Text(
@@ -1007,15 +1089,10 @@ Widget _buildConfigurationButtons() {
                     _formData['custom_occupation'] = v;
                   });
                 },
+                validator: (v) => v == null ? 'Required' : null,
               ),
               _text('company_name', 'Firm Name',
                   (v) => _formData['company_name'] = v,
-                  validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Firm Name is required';
-                  }
-                  return null;
-                },
               ),
               
              
@@ -1055,7 +1132,9 @@ Widget _buildConfigurationButtons() {
                     _updateCustomSourceTypeOptions();
                   }
                 });
-              }),
+              },
+              validator: (v) => v == null ? 'Required' : null,
+              ),
               _dropdown(
                 'source',
                 'Source',
@@ -1067,6 +1146,7 @@ Widget _buildConfigurationButtons() {
                   });
                 },
                 isLoading: _isFetchingLeadSources,
+                validator: (v) => v == null ? 'Required' : null,
               ),
               _dropdown(
                 'custom_source_type',
@@ -1081,6 +1161,7 @@ Widget _buildConfigurationButtons() {
                     }
                   });
                 },
+                validator: (v) => v == null ? 'Required' : null,
               ),
               
               if (_formData['custom_tagging'] == 'Tagging')
@@ -1096,6 +1177,7 @@ Widget _buildConfigurationButtons() {
                   displayKey: 'firmName',
                   valueKey: 'name',
                   isLoading: _isFetchingChannelPartners,
+                  validator: (v) => v == null ? 'Required' : null,
                 ),
               _dropdown(
                 'custom_lead_status',
@@ -1108,6 +1190,7 @@ Widget _buildConfigurationButtons() {
                         null; // Reset stage when status changes
                   });
                 },
+                validator: (v) => v == null ? 'Required' : null,
               ),
               if (_formData['custom_lead_status'] != null)
                 _dropdown(
@@ -1119,6 +1202,7 @@ Widget _buildConfigurationButtons() {
                       _formData['custom_stages'] = v;
                     });
                   },
+                  validator: (v) => v == null ? 'Required' : null,
                 ),
               _dropdown(
                 'campaign_name',
@@ -1142,14 +1226,13 @@ Widget _buildConfigurationButtons() {
             type: TextInputType.phone,
             controller: _mobile,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Primary Number is required';
-              }
-              if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-                return 'Please enter a valid phone number (digits only)';
-              }
-              if (value.length < 7 || value.length > 15) {
-                return 'Phone number must be between 7 and 15 digits';
+              if (value != null && value.isNotEmpty) {
+                if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                  return 'Please enter a valid phone number (digits only)';
+                }
+                if (value.length < 7 || value.length > 15) {
+                  return 'Phone number must be between 7 and 15 digits';
+                }
               }
               return null;
             },
@@ -1188,16 +1271,15 @@ Widget _buildConfigurationButtons() {
             'Postal Code',
             (v) => _formData['custom_postal_code'] = v,
             type: TextInputType.number,
-            required: true,
+            required: false,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Postal Code is required';
-              }
-              if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-                return 'Please enter a valid postal code (digits only)';
-              }
-              if (value.length != 6) {
-                return 'Postal Code must be 6 digits long';
+              if (value != null && value.isNotEmpty) {
+                if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                  return 'Please enter a valid postal code (digits only)';
+                }
+                if (value.length != 6) {
+                  return 'Postal Code must be 6 digits long';
+                }
               }
               return null;
             },
@@ -1221,18 +1303,12 @@ Widget _buildConfigurationButtons() {
                 (val) {
                   setState(() {
                     _formData['custom_interested_project'] =
-                        val as Map<String, String>?;
-                  });
+                        val as Map<String, String>?;                  });
                 },
                 displayKey: 'name',
                 valueKey: 'id',
                 isLoading: _isFetchingSalesTeams,
-                validator: (value) {
-                  if (value == null || (value is Map && value['id'] == null)) {
-                    return 'Please select an interested project';
-                  }
-                  return null;
-                },
+                validator: (v) => v == null ? 'Required' : null,
               ),
               _text(
                 'custom_configuration',
@@ -1240,12 +1316,6 @@ Widget _buildConfigurationButtons() {
                 (v) => _formData['custom_configuration'] = v,
                 controller: _configurationController,
                 required: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Configuration is required';
-                  }
-                  return null;
-                },
               ),
               _buildConfigurationButtons(),
               Row(
@@ -1258,20 +1328,19 @@ Widget _buildConfigurationButtons() {
                       type: TextInputType.number,
                       required: true,
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Min Budget is required';
-                        }
-                        if (!RegExp(r'^[0-9]+(\.[0-9]+)?$').hasMatch(value)) {
-                          return 'Enter a valid number';
-                        }
-                        if (double.tryParse(value)! <= 0) {
-                          return 'Budget must be positive';
-                        }
-                        if (_formData['custom_budget_max'] != null && _formData['custom_budget_max'].isNotEmpty) {
-                          final min = double.tryParse(value);
-                          final max = double.tryParse(_formData['custom_budget_max']);
-                          if (min != null && max != null && min > max) {
-                            return 'Min budget cannot be greater than Max budget';
+                        if (value != null && value.isNotEmpty) {
+                          if (!RegExp(r'^[0-9]+(\.[0-9]+)?$').hasMatch(value)) {
+                            return 'Enter a valid number';
+                          }
+                          if (double.tryParse(value)! <= 0) {
+                            return 'Budget must be positive';
+                          }
+                          if (_formData['custom_budget_max'] != null && _formData['custom_budget_max'].isNotEmpty) {
+                            final min = double.tryParse(value);
+                            final max = double.tryParse(_formData['custom_budget_max']);
+                            if (min != null && max != null && min > max) {
+                              return 'Min budget cannot be greater than Max budget';
+                            }
                           }
                         }
                         return null;
@@ -1287,20 +1356,19 @@ Widget _buildConfigurationButtons() {
                       type: TextInputType.number,
                       required: true,
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Max Budget is required';
-                        }
-                        if (!RegExp(r'^[0-9]+(\.[0-9]+)?$').hasMatch(value)) {
-                          return 'Enter a valid number';
-                        }
-                        if (double.tryParse(value)! <= 0) {
-                          return 'Budget must be positive';
-                        }
-                        if (_formData['custom_budget_min'] != null && _formData['custom_budget_min'].isNotEmpty) {
-                          final min = double.tryParse(_formData['custom_budget_min']);
-                          final max = double.tryParse(value);
-                          if (min != null && max != null && max < min) {
-                            return 'Max budget cannot be less than Min budget';
+                        if (value != null && value.isNotEmpty) {
+                          if (!RegExp(r'^[0-9]+(\.[0-9]+)?$').hasMatch(value)) {
+                            return 'Enter a valid number';
+                          }
+                          if (double.tryParse(value)! <= 0) {
+                            return 'Budget must be positive';
+                          }
+                          if (_formData['custom_budget_min'] != null && _formData['custom_budget_min'].isNotEmpty) {
+                            final min = double.tryParse(_formData['custom_budget_min']);
+                            final max = double.tryParse(value);
+                            if (min != null && max != null && max < min) {
+                              return 'Max budget cannot be less than Min budget';
+                            }
                           }
                         }
                         return null;
@@ -1318,7 +1386,7 @@ Widget _buildConfigurationButtons() {
               _dropdown(
                 'custom_financing_details',
                 'Financing',
-                ['Own Funds', 'Loan Required'],
+                ['Own Funds', 'Loan Required', 'Both'],
                 (v) => _formData['custom_financing_details'] = v,
               ),
               _dropdown(
@@ -1376,12 +1444,7 @@ Widget _buildConfigurationButtons() {
                 displayKey: 'name',
                 valueKey: 'id',
                 isLoading: _isFetchingSalesTeams,
-                validator: (value) {
-                  if (value == null || (value is Map && value['id'] == null)) {
-                    return 'Please select a sales manager';
-                  }
-                  return null;
-                },
+                validator: (v) => v == null ? 'Required' : null,
               ),
               _dropdown(
                 'qualified_by',
@@ -1396,6 +1459,7 @@ Widget _buildConfigurationButtons() {
           ],
         );
 
+      /*
       case 3: // Verification
         return Center(
           child: _card([
@@ -1556,6 +1620,7 @@ Widget _buildConfigurationButtons() {
             if (_verified) _successView(),
           ]),
         );
+      */
 
       default:
         return const SizedBox();
@@ -1598,11 +1663,6 @@ Widget _buildConfigurationButtons() {
     // Create a clean copy of form data for submission
     final submissionData = Map<String, dynamic>.from(_formData);
 
-    // Special handling if you need to set default 'Home' type based on checkboxes, etc.
-    if (submissionData['custom_current_residence_type_home'] == 1) {
-      submissionData['custom_current_residence_type'] = 'Home';
-    }
-
     // Only set lead date if creating new lead
     if (widget.lead == null) {
       submissionData['custom_lead_date'] = getCurrentDateTime();
@@ -1631,7 +1691,6 @@ Widget _buildConfigurationButtons() {
 
     // Clean up temporary fields
     submissionData.remove('custom_channel_partner_id');
-    submissionData.remove('custom_current_residence_type_home');
 
     // Convert budget fields and lead quality to numbers for Frappe API
     if (submissionData['custom_budget_min'] is String && (submissionData['custom_budget_min'] as String).isNotEmpty) {
@@ -1697,10 +1756,20 @@ Widget _buildConfigurationButtons() {
     } catch (e) {
       if (mounted) {
         String errorMessage;
+        final errorString = e.toString();
+        
         // Check for specific LinkValidationError for Sales Manager
-        if (e.toString().contains('LinkValidationError') && e.toString().contains('Sales Manager')) {
+        if (errorString.contains('LinkValidationError') && errorString.contains('Sales Manager')) {
           errorMessage = 'Invalid Sales Manager. Please select an existing Sales Manager from the list.';
-        } else if (e.toString().contains('LinkValidationError') || e.toString().contains('Could not find')) {
+        } else if (errorString.contains('DuplicateEntryError')) {
+          if (errorString.contains('Email Address')) {
+            errorMessage = 'A lead with this email address already exists.';
+          } else if (errorString.contains('Mobile No')) {
+            errorMessage = 'A lead with this mobile number already exists.';
+          } else {
+            errorMessage = 'This lead already exists (duplicate entry).';
+          }
+        } else if (errorString.contains('LinkValidationError') || errorString.contains('Could not find')) {
           // General LinkValidationError or "Could not find" for other fields
           errorMessage = 'Validation error: One of the linked records could not be found. Please check your selections.';
         }
@@ -1769,10 +1838,10 @@ Widget _buildConfigurationButtons() {
                   child: const Text('Back'),
                 ),
               ),
-            if (_step > 0 && _step < (_totalSteps - 1)) const SizedBox(width: 12),
-            // For creation: "Next" button on steps 0-2, then OTP on step 3
+            if (_step > 0 && _step < 2) const SizedBox(width: 12),
+            // For creation: "Next" button on steps 0-1, "Submit" button on step 2
             // For editing: "Next" button on steps 0-1, "Save" button on step 2
-            if (!_isEditing && _step < 3)
+            if (_step < 2)
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
@@ -1801,38 +1870,9 @@ Widget _buildConfigurationButtons() {
                   ),
                 ),
               ),
-            // For editing: "Next" button on steps 0-1, "Save" button on step 2
-            if (_isEditing && _step < 2)
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccent,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      _formKey.currentState!.save();
-                      setState(() => _step++);
-                      _scrollToTop();
-                    }
-                  },
-                  child: const Text(
-                    'Next',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            // For editing: "Save" button on the last step (Details)
-            if (_isEditing && _step == 2)
+            
+            // "Save" (editing) or "Submit" (creation) button on the last step (Details)
+            if (_step == 2)
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
@@ -1876,9 +1916,9 @@ Widget _buildConfigurationButtons() {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text(
-                          'Save',
-                          style: TextStyle(
+                      : Text(
+                          _isEditing ? 'Save' : 'Submit',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1886,12 +1926,15 @@ Widget _buildConfigurationButtons() {
                         ),
                 ),
               ),
-            // For creation: OTP verification on step 3
-            if (!_isEditing && _step == 3)
-              const SizedBox.shrink(),
+            // For creation: OTP verification on step 3 (COMMENTED OUT)
+            // if (!_isEditing && _step == 3)
+            //   const SizedBox.shrink(),
           ],
         ),
       ),
     );
   }
 }
+
+
+

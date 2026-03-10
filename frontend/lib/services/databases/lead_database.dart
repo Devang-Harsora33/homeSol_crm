@@ -4,7 +4,8 @@ import 'dart:convert';
 
 class LeadDatabase {
   static final LeadDatabase _instance = LeadDatabase._internal();
-  static Database? _database;
+  static Database? _database; // For production use
+  static Database? _testDatabase; // For testing use
 
   factory LeadDatabase() {
     return _instance;
@@ -12,7 +13,13 @@ class LeadDatabase {
 
   LeadDatabase._internal();
 
+  // Static method to inject a database for testing
+  static void setDatabaseForTesting(Database? db) {
+    _testDatabase = db;
+  }
+
   Future<Database> get database async {
+    if (_testDatabase != null) return _testDatabase!; // Use test database if injected
     if (_database != null) return _database!;
     _database = await _initDb();
     return _database!;

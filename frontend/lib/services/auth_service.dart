@@ -5,11 +5,28 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/profile.dart';
 
 class AuthService {
-  static String get baseUrl => dotenv.env['BASE_URL'] ?? 'https://erp.homesolindia.com';
+  static String? _testBaseUrl;
+  static String? _testCookie;
+  static Map<String, dynamic>? _testUserData;
 
-  static const String cookieKey = 'auth_cookie'; // Changed from tokenKey
+  static String get baseUrl => _testBaseUrl ?? dotenv.env['BASE_URL'] ?? 'https://erp.homesolindia.com';
+
+  static const String cookieKey = 'auth_cookie';
   static const String userKey = 'user_data';
 
+  // For testing purposes
+  static void setTestValues({String? baseUrl, String? cookie, Map<String, dynamic>? userData}) {
+    _testBaseUrl = baseUrl;
+    _testCookie = cookie;
+    _testUserData = userData;
+  }
+
+  // For testing purposes
+  static void clearTestValues() {
+    _testBaseUrl = null;
+    _testCookie = null;
+    _testUserData = null;
+  }
   // 1. LOGIN (Adapted for Frappe)
   static Future<Map<String, dynamic>> loginBroker({
     required String email,
@@ -185,6 +202,9 @@ class AuthService {
   }
 
   static Future<String?> getCookie() async {
+    if (_testCookie != null) {
+      return _testCookie;
+    }
     try {
       print('AuthService: Getting cookie from SharedPreferences');
       final prefs = await SharedPreferences.getInstance();
@@ -205,6 +225,9 @@ class AuthService {
   }
 
   static Future<Map<String, dynamic>?> getUserData() async {
+    if (_testUserData != null) {
+      return _testUserData;
+    }
     final prefs = await SharedPreferences.getInstance();
     final str = prefs.getString(userKey);
     return str != null ? jsonDecode(str) : null;

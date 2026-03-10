@@ -104,6 +104,10 @@ class _CRMPageState extends State<CRMPage> {
           ? 'tel:${numbers.first}'
           : 'https://wa.me/${numbers.first}';
       _launchUrl(url);
+      if (lead.name != null) {
+        LeadService.recordButtonPress(
+            lead.name!, action == 'call' ? 'Call Button' : 'WhatsApp Button');
+      }
       return;
     }
 
@@ -164,6 +168,10 @@ class _CRMPageState extends State<CRMPage> {
                       onTap: () {
                         final url = isCall ? 'tel:$number' : 'https://wa.me/$number';
                         _launchUrl(url);
+                        if (lead.name != null) {
+                          LeadService.recordButtonPress(lead.name!,
+                              isCall ? 'Call Button' : 'WhatsApp Button');
+                        }
                         Navigator.pop(context);
                       },
                       borderRadius: BorderRadius.circular(16),
@@ -1290,6 +1298,38 @@ class _LeadCard extends StatelessWidget {
         
     final latestSiteVisit = _getLatestSiteVisitForLead(lead.name ?? '');
 
+    // Logic for Visit Done Date
+    DateTime? visitDoneDate;
+    if (latestSiteVisit != null) {
+      final latestVisitDateStr = latestSiteVisit.visitScheduledDatetime ?? latestSiteVisit.visitDate;
+      final latestVisitDate = latestVisitDateStr != null ? DateTime.tryParse(latestVisitDateStr) : null;
+      
+      if (latestVisitDate != null) {
+        final threeMonthsBefore = latestVisitDate.subtract(const Duration(days: 90));
+        
+        final visitDoneVisits = siteVisits.where((v) {
+          if (v.lead != lead.name) return false;
+          final status = v.status?.toLowerCase() ?? '';
+          if (status != 'visit done') return false;
+          
+          final vDateStr = v.visitScheduledDatetime ?? v.visitDate;
+          final vDate = vDateStr != null ? DateTime.tryParse(vDateStr) : null;
+          if (vDate == null) return false;
+          
+          return vDate.isAfter(threeMonthsBefore) && vDate.isBefore(latestVisitDate.add(const Duration(seconds: 1)));
+        }).toList();
+
+        if (visitDoneVisits.isNotEmpty) {
+          visitDoneVisits.sort((a, b) {
+            final dA = DateTime.tryParse(a.visitScheduledDatetime ?? a.visitDate ?? '') ?? DateTime(0);
+            final dB = DateTime.tryParse(b.visitScheduledDatetime ?? b.visitDate ?? '') ?? DateTime(0);
+            return dB.compareTo(dA);
+          });
+          visitDoneDate = DateTime.tryParse(visitDoneVisits.first.visitScheduledDatetime ?? visitDoneVisits.first.visitDate ?? '');
+        }
+      }
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: MediaQuery.of(context).size.width > 600 ? 20 : 16),
       padding: EdgeInsets.all(MediaQuery.of(context).size.width > 600 ? 18 : 14),
@@ -1363,6 +1403,10 @@ class _LeadCard extends StatelessWidget {
                     context, Icons.bookmark_border_rounded, lead.source!),
               // New: Latest Site Visit Date and Status
               if (latestSiteVisit != null) ...[
+                if (visitDoneDate != null)
+                  _leadDetailRow(context, Icons.event_available_rounded,
+                      'Visit Done Date: ${_formatPostedDate(visitDoneDate)}',
+                      color: Colors.green.shade700),
                 _leadDetailRow(context, Icons.calendar_month,
                     'Last Visit: ${_formatPostedDate(DateTime.tryParse(latestSiteVisit.visitScheduledDatetime ?? latestSiteVisit.visitDate ?? ''))}',
                     color: kAccent),

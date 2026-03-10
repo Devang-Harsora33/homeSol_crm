@@ -12,10 +12,10 @@ import '../models/site_visit.dart';
 import '../services/apis/leads/lead_service.dart';
 import '../components/property_detail_popup.dart';
 import '../pages/site_visit_detail_page.dart';
-import '../pages/create_site_visit_page.dart'; // Import the create site visit page
+import '../pages/create_site_visit_page.dart'; 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; 
-import '../pages/crm/lead_creation_page.dart'; // Import the LeadCreationPage
-import '../pages/crm/follow_up_detail_page.dart'; // Import the FollowUpDetailPage
+import '../pages/crm/lead_creation_page.dart'; 
+import '../pages/crm/follow_up_detail_page.dart';
 import '../models/follow_up.dart';
 // ─── STYLING CONSTANTS ───
 const kAccent = Color(0xFF675D40);
@@ -40,6 +40,7 @@ class _LeadDetailViewState extends State<LeadDetailView> {
   bool _isSiteVisitsLoading = true;
   bool _isFollowUpsLoading = true; // New loading state for follow-ups
   String _lastVisitDate = 'N/A'; // New state variable for last visit date
+  String? _visitDoneDate; // Added for Visit Done Date
 
   @override
   void initState() {
@@ -73,9 +74,39 @@ class _LeadDetailViewState extends State<LeadDetailView> {
               return dateB.compareTo(dateA); // Sort descending to get latest
             });
             final latestVisit = _filteredSiteVisits.first;
-            _lastVisitDate = _formatPostedDate(DateTime.tryParse(latestVisit.visitScheduledDatetime ?? latestVisit.visitDate ?? ''));
+            final latestVisitDateStr = latestVisit.visitScheduledDatetime ?? latestVisit.visitDate;
+            final latestVisitDate = latestVisitDateStr != null ? DateTime.tryParse(latestVisitDateStr) : null;
+            
+            _lastVisitDate = latestVisitDate != null ? _formatPostedDate(latestVisitDate) : 'N/A';
+
+            if (latestVisitDate != null) {
+              final threeMonthsBefore = latestVisitDate.subtract(const Duration(days: 90));
+              final visitDoneVisits = _filteredSiteVisits.where((v) {
+                final status = v.status?.toLowerCase() ?? '';
+                if (status != 'visit done') return false;
+                
+                final vDateStr = v.visitScheduledDatetime ?? v.visitDate;
+                final vDate = vDateStr != null ? DateTime.tryParse(vDateStr) : null;
+                if (vDate == null) return false;
+                
+                return vDate.isAfter(threeMonthsBefore) && vDate.isBefore(latestVisitDate.add(const Duration(seconds: 1)));
+              }).toList();
+
+              if (visitDoneVisits.isNotEmpty) {
+                visitDoneVisits.sort((a, b) {
+                  final dA = DateTime.tryParse(a.visitScheduledDatetime ?? a.visitDate ?? '') ?? DateTime(0);
+                  final dB = DateTime.tryParse(b.visitScheduledDatetime ?? b.visitDate ?? '') ?? DateTime(0);
+                  return dB.compareTo(dA);
+                });
+                final bestDate = DateTime.tryParse(visitDoneVisits.first.visitScheduledDatetime ?? visitDoneVisits.first.visitDate ?? '');
+                _visitDoneDate = bestDate != null ? _formatPostedDate(bestDate) : null;
+              } else {
+                _visitDoneDate = null;
+              }
+            }
           } else {
             _lastVisitDate = 'N/A';
+            _visitDoneDate = null;
           }
           _isSiteVisitsLoading = false;
 
@@ -211,6 +242,8 @@ class _LeadDetailViewState extends State<LeadDetailView> {
                 // _infoRow(Icons.verified_user_outlined, "Qualification", widget.lead.qualificationStatus ?? '-'),
                 _infoRow(Icons.calendar_today, "Qualified On", widget.lead.qualifiedOn?.toString() ?? '-'),
                 _infoRow(Icons.calendar_month, "Last Visit", _lastVisitDate),
+                if (_visitDoneDate != null)
+                  _infoRow(Icons.event_available_rounded, "Visit Done Date", _visitDoneDate!),
                 const Divider(height: 24),
                 _infoRow(Icons.admin_panel_settings_outlined, "Attended By", widget.lead.customAttendedBy ?? '-'),
                 _infoRow(Icons.supervisor_account_outlined, "Sales Manager", widget.lead.customSalesManager ?? '-'),
@@ -257,6 +290,172 @@ class _LeadDetailViewState extends State<LeadDetailView> {
   String _formatPostedDate(DateTime? dt) {
     if (dt == null) return 'N/A';
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year.toString().substring(2)}';
+  }
+
+  Future<void> _launchUrl(String url) async {
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url));
+    } else {
+      throw 'Could not launch $url';
+    }
+  }
+
+  Future<void> _showNumberSelectionDialog(
+      BuildContext context, Lead lead, String action) async {
+    final primaryNumber = lead.customerPhone;
+    final secondaryNumber = lead.whatsappNo;
+
+    final List<String> numbers = [];
+    if (primaryNumber.isNotEmpty) {
+      numbers.add(primaryNumber);
+    }
+    if (secondaryNumber != null &&
+        secondaryNumber.isNotEmpty &&
+        !numbers.contains(secondaryNumber)) {
+      numbers.add(secondaryNumber);
+    }
+
+    if (numbers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No phone number available')),
+      );
+      return;
+    }
+
+    if (numbers.length == 1) {
+      final url = action == 'call'
+          ? 'tel:${numbers.first}'
+          : 'https://wa.me/${numbers.first}';
+      _launchUrl(url);
+      if (lead.name != null) {
+        LeadService.recordButtonPress(
+            lead.name!, action == 'call' ? 'Call Button' : 'WhatsApp Button');
+      }
+      return;
+    }
+
+    final bool isCall = action == 'call';
+    final IconData headerIcon = isCall ? Icons.call : Icons.message;
+    final String title = isCall ? 'Select a number to call' : 'Select a number for WhatsApp';
+    const Color matteBlack = Color(0xFF1A1A1A);
+    const Color offWhite = Color(0xFFF9F9F9);
+
+
+    showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent, // Removes Material 3 tint
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --- Header Section ---
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: kAccent.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(headerIcon, size: 32, color: kAccent),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: matteBlack,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'This lead has multiple numbers.',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // --- Numbers List ---
+              ...numbers.map((number) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        final url = isCall ? 'tel:$number' : 'https://wa.me/$number';
+                        _launchUrl(url);
+                        if (lead.name != null) {
+                          LeadService.recordButtonPress(lead.name!,
+                              isCall ? 'Call Button' : 'WhatsApp Button');
+                        }
+                        Navigator.pop(context);
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: offWhite,
+                          border: Border.all(color: Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            // Number Icon
+                            Icon(
+                              Icons.sim_card_rounded,
+                              size: 20,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(width: 16),
+                            // Number Text
+                            Expanded(
+                              child: Text(
+                                number,
+                                style: const TextStyle(
+                                  color: matteBlack,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Monospace', // Optional: looks good for numbers
+                                ),
+                              ),
+                            ),
+                            // Arrow indicator
+                            const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 16,
+                              color: kAccent,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+
+              // --- Cancel Button ---
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey.shade500,
+                ),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
   }
 
   Future<void> _launchMaps(String locationCoordinates) async {
@@ -515,8 +714,10 @@ Widget _buildFollowUpsCard() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _actionButton(FontAwesomeIcons.phone, "Call", Colors.green),
-        _actionButton(FontAwesomeIcons.whatsapp, "WhatsApp", const Color(0xFF25D366)),
+        _actionButton(FontAwesomeIcons.phone, "Call", Colors.green,
+            onPressed: () => _showNumberSelectionDialog(context, widget.lead, 'call')),
+        _actionButton(FontAwesomeIcons.whatsapp, "WhatsApp", const Color(0xFF25D366),
+            onPressed: () => _showNumberSelectionDialog(context, widget.lead, 'whatsapp')),
         _actionButton(FontAwesomeIcons.envelope, "Email", Colors.blue),
         _actionButton(FontAwesomeIcons.calendarCheck, "Visit", Colors.orange, onPressed: () async {
           final result = await Navigator.push(
