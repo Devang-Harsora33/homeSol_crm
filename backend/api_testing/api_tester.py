@@ -124,8 +124,7 @@ def extract_requests(items, parent_name=""):
 
 def run_tests():
     print(f"🚀 Starting API Testing against: {BASE_URL}")
-    print(f"📂 Loading collection: {COLLECTION_FILE}
-")
+    print(f"📂 Loading collection: {COLLECTION_FILE}")
 
     try:
         with open(COLLECTION_FILE, "r", encoding="utf-8") as f:
@@ -140,8 +139,7 @@ def run_tests():
     report_data = []
 
     for req in all_requests:
-        print(f"
---- Testing Request: {req['name']} ---")
+        print(f"--- Testing Request: {req['name']} ---")
         
         for role, token in TOKENS.items():
             # Prepare headers
@@ -217,8 +215,7 @@ def run_tests():
             dict_writer = csv.DictWriter(f, fieldnames=keys)
             dict_writer.writeheader()
             dict_writer.writerows(report_data)
-        print(f"
-📊 Test report saved to {REPORT_FILE}")
+        print(f"📊 Test report saved to {REPORT_FILE}")
 
 if __name__ == "__main__":
     run_tests()
