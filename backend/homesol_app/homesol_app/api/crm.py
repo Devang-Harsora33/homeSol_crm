@@ -331,3 +331,60 @@ def get_team_followups_list():
             final_data.append(row)
 
     return final_data
+
+
+@frappe.whitelist()
+def create_followup(lead_id, follow_up_date, status="Open", type="Call", remarks=None, next_follow_up=None, assigned_to=None):
+    """
+    Creates a new follow-up entry for a specific Lead.
+    """
+    if not lead_id:
+        frappe.throw(_("Lead ID is required"))
+
+    # Load the parent Lead document
+    lead = frappe.get_doc("Lead", lead_id)
+
+    # Append to the 'custom_follow_up_history' child table
+    new_row = lead.append("custom_follow_up_history", {
+        "status": status,
+        "follow_up_date": follow_up_date,
+        "type": type,
+        "remarks": remarks,
+        "next_follow_up": next_follow_up,
+        "assigned_to": assigned_to or frappe.session.user,
+        "created_at": frappe.utils.now_datetime()
+    })
+
+    # Save the parent document to persist the child table entry
+    lead.save(ignore_permissions=True)
+
+    return new_row.as_dict()
+
+
+@frappe.whitelist()
+def update_followup(followup_name, lead_id, status=None, follow_up_date=None, type=None, remarks=None, next_follow_up=None, assigned_to=None):
+    """
+    Updates an existing follow-up entry within a Lead.
+    """
+    if not followup_name or not lead_id:
+        frappe.throw(_("Follow-up Name and Lead ID are required"))
+
+    lead = frappe.get_doc("Lead", lead_id)
+    
+    updated = False
+    for row in lead.get("custom_follow_up_history"):
+        if row.name == followup_name:
+            if status: row.status = status
+            if follow_up_date: row.follow_up_date = follow_up_date
+            if type: row.type = type
+            if remarks: row.remarks = remarks
+            if next_follow_up: row.next_follow_up = next_follow_up
+            if assigned_to: row.assigned_to = assigned_to
+            updated = True
+            break
+            
+    if not updated:
+        frappe.throw(_("Follow-up {0} not found in Lead {1}").format(followup_name, lead_id))
+        
+    lead.save(ignore_permissions=True)
+    return "success"

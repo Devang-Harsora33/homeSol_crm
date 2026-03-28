@@ -50,7 +50,19 @@
   "media_section_section",
   "gallery_images",
   "documents",
-  "amenities"
+  "amenities",
+  "tab_4_tab",
+  "general_information_section",
+  "oc_obtained",
+  "column_break_zxvi",
+  "oc_date",
+  "unit_details_section",
+  "total_saleable_area_sq_ft",
+  "no_of_car_parks",
+  "column_break_twcm",
+  "total_salebale_units",
+  "units_section",
+  "inventory_matrix_html"
  ],
  "fields": [
   {
@@ -301,16 +313,77 @@
    "fieldname": "mandate_name",
    "fieldtype": "Date",
    "label": "Mandate_name"
+  },
+  {
+   "fieldname": "tab_4_tab",
+   "fieldtype": "Tab Break",
+   "label": "Inventory"
+  },
+  {
+   "fieldname": "general_information_section",
+   "fieldtype": "Section Break",
+   "label": "General Information"
+  },
+  {
+   "default": "Yes",
+   "fieldname": "oc_obtained",
+   "fieldtype": "Select",
+   "label": "OC Obtained",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "column_break_zxvi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "oc_date",
+   "fieldtype": "Date",
+   "label": "OC Date"
+  },
+  {
+   "fieldname": "unit_details_section",
+   "fieldtype": "Section Break",
+   "label": "Unit Details"
+  },
+  {
+   "description": "(sq ft)",
+   "fieldname": "total_saleable_area_sq_ft",
+   "fieldtype": "Int",
+   "label": "Total Saleable Area Sq Ft"
+  },
+  {
+   "fieldname": "no_of_car_parks",
+   "fieldtype": "Int",
+   "label": "No. Of Car Parks"
+  },
+  {
+   "fieldname": "column_break_twcm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_salebale_units",
+   "fieldtype": "Int",
+   "label": "Total Salebale Units"
+  },
+  {
+   "fieldname": "units_section",
+   "fieldtype": "Section Break",
+   "label": "Units"
+  },
+  {
+   "fieldname": "inventory_matrix_html",
+   "fieldtype": "HTML",
+   "label": "Units Container"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-09 04:18:31.898050",
+ "modified": "2026-03-23 16:02:20.878052",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Property Projects",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
