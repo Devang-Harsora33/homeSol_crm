@@ -11,11 +11,14 @@ import '../models/sales_team.dart';
 import '../services/databases/lead_database.dart';
 import '../models/project.dart';
 import '../models/site_visit.dart';
+import '../models/follow_up.dart';
 import '../components/lead_detail_view.dart';
 import '../services/auth_service.dart';
 import 'crm/lead_creation_page.dart';
 import 'create_site_visit_page.dart';
+import 'create_followup_page.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; 
+import 'package:fl_chart/fl_chart.dart';
 
 class CRMPage extends StatefulWidget {
   const CRMPage({super.key});
@@ -32,13 +35,14 @@ class _CRMPageState extends State<CRMPage> {
   List<model_lead.Lead> leads = []; // Use aliased Lead
   List<Project> projects = [];
   List<SiteVisit> siteVisits = []; // Added siteVisits list
+  List<FollowUp> followUps = []; // Added followUps list
   List<String> campaigns = [];
   List<String> territories = [];
   List<SalesTeam> salesTeams = [];
   bool isLoading = false;
   String? errorMessage;
   String? currentBrokerId;
-  late LeadService _leadService; // Declare LeadService instance
+  String? currentDesignation;
 
   // Filter state
   String _searchQuery = '';
@@ -55,11 +59,12 @@ class _CRMPageState extends State<CRMPage> {
   final Set<String> _selectedNCD = <String>{};
   final Set<String> _selectedVisited = <String>{};
   final Set<String> _selectedDeadReasons = <String>{};
+  String? _selectedVisitFilter;
+  String? _selectedFollowUpFilter;
 
   @override
   void initState() {
     super.initState();
-    _leadService = LeadService(); // Initialize LeadService
     _initializeData();
   }
 
@@ -239,6 +244,7 @@ class _CRMPageState extends State<CRMPage> {
     await _loadProjects(forceRefresh: true);
     await _loadLeads(forceRefresh: true);
     await _loadSiteVisits(); // Load site visits
+    await _loadFollowUps(); // Load follow ups
     await _loadCampaigns(); // Load campaigns
     await _loadTerritories(); // Load territories
     await _loadSalesTeams(); // Load sales teams
@@ -252,6 +258,17 @@ class _CRMPageState extends State<CRMPage> {
       });
     } catch (e) {
       print('Error loading site visits: $e');
+    }
+  }
+
+  Future<void> _loadFollowUps() async {
+    try {
+      final fetchedFollowUps = await LeadService.fetchMyFollowups(forceRefresh: true);
+      setState(() {
+        followUps = fetchedFollowUps;
+      });
+    } catch (e) {
+      print('Error loading follow ups: $e');
     }
   }
 
@@ -296,8 +313,16 @@ class _CRMPageState extends State<CRMPage> {
           currentBrokerId = userData['broker_id'].toString();
         });
       }
+      
+      final profile = await AuthService.getMyProfile();
+      if (profile != null) {
+        setState(() {
+          currentDesignation = profile.designation;
+        });
+        print('Current User Designation: $currentDesignation');
+      }
     } catch (e) {
-      print('Error getting broker ID: $e');
+      print('Error getting broker ID/Designation: $e');
     }
   }
 
@@ -320,7 +345,8 @@ class _CRMPageState extends State<CRMPage> {
 
     try {
       if (forceRefresh) {
-        await _leadService.syncMyLeads(); // Sync data from API to local DB
+        await LeadService.syncMyLeads(); // Sync data from API to local DB
+        await _loadFollowUps();
       }
       
       // Fetch leads from local database
@@ -550,6 +576,33 @@ class _CRMPageState extends State<CRMPage> {
         return false;
       }).toList();
     }
+
+    // Visit Overview Filter
+    if (_selectedVisitFilter != null) {
+      filtered = filtered.where((lead) {
+        final leadVisits = siteVisits.where((v) => v.lead == lead.name).toList();
+        
+        switch (_selectedVisitFilter) {
+          case 'Scheduled':
+            return leadVisits.any((v) => v.status.toLowerCase() == 'scheduled');
+          case 'Rescheduled':
+            // Explicit rescheduled OR multiple scheduled
+            if (leadVisits.any((v) => v.status.toLowerCase() == 'rescheduled')) return true;
+            return leadVisits.where((v) => v.status.toLowerCase() == 'scheduled').length > 1;
+          case 'Site Visits Done':
+            return leadVisits.any((v) => v.status.toLowerCase() == 'visit done');
+          case 'Revisits Done':
+            return leadVisits.any((v) => v.status.toLowerCase() == 'revisit done');
+          case 'Cancelled Visits':
+            return leadVisits.any((v) => 
+              v.status.toLowerCase() == 'cancelled' || v.status.toLowerCase() == 'canceled'
+            );
+          default:
+            return true;
+        }
+      }).toList();
+    }
+
     return filtered;
   }
 
@@ -585,6 +638,7 @@ class _CRMPageState extends State<CRMPage> {
       _selectedNCD.clear();
       _selectedVisited.clear();
       _selectedDeadReasons.clear();
+      _selectedVisitFilter = null;
     });
   }
 
@@ -906,7 +960,7 @@ class _CRMPageState extends State<CRMPage> {
               ),
               const SizedBox(height: 12),
               _buildSearchAndFilterCard(),
-              const SizedBox(height: 36),
+              const SizedBox(height: 16),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: () => _loadLeads(forceRefresh: true),
@@ -920,6 +974,454 @@ class _CRMPageState extends State<CRMPage> {
       ),
     );
   }
+
+Widget _buildSummaryWidgets() {
+  // --- 1. Calculation Logic (Unchanged) ---
+  final totalLeadsCount = leads.length;
+  final totalSiteVisitsDone = siteVisits.where((v) => v.status.toLowerCase() == 'visit done').length;
+  final totalRevisitsDone = siteVisits.where((v) => v.status.toLowerCase() == 'revisit done').length;
+  
+  final Map<String, int> scheduledCountByLead = {};
+  int explicitRescheduled = 0;
+  int totalScheduled = 0;
+  
+  for (var v in siteVisits) {
+    final status = v.status.toLowerCase();
+    if (status == 'scheduled') {
+      totalScheduled++;
+      scheduledCountByLead[v.lead] = (scheduledCountByLead[v.lead] ?? 0) + 1;
+    } else if (status == 'rescheduled') {
+      explicitRescheduled++;
+    }
+  }
+  
+  int totalRescheduled = explicitRescheduled;
+  scheduledCountByLead.forEach((lead, count) {
+    if (count > 1) {
+      totalRescheduled += (count - 1);
+    }
+  });
+
+  final totalCancelledSiteVisits = siteVisits.where((v) => 
+    v.status.toLowerCase() == 'cancelled' || v.status.toLowerCase() == 'canceled'
+  ).length;
+
+  // --- 2. Chart Data Preparation ---
+  final List<PieChartSectionData> chartSections = [
+    if (totalScheduled > 0) _buildChartSection(totalScheduled, Colors.indigo, 'Scheduled'),
+    if (totalRescheduled > 0) _buildChartSection(totalRescheduled, Colors.deepPurple, 'Rescheduled'),
+    if (totalSiteVisitsDone > 0) _buildChartSection(totalSiteVisitsDone, Colors.green, 'Site Visits Done'),
+    if (totalRevisitsDone > 0) _buildChartSection(totalRevisitsDone, Colors.orange, 'Revisits Done'),
+    if (totalCancelledSiteVisits > 0) _buildChartSection(totalCancelledSiteVisits, Colors.red, 'Cancelled Visits'),
+  ];
+
+  if (chartSections.isEmpty) {
+    chartSections.add(_buildChartSection(1, Colors.grey.shade300, 'None'));
+  }
+
+  // --- 3. Compact UI Layout ---
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12.0),
+    child: Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16.0), // Reduced padding
+      child: Column(
+        mainAxisSize: MainAxisSize.min, // Tells column to take minimum vertical space
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Visit Overview',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Side-by-Side Layout to save vertical space
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // LEFT SIDE: Donut Chart
+              Expanded(
+                flex: 4,
+                child: SizedBox(
+                  height: 140, // Smaller height to prevent overflow
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      PieChart(
+                        PieChartData(
+                          pieTouchData: PieTouchData(
+                            touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                              if (!event.isInterestedForInteractions ||
+                                  pieTouchResponse == null ||
+                                  pieTouchResponse.touchedSection == null) {
+                                return;
+                              }
+                              final index = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                              if (index < 0 || index >= chartSections.length) return;
+                              
+                              final label = (chartSections[index] as dynamic).label as String?;
+                              if (label == null || label == 'None') return;
+
+                              if (event is FlTapUpEvent) {
+                                setState(() {
+                                  if (_selectedVisitFilter == label) {
+                                    _selectedVisitFilter = null;
+                                  } else {
+                                    _selectedVisitFilter = label;
+                                  }
+                                });
+                              }
+                            },
+                          ),
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 45, // Smaller hole
+                          sections: chartSections,
+                          startDegreeOffset: -90,
+                          borderData: FlBorderData(show: false),
+                        ),
+                      ),
+                      // Center Text
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            totalLeadsCount.toString(),
+                            style: const TextStyle(
+                              fontSize: 22, 
+                              fontWeight: FontWeight.bold,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Leads',
+                            style: TextStyle(
+                              fontSize: 11, 
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // RIGHT SIDE: Compact Legend
+              Expanded(
+                flex: 5,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildLegendRow(Icons.calendar_month_rounded, 'Scheduled', totalScheduled, Colors.indigo),
+                    _buildLegendRow(Icons.event_repeat_rounded, 'Rescheduled', totalRescheduled, Colors.deepPurple),
+                    _buildLegendRow(Icons.home_work_rounded, 'Site Visits Done', totalSiteVisitsDone, Colors.green),
+                    _buildLegendRow(Icons.repeat_rounded, 'Revisits Done', totalRevisitsDone, Colors.orange),
+                    _buildLegendRow(Icons.cancel_rounded, 'Cancelled Visits', totalCancelledSiteVisits, Colors.red),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// --- Helper Methods ---
+
+Widget _buildFollowUpSummaryWidgets() {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  // Filter follow-ups based on manager vs employee logic
+  // If the user is a manager, they might already have team follow-ups from LeadService.fetchMyFollowups
+  // if the backend implementation of get_team_followups_list handles it.
+  
+  final totalFollowUps = followUps.length;
+  final pendingAndOpen = followUps.where((f) => f.status?.toLowerCase() == 'open').length;
+  final completed = followUps.where((f) => f.status?.toLowerCase() == 'completed').length;
+  
+  final missed = followUps.where((f) {
+    if (f.status?.toLowerCase() != 'open') return false;
+    if (f.followUpDate == null) return false;
+    final fDate = DateTime.tryParse(f.followUpDate!);
+    if (fDate == null) return false;
+    return fDate.isBefore(now);
+  }).length;
+
+  final totalLeadsCount = leads.length;
+
+  // Chart Data
+  final List<PieChartSectionData> chartSections = [
+    if (pendingAndOpen > 0) _buildFollowUpChartSection(pendingAndOpen, Colors.blue, 'Open'),
+    if (completed > 0) _buildFollowUpChartSection(completed, Colors.green, 'Completed'),
+    if (missed > 0) _buildFollowUpChartSection(missed, Colors.red, 'Missed'),
+  ];
+
+  if (chartSections.isEmpty) {
+    chartSections.add(_buildFollowUpChartSection(1, Colors.grey.shade300, 'None'));
+  }
+
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 12.0),
+    child: Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Follow up Overview',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // LEFT SIDE: Donut Chart
+              Expanded(
+                flex: 4,
+                child: SizedBox(
+                  height: 140,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      PieChart(
+                        PieChartData(
+                          pieTouchData: PieTouchData(
+                            touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                              if (!event.isInterestedForInteractions ||
+                                  pieTouchResponse == null ||
+                                  pieTouchResponse.touchedSection == null) {
+                                return;
+                              }
+                              final index = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                              if (index < 0 || index >= chartSections.length) return;
+                              
+                              final label = (chartSections[index] as dynamic).label as String?;
+                              if (label == null || label == 'None') return;
+
+                              if (event is FlTapUpEvent) {
+                                setState(() {
+                                  if (_selectedFollowUpFilter == label) {
+                                    _selectedFollowUpFilter = null;
+                                  } else {
+                                    _selectedFollowUpFilter = label;
+                                  }
+                                });
+                              }
+                            },
+                          ),
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 45,
+                          sections: chartSections,
+                          startDegreeOffset: -90,
+                          borderData: FlBorderData(show: false),
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            totalFollowUps.toString(),
+                            style: const TextStyle(
+                              fontSize: 22, 
+                              fontWeight: FontWeight.bold,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Follow ups',
+                            style: TextStyle(
+                              fontSize: 10, 
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // RIGHT SIDE: Legend
+              Expanded(
+                flex: 5,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildFollowUpLegendRow(Icons.people_outline, 'My Leads', totalLeadsCount, Colors.orange),
+                    _buildFollowUpLegendRow(Icons.history, 'Total Count', totalFollowUps, Colors.blueGrey),
+                    _buildFollowUpLegendRow(Icons.pending_actions, 'Pending & Open', pendingAndOpen, Colors.blue),
+                    _buildFollowUpLegendRow(Icons.event_busy, 'Missed', missed, Colors.red),
+                    _buildFollowUpLegendRow(Icons.check_circle_outline, 'Completed', completed, Colors.green),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+PieChartSectionData _buildFollowUpChartSection(int value, Color color, String label) {
+  final bool isSelected = _selectedFollowUpFilter == label;
+  return _PieData(
+    label: label,
+    color: isSelected ? color.withOpacity(0.8) : color,
+    value: value.toDouble(),
+    title: '', 
+    radius: isSelected ? 22 : 16,
+  );
+}
+
+Widget _buildFollowUpLegendRow(IconData icon, String label, int count, Color color) {
+  final bool isSelected = _selectedFollowUpFilter == label;
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 6.0),
+    child: InkWell(
+      onTap: () {
+        setState(() {
+          if (_selectedFollowUpFilter == label) {
+            _selectedFollowUpFilter = null;
+          } else {
+            _selectedFollowUpFilter = label;
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12, 
+                  color: isSelected ? color : Colors.grey.shade800,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              count.toString(),
+              style: TextStyle(
+                fontSize: 13, 
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.bold,
+                color: isSelected ? color : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+PieChartSectionData _buildChartSection(int value, Color color, String label) {
+  final bool isSelected = _selectedVisitFilter == label;
+  return _PieData(
+    label: label,
+    color: isSelected ? color.withOpacity(0.8) : color,
+    value: value.toDouble(),
+    title: '', 
+    radius: isSelected ? 22 : 16, // Highlight selected section
+  );
+}
+
+Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
+  final bool isSelected = _selectedVisitFilter == label;
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8.0), // Tighter spacing
+    child: InkWell(
+      onTap: () {
+        setState(() {
+          if (_selectedVisitFilter == label) {
+            _selectedVisitFilter = null;
+          } else {
+            _selectedVisitFilter = label;
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label == 'Site Visits Done' ? 'Visits Done' : (label == 'Cancelled Visits' ? 'Cancelled' : label),
+                style: TextStyle(
+                  fontSize: 12, 
+                  color: isSelected ? color : Colors.grey.shade800,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              count.toString(),
+              style: TextStyle(
+                fontSize: 13, 
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.bold,
+                color: isSelected ? color : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
   Widget _buildSearchAndFilterCard() {
     final theme = Theme.of(context);
@@ -976,8 +1478,9 @@ class _CRMPageState extends State<CRMPage> {
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-                width: double.infinity,
+          Row(
+            children: [
+              Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
                     Navigator.push(
@@ -995,8 +1498,8 @@ class _CRMPageState extends State<CRMPage> {
                   icon: const FaIcon(FontAwesomeIcons.house, size: 14),
                   label: const Text('Add Site Visit'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF675D40), // bg color
-                    foregroundColor: Colors.white,             // text & icon color
+                    backgroundColor: const Color(0xFF675D40),
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1004,6 +1507,36 @@ class _CRMPageState extends State<CRMPage> {
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CreateFollowUpScreen(
+                          onFollowUpCreated: () {
+                            _loadLeads();
+                            _loadFollowUps();
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.history, size: 16),
+                  label: const Text('Follow Up'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2A2A2A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
 
           if (_hasActiveFilters()) ...[
             const SizedBox(height: 16),
@@ -1140,7 +1673,7 @@ class _CRMPageState extends State<CRMPage> {
       print('   [BUILD_LEADS] Lead $i: ${filteredLeads[i].name} - ${filteredLeads[i].customerName}');
     }
 
-    if (filteredLeads.isEmpty && _hasActiveFilters()) {
+    if (filteredLeads.isEmpty && (_hasActiveFilters() || _selectedVisitFilter != null)) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1170,10 +1703,20 @@ class _CRMPageState extends State<CRMPage> {
     }
 
     return ListView.builder(
-      itemCount: filteredLeads.length,
+      itemCount: filteredLeads.length + 1,
       itemBuilder: (context, index) {
-        print('🔍 [BUILD_LEADS] building item $index');
-        final lead = filteredLeads[index];
+        if (index == 0) {
+          return Column(
+            children: [
+              _buildSummaryWidgets(),
+              _buildFollowUpSummaryWidgets(),
+            ],
+          );
+        }
+        
+        final leadIndex = index - 1;
+        print('🔍 [BUILD_LEADS] building item $leadIndex');
+        final lead = filteredLeads[leadIndex];
         return GestureDetector(
           onTap: () async {
             final result = await Navigator.of(context).push(
@@ -1188,12 +1731,27 @@ class _CRMPageState extends State<CRMPage> {
             lead: lead,
             projects: projects,
             siteVisits: siteVisits, // Pass siteVisits here
+            followUps: followUps, // Pass followUps here
+            currentDesignation: currentDesignation,
             onCall: () => _showNumberSelectionDialog(context, lead, 'call'),
             onWhatsApp: () =>
                 _showNumberSelectionDialog(context, lead, 'whatsapp'),
-            onSiteVisit: () async {
-              await Navigator.push(
+            onFollowUp: () {
+              Navigator.push(
                 context,
+                MaterialPageRoute(
+                  builder: (context) => CreateFollowUpScreen(
+                    preselectedLeadId: lead.name,
+                    onFollowUpCreated: () {
+                      _loadLeads();
+                      _loadFollowUps();
+                    },
+                  ),
+                ),
+              );
+            },
+            onSiteVisit: () async {
+              await Navigator.push(                context,
                 MaterialPageRoute(
                   builder: (context) => CreateSiteVisitScreen(
                     preselectedLeadId: lead.name,
@@ -1222,18 +1780,41 @@ class _LeadCard extends StatelessWidget {
   final model_lead.Lead lead;
   final List<Project> projects;
   final List<SiteVisit> siteVisits; // Added siteVisits
+  final List<FollowUp> followUps; // Added followUps
   final VoidCallback onCall;
   final VoidCallback onWhatsApp;
   final VoidCallback onSiteVisit;
+  final VoidCallback onFollowUp;
+  final String? currentDesignation;
 
   const _LeadCard({
     required this.lead,
     required this.projects,
     required this.siteVisits, // Required
+    required this.followUps, // Required
     required this.onCall,
     required this.onWhatsApp,
     required this.onSiteVisit,
+    required this.onFollowUp,
+    this.currentDesignation,
   });
+
+  FollowUp? _getLatestFollowUpForLead(String leadName) {
+    final relevantFollowUps = followUps
+        .where((f) => f.leadId == leadName)
+        .toList();
+
+    if (relevantFollowUps.isEmpty) {
+      return null;
+    }
+
+    relevantFollowUps.sort((a, b) {
+      final dateTimeA = DateTime.tryParse(a.followUpDate ?? '') ?? DateTime(0);
+      final dateTimeB = DateTime.tryParse(b.followUpDate ?? '') ?? DateTime(0);
+      return dateTimeB.compareTo(dateTimeA); // Sort in descending order
+    });
+    return relevantFollowUps.first;
+  }
 
   SiteVisit? _getLatestSiteVisitForLead(String leadName) {
     final relevantVisits = siteVisits
@@ -1297,6 +1878,7 @@ class _LeadCard extends StatelessWidget {
         .projectName;
         
     final latestSiteVisit = _getLatestSiteVisitForLead(lead.name ?? '');
+    final latestFollowUp = _getLatestFollowUpForLead(lead.name ?? '');
 
     // Logic for Visit Done Date
     DateTime? visitDoneDate;
@@ -1415,6 +1997,11 @@ class _LeadCard extends StatelessWidget {
                     color: _getVisitStatusColor(latestSiteVisit.status),
                     isBold: true),
               ],
+              
+              if (latestFollowUp != null)
+                _leadDetailRow(context, Icons.event_note_rounded,
+                    'Follow up: ${_formatPostedDate(DateTime.tryParse(latestFollowUp.followUpDate ?? ''))} (${latestFollowUp.status})',
+                    color: Colors.orange.shade800),
             ],
           ),
 
@@ -1457,6 +2044,25 @@ class _LeadCard extends StatelessWidget {
                   icon: const FaIcon(FontAwesomeIcons.house, size: 14),
                   label: const Text(
                     "Site Visit",
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: onFollowUp,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2A2A2A),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: const Icon(Icons.history, size: 14),
+                  label: const Text(
+                    "Follow Up",
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                 ),
@@ -1842,7 +2448,7 @@ extension _LeadActions on _CRMPageState {
                       child: ElevatedButton(
                         onPressed: () async {
                           try {
-                            await _leadService.updateLead(lead.id ?? '', {
+                            await LeadService.updateLead(lead.id ?? '', {
                               'customer_name': nameController.text,
                               'customer_phone': phoneController.text,
                               'budget': numericBudget,
@@ -1927,7 +2533,7 @@ extension _LeadActions on _CRMPageState {
 
     if (confirmed == true) {
       try {
-        await _leadService.deleteLead(lead.id ?? '');
+        await LeadService.deleteLead(lead.id ?? '');
         _loadLeads(forceRefresh: true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2169,6 +2775,18 @@ class _LabeledMultiline extends StatelessWidget {
       ],
     );
   }
+}
+
+// Custom data class to carry label
+class _PieData extends PieChartSectionData {
+  final String label;
+  _PieData({
+    required this.label,
+    required double value,
+    required Color color,
+    required double radius,
+    String title = '',
+  }) : super(value: value, color: color, radius: radius, title: title);
 }
 
 

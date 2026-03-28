@@ -6,8 +6,14 @@ import '../../models/site_visit.dart';
 class SiteVisitDatabase {
   static const String tableName = 'site_visits';
   static Database? _database;
+  static Database? _testDatabase;
+
+  static void setDatabaseForTesting(Database? db) {
+    _testDatabase = db;
+  }
 
   static Future<Database> get database async {
+    if (_testDatabase != null) return _testDatabase!;
     if (_database != null) {
       return _database!;
     }

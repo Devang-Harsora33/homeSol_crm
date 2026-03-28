@@ -1,8 +1,12 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:meta/meta.dart';
 
 class AnalyticsService {
-  static final AnalyticsService _instance = AnalyticsService._internal();
+  static AnalyticsService _instance = AnalyticsService._internal();
   static AnalyticsService get instance => _instance;
+
+  @visibleForTesting
+  static set instance(AnalyticsService mock) => _instance = mock;
 
   late FirebaseAnalytics _analytics;
   late FirebaseAnalyticsObserver _observer;

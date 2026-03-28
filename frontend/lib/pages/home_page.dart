@@ -81,6 +81,25 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  @override
+  void didUpdateWidget(HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.userShift != oldWidget.userShift) {
+      _userShift = widget.userShift;
+      final buttonStates = _calculateButtonStates(_userShift, _attendanceStatus);
+      setState(() {
+        _isCheckInButtonEnabled = buttonStates['checkIn']!;
+        _isCheckOutButtonEnabled = buttonStates['checkOut']!;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   // --- Start of new method to fetch initial attendance status ---
   Future<void> _fetchAndSetInitialAttendanceStatus() async {
     if (widget.employeeId == null) return; // Ensure employeeId is available

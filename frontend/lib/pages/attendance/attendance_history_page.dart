@@ -42,7 +42,6 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
   List<String> _teamMembers = [];
   Map<String, Color> _userColorMap = {};
   String? _currentUser;
-  late LeadService _leadService; // Declare LeadService instance
 
   // ─── FILTER STATE VARIABLES ───
   String? _selectedFilterCategory; // 'Site Visits' or 'Follow-ups'
@@ -51,7 +50,6 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
   @override
   void initState() {
     super.initState();
-    _leadService = LeadService(); // Initialize LeadService
     _selectedDay = _focusedDay;
     _refreshData();
   }
@@ -211,7 +209,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
 
   Future<void> _fetchLeads() async {
     try {
-      await _leadService.syncMyLeads(); // Sync data from API to local DB
+      await LeadService.syncMyLeads(); // Sync data from API to local DB
       final List<Map<String, dynamic>> rawLeads = await LeadDatabase().getAllLeads();
       final leads = rawLeads.map((data) {
         final leadJson = json.decode(data['data']);

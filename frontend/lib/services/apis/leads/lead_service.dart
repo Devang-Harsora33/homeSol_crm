@@ -6,25 +6,21 @@ import '../../auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:Homesol/services/databases/lead_database.dart';
 import 'package:Homesol/services/databases/follow_up_database.dart';
-import 'package:Homesol/services/databases/channel_partner_database.dart'; // Added missing import
-import 'package:Homesol/services/databases/developer_database.dart'; // Added missing import
-import 'package:Homesol/services/databases/project_database.dart'; // Added missing import
-import 'package:Homesol/services/databases/site_visit_database.dart'; // Added missing import
-import 'package:Homesol/services/databases/sales_team_database.dart'; // Added missing import
-import 'package:Homesol/services/databases/user_profile_database.dart'; // Added missing import
+import 'package:Homesol/services/databases/channel_partner_database.dart';
+import 'package:Homesol/services/databases/developer_database.dart';
+import 'package:Homesol/services/databases/project_database.dart';
+import 'package:Homesol/services/databases/site_visit_database.dart';
+import 'package:Homesol/services/databases/sales_team_database.dart';
+import 'package:Homesol/services/databases/user_profile_database.dart';
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
 
 class LeadService {
   static String get baseUrl => AuthService.baseUrl;
   // Cache variables for leads
   static List<Lead>? _leadsCache;
   static DateTime? _leadsLastFetch;
-  final String _lastSyncTimestampKey = "last_sync_timestamp_leads";
+  static const String _lastSyncTimestampKey = "last_sync_timestamp_leads";
   static const String _lastSyncFollowupsTimestampKey = "last_sync_timestamp_followups";
-
-  // Client for instance methods (can be mocked)
-  final http.Client _client;
 
   // Static client for static methods (can be mocked for testing)
   static http.Client? _testClient;
@@ -34,8 +30,6 @@ class LeadService {
   static void setTestClient(http.Client? client) {
     _testClient = client;
   }
-
-LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initialize with provided client or a new one
 
   // Caches for dropdowns and users
   static List<String>? _campaignsCache;
@@ -50,11 +44,9 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
   static DateTime? _leadSourcesLastFetch;
   static List<Map<String, String>>? _usersWithIdCache;
   static DateTime? _usersWithIdLastFetch;
+
   static Future<Map<String, String>> _getHeaders() async {
     final cookie = await AuthService.getCookie();
-    // From the user request, the token is in the format `token YOUR_API_KEY:YOUR_API_SECRET`
-    // I will use the cookie for authentication as it is the existing convention.
-    // If this does not work, I will switch to the token-based authentication.
     final headers = <String, String>{'Content-Type': 'application/json'};
     if (cookie != null && cookie.isNotEmpty) {
       headers['Cookie'] = cookie;
@@ -397,7 +389,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     try {
       print('🔍 Fetching all leads from: $baseUrl/api/resource/Lead');
       final headers = await AuthService.getHeaders();
-      final url = Uri.parse('$baseUrl/api/resource/Lead');
+      final url = Uri.parse('$baseUrl/api/resource/Lead?limit_page_length=none');
       print('DEBUG: fetchAllLeads URL: $url');
       print('DEBUG: fetchAllLeads Headers: $headers');
       final response = await _httpClient.get(
@@ -483,7 +475,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
 
   // Update lead by ID (API and local DB)
-  Future<void> updateLead(String leadId, Map<String, dynamic> updates) async {
+  static Future<void> updateLead(String leadId, Map<String, dynamic> updates) async {
     try {
       // Clean updates before sending to API
       final cleanedUpdates = Map<String, dynamic>.from(updates);
@@ -501,7 +493,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       );
 
       final urlStr = '$baseUrl/api/resource/Lead/$leadId';
-      final response = await _client.put(
+      final response = await _httpClient.put(
         Uri.parse(urlStr),
         headers: await _getHeaders(),
         body: json.encode(cleanedUpdates),
@@ -523,19 +515,16 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
   }
 
   // Delete lead by ID (API and local DB)
-  Future<void> deleteLead(String leadId) async {
+  static Future<void> deleteLead(String leadId) async {
     try {
-      final response = await _client.delete(
+      final response = await _httpClient.delete(
         Uri.parse('$baseUrl/api/resource/Lead/$leadId'),
         headers: await _getHeaders(),
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         // If API delete is successful, delete from local DB
-        // Assuming LeadDatabase has a delete method
-        // You might need to add a deleteLead method to LeadDatabase
-        // For now, I'll simulate it by assuming it handles deletion
-        await LeadDatabase().deleteLead(leadId); // This method needs to be added
+        await LeadDatabase().deleteLead(leadId);
         print('Lead $leadId deleted successfully (API and local DB).');
       } else {
         throw Exception('Failed to delete lead $leadId on API: ${response.statusCode} - ${response.body}');
@@ -565,8 +554,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
       final headers = await AuthService.getHeaders();
       
-      // 3. Use POST (or GET) depending on your setup. 
-      // POST is often safer for custom methods to avoid caching issues.
       final url = uri;
       print('DEBUG: fetchMyLeads URL: $url');
       print('DEBUG: fetchMyLeads Headers: $headers');
@@ -578,7 +565,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         
-        // 4. CRITICAL CHANGE: Custom APIs return data in 'message', not 'data'
         if (responseData.containsKey('message') && responseData['message'] is List) {
            final List<dynamic> jsonData = responseData['message'];
            print('📊 [EMULATOR] Leads found: ${jsonData.length}');
@@ -603,7 +589,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     }
   }
 
-  Future<void> syncMyLeads() async {
+  static Future<void> syncMyLeads() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     String lastSyncTimestamp =
         prefs.getString(_lastSyncTimestampKey) ?? "2000-01-01 00:00:00";
@@ -620,7 +606,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     print('Requesting URL: $uri');
 
     try {
-      final response = await _client.get(uri, headers: await _getHeaders()); // Use the injected client
+      final response = await _httpClient.get(uri, headers: await _getHeaders());
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = json.decode(response.body);
@@ -628,7 +614,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
 
         if (message.isEmpty) {
                   print('No new leads to sync for upserting.');
-                  // Even if no new leads to upsert, we still need to check for deletions.
                 }
           
                 final LeadDatabase leadDatabase = LeadDatabase();
@@ -638,8 +623,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
                 final Set<String> localLeadNames = localLeadsRaw.map((e) => e['name'].toString()).toSet();
           
                 // Step 2: Get all active server lead IDs
-                // Using fetchAllLeads() to get all current leads from the server for comparison.
-                // This assumes fetchAllLeads() returns ALL leads, not just team leads.
                 final List<Lead> serverLeads = await LeadService.fetchAllLeads();
                 final Set<String> serverLeadNames = serverLeads.map((e) => e.name).where((name) => name != null).cast<String>().toSet();
           
@@ -657,7 +640,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
                 DateTime latestModifiedDate = DateTime.parse(lastSyncTimestamp + 'Z');
           
                 for (var leadJson in message) {
-                    // Ensure leadJson is a Map<String, dynamic>
                     if (leadJson is Map<String, dynamic>) {
                       await leadDatabase.upsertLead(leadJson);
           
@@ -669,12 +651,8 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
                     }
                   }
           
-        // Save the new latest modified timestamp
-        // Frappe timestamps can have microseconds, so we need to format correctly
         String formattedTimestamp = latestModifiedDate.toIso8601String();
-        // Remove 'T' and 'Z'
         formattedTimestamp = formattedTimestamp.replaceAll('T', ' ').replaceAll('Z', '');
-        // Ensure 6 digits for microseconds, padding with zeros if necessary
         List<String> parts = formattedTimestamp.split('.');
         if (parts.length > 1) {
           String microseconds = parts[1];
@@ -685,7 +663,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
           }
           formattedTimestamp = '${parts[0]}.$microseconds';
         } else {
-          // No microseconds part, add .000000
           formattedTimestamp = '$formattedTimestamp.000000';
         }
         final String newLastSyncTimestamp = formattedTimestamp;
@@ -746,7 +723,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
         'Fetching team followups for lead $leadId from: ${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
       );
       final headers = await AuthService.getHeaders();
-      // Construct the URI with the lead_id as a query parameter
       final uri = Uri.parse(
         '${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
       ).replace(queryParameters: {'lead_id': leadId});
@@ -785,9 +761,7 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     }
   }
 
-  // New method to fetch all follow-ups for the authenticated user/team
   static Future<List<FollowUp>> fetchMyFollowups({bool forceRefresh = false}) async {
-    // Load from local database first
     try {
       final cachedFollowups = await FollowUpDatabase.getAllFollowUps();
       if (cachedFollowups.isNotEmpty && !forceRefresh) {
@@ -798,7 +772,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       print('Error loading from database: $e');
     }
 
-    // Sync from API if DB is empty or forceRefresh is true
     return await syncMyFollowups(forceRefresh: forceRefresh);
   }
 
@@ -811,12 +784,10 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
         'Syncing all followups from: ${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
       );
       final headers = await AuthService.getHeaders();
-      // No lead_id parameter, so it should fetch all for the team/user
       final uri = Uri.parse(
         '${AuthService.baseUrl}/api/method/homesol_app.api.get_team_followups_list',
       );
 
-      // Build request body with timestamp filter
       final Map<String, dynamic> filters = {};
       if (lastSyncTimestamp != null && !forceRefresh) {
         filters['filters'] = [["modified", ">", lastSyncTimestamp]];
@@ -836,40 +807,32 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       print('All followups response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        // --- Deletion Handling Start ---
         final FollowUpDatabase followUpDatabase = FollowUpDatabase();
 
-        // Step 1: Get all local Follow-up IDs
         final List<FollowUp> localFollowups = await FollowUpDatabase.getAllFollowUps();
         final Set<String> localFollowupNames = localFollowups.map((f) => f.name).toSet();
 
-        // Step 2: Get all active server Follow-up IDs
         final List<String> serverFollowupNamesList = await fetchFollowupNamesFromServer();
         final Set<String> serverFollowupNames = serverFollowupNamesList.toSet();
 
-        // Step 3: Identify follow-ups to delete locally
         final List<String> followupsToDelete = localFollowupNames
             .where((name) => !serverFollowupNames.contains(name))
             .toList();
 
-        // Step 4: Delete identified follow-ups from local database
         for (final followupName in followupsToDelete) {
           await FollowUpDatabase.deleteFollowUp(followupName);
           print('Deleted local follow-up: $followupName (no longer on server)');
         }
-        // --- Deletion Handling End ---
 
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final List<dynamic> jsonData = responseData['message'] ?? [];
         print('All followups JSON data: $jsonData');
         final followups = jsonData.map((json) => FollowUp.fromJson(json)).toList();
 
-        // Store in database
         for (final followup in followups) {
           await FollowUpDatabase.upsertFollowUp(followup);
         }
 
-        // Update last sync timestamp
         final now = DateTime.now();
         final formattedTimestamp =
             '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}.${now.microsecond.toString().padLeft(6, '0')}';
@@ -956,7 +919,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       print('Update follow-up response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        // Assuming a 200 status code indicates success for updates
         return true;
       } else {
         print('❌ Failed to update follow-up: ${response.statusCode} - ${response.body}');
@@ -981,7 +943,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
       final owner = userData?['email'] ?? 'Administrator';
 
       final body = {
-        // 'naming_series': 'CRM-LEAD-.YYYY.-', // Frappe will handle this if not provided or if auto-name is set
         'lead_owner': owner,
         'status': 'Lead',
         'custom_lead_status': 'New Lead',
@@ -1028,7 +989,6 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     }
   }
 
-  // Helper to fetch all followup names from server for deletion comparison
   static Future<List<String>> fetchFollowupNamesFromServer() async {
     try {
       final headers = await AuthService.getHeaders();
@@ -1054,11 +1014,59 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     }
   }
 
-  // New method to clear all caches and local storage related to sync functions
+  static Future<List<Lead>> getLeadsByChannelPartner(String partnerId) async {
+    try {
+      final List<Map<String, dynamic>> rawLeads = await LeadDatabase().getAllLeads();
+      return rawLeads.map((data) {
+        final leadJson = json.decode(data['data']);
+        return Lead.fromJson(leadJson);
+      }).where((lead) => lead.customChannelPartner == partnerId).toList();
+    } catch (e) {
+      print('Error getting leads by channel partner: $e');
+      return [];
+    }
+  }
+
+  static Future<String?> createFollowup(Map<String, dynamic> body) async {
+    try {
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.crm.create_followup');
+      final response = await _httpClient.post(
+        url,
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      print('Create Follow-up response status: ${response.statusCode}');
+      print('Create Follow-up response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return null;
+      } else {
+        String message = 'Failed to create follow-up (${response.statusCode})';
+        try {
+          final data = jsonDecode(response.body);
+          if (data['message'] != null) {
+            message = data['message'].toString();
+          } else if (data['_server_messages'] != null) {
+             final List<dynamic> serverMsgs = jsonDecode(data['_server_messages']);
+             if (serverMsgs.isNotEmpty) {
+               final Map<String, dynamic> firstMsg = jsonDecode(serverMsgs[0]);
+               message = firstMsg['message'] ?? message;
+             }
+          }
+        } catch (_) {}
+        return message.split('\n').first;
+      }
+    } catch (e) {
+      print('❌ General exception caught: $e');
+      return 'Connection error. Please try again.';
+    }
+  }
+
   static Future<void> clearAllCaches() async {
     print('Clearing all sync-related caches...');
 
-    // Clear LeadService static caches
     _leadsCache = null;
     _leadsLastFetch = null;
     _campaignsCache = null;
@@ -1074,12 +1082,10 @@ LeadService({http.Client? client}) : _client = client ?? http.Client(); // Initi
     _usersWithIdCache = null;
     _usersWithIdLastFetch = null;
 
-    // Clear SharedPreferences entries
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove("last_sync_timestamp_leads"); 
+    await prefs.remove(_lastSyncTimestampKey); 
     await prefs.remove(_lastSyncFollowupsTimestampKey);
 
-    // Clear local databases
     await LeadDatabase().deleteAllLeads();
     await FollowUpDatabase.deleteAllFollowUps();
     await ChannelPartnerDatabase().deleteAllChannelPartners();

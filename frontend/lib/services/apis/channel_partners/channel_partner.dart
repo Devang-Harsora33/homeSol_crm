@@ -19,20 +19,30 @@ class ChannelPartnerService {
   // Sync channel partners from API and store in local database
   static Future<List<ChannelPartner>> syncChannelPartners({bool forceRefresh = false}) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (forceRefresh) {
+      await prefs.remove(_lastSyncTimestampKey);
+    }
+
+    final ChannelPartnerDatabase partnerDb = ChannelPartnerDatabase();
+    final List<Map<String, dynamic>> localPartnersRaw = await partnerDb.getAllChannelPartners();
+    final bool isInitialSync = localPartnersRaw.isEmpty;
+
     String lastSyncTimestamp =
         prefs.getString(_lastSyncTimestampKey) ?? "2000-01-01 00:00:00";
 
-    print('Last sync timestamp for channel partners: $lastSyncTimestamp');
+    print('Syncing channel partners. Initial sync: $isInitialSync, Force refresh: $forceRefresh, Last sync: $lastSyncTimestamp');
 
-    // Encode the filter to be URL-safe
-    final String filters = Uri.encodeQueryComponent(
-      json.encode([
+    // If it's initial sync or force refresh, we fetch everything without filters
+    String filtersParam = "";
+    if (!isInitialSync && !forceRefresh) {
+      final String filters = json.encode([
         ["modified", ">", lastSyncTimestamp]
-      ]),
-    );
+      ]);
+      filtersParam = "&filters=${Uri.encodeQueryComponent(filters)}";
+    }
 
     final Uri uri = Uri.parse(
-        '$baseUrl/api/resource/Channel%20Partner?fields=["name"]&filters=$filters');
+        '$baseUrl/api/resource/Channel%20Partner?fields=["name"]$filtersParam&limit_page_length=none');
     print('Requesting URL: $uri');
 
     try {
@@ -45,16 +55,15 @@ class ChannelPartnerService {
         final Map<String, dynamic> responseBody = json.decode(response.body);
         final List<dynamic> items = responseBody['data'] ?? [];
 
-        final ChannelPartnerDatabase partnerDb = ChannelPartnerDatabase();
-
         // Step 1: Get all local Channel Partner IDs
-        final List<Map<String, dynamic>> localPartnersRaw = await partnerDb.getAllChannelPartners();
         final Set<String> localPartnerNames = localPartnersRaw.map((e) => e['name'].toString()).toSet();
 
         // Step 2: Get all active server Channel Partner IDs
         final List<String> serverPartnerNamesList = await fetchChannelPartnerNamesFromServer();
         final Set<String> serverPartnerNames = serverPartnerNamesList.toSet();
 
+        print('Local partners: ${localPartnerNames.length}, Server partners: ${serverPartnerNames.length}, New/Modified items: ${items.length}');
+        
         // Step 3: Identify partners to delete locally
         final List<String> partnersToDelete = localPartnerNames
             .where((name) => !serverPartnerNames.contains(name))
@@ -66,7 +75,7 @@ class ChannelPartnerService {
           print('Deleted local channel partner: $partnerName (no longer on server)');
         }
 
-        if (items.isEmpty) {
+        if (items.isEmpty && !isInitialSync && !forceRefresh) {
           print('No new channel partners to sync.');
           // Return existing partners from database (after potential deletions)
           final List<Map<String, dynamic>> rawPartners =
@@ -77,12 +86,30 @@ class ChannelPartnerService {
           }).toList();
         }
 
-        DateTime latestModifiedDate = DateTime.parse(lastSyncTimestamp + 'Z');
+        DateTime latestModifiedDate;
+        try {
+          String isoTimestamp = lastSyncTimestamp.replaceAll(' ', 'T');
+          if (!isoTimestamp.contains('Z') && !isoTimestamp.contains('+')) {
+            isoTimestamp += 'Z';
+          }
+          latestModifiedDate = DateTime.parse(isoTimestamp);
+        } catch (e) {
+          print('Error parsing lastSyncTimestamp: $e');
+          latestModifiedDate = DateTime.parse("2000-01-01T00:00:00Z");
+        }
 
         // Fetch full details for each channel partner
         final List<Future<ChannelPartner>> futures = [];
         for (final item in items) {
           futures.add(fetchChannelPartner(item['name']));
+        }
+
+        if (futures.isEmpty && isInitialSync && serverPartnerNames.isNotEmpty) {
+           // Fallback: If for some reason items is empty but server has partners during initial sync
+           print('Fallback: Fetching all server partners individually');
+           for (final name in serverPartnerNames) {
+             futures.add(fetchChannelPartner(name));
+           }
         }
 
         List<ChannelPartner> partners;
@@ -132,7 +159,12 @@ class ChannelPartnerService {
         await prefs.setString(_lastSyncTimestampKey, newLastSyncTimestamp);
         print('Channel partners synced successfully. New last sync timestamp: $newLastSyncTimestamp');
 
-        return partners;
+        // After sync, return ALL partners from local DB to ensure we have the full list
+        final List<Map<String, dynamic>> allRawPartners = await partnerDb.getAllChannelPartners();
+        return allRawPartners.map((data) {
+          final partnerJson = json.decode(data['data']);
+          return ChannelPartner.fromJson(partnerJson);
+        }).toList();
       } else {
         print('Failed to load channel partners: ${response.statusCode}');
         print('Response body: ${response.body}');
@@ -163,7 +195,7 @@ class ChannelPartnerService {
       final headers = await _getHeaders();
       final response = await http.get(
         Uri.parse(
-          '${AuthService.baseUrl}/api/resource/Channel%20Partner?fields=["name"]',
+          '${AuthService.baseUrl}/api/resource/Channel%20Partner?fields=["name"]&limit_page_length=none',
         ),
         headers: headers,
       );

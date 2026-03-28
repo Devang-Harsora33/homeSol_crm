@@ -34,3 +34,12 @@ Follow these steps to get the project up and running on your local machine:
     ```
     This command will launch the application on your selected device or emulator.
 
+## Testing
+
+Comprehensive testing documentation, including the mockable service architecture and instructions for running tests, can be found in [TESTING.md](TESTING.md).
+
+To run the full test suite:
+```bash
+flutter test
+```
+

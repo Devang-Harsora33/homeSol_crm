@@ -273,7 +273,16 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
       _text('firm_name', 'Firm Name', (v) => _formData['firm_name'] = v,
           required: true),
       _text('email', 'Email', (v) => _formData['email'] = v,
-          required: true, type: TextInputType.emailAddress),
+          required: true,
+          type: TextInputType.emailAddress,
+          validator: (value) {
+            if (value == null || value.isEmpty) return 'Required';
+            final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+            if (!emailRegex.hasMatch(value)) {
+              return 'Enter a valid email address (e.g., name@example.com)';
+            }
+            return null;
+          }),
       _text('mobile_number', 'Mobile Number', (v) => _formData['mobile_number'] = v,
           required: true, type: TextInputType.phone),
       _text('rera_number', 'RERA Number', (v) => _formData['rera_number'] = v),
@@ -281,12 +290,12 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
         setState(() {
           _formData['category'] = v;
         });
-      }),
+      }, required: true),
       _dropdown('territory', 'Territory', _territories, (v) {
         setState(() {
           _formData['territory'] = v;
         });
-      }, isLoading: _isFetchingTerritories),
+      }, isLoading: _isFetchingTerritories, required: true),
     ]);
   }
 
@@ -336,7 +345,15 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
               _text('email_$index', 'Email', (v) {},
                   initialValue: _contactPersons[index]['email'],
                   onChanged: (v) => _contactPersons[index]['email'] = v,
-                  type: TextInputType.emailAddress),
+                  type: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return null;
+                    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                    if (!emailRegex.hasMatch(value)) {
+                      return 'Enter a valid email address';
+                    }
+                    return null;
+                  }),
             ]);
           },
         ),
@@ -646,6 +663,7 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
     TextEditingController? controller,
     Function(String)? onChanged,
     String? initialValue,
+    String? Function(String?)? validator,
   }) {
     return TextFormField(
       key: ValueKey(keyName),
@@ -657,7 +675,7 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
         labelText: label,
         labelStyle: TextStyle(color: Colors.grey.shade600),
       ),
-      validator: required ? (v) => v!.isEmpty ? 'Required' : null : null,
+      validator: validator ?? (required ? (v) => v!.isEmpty ? 'Required' : null : null),
       onSaved: onSave,
       onChanged: onChanged ?? (val) {
         if (controller == null) _formData[keyName] = val;
@@ -671,6 +689,7 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
     List<String> items,
     Function(String?) onChange, {
     bool isLoading = false,
+    bool required = false,
   }) {
     return DropdownButtonFormField<String>(
       key: ValueKey(keyName),
@@ -696,6 +715,7 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
           ),
         );
       }).toList(),
+      validator: required ? (v) => (v == null || v.isEmpty) ? 'Required' : null : null,
       onChanged: isLoading ? null : onChange,
       onSaved: onChange,
     );
@@ -766,6 +786,33 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
                 onPressed: _isLoading ? null : () {
                   if (_formKey.currentState!.validate()) {
                     _formKey.currentState!.save();
+                    
+                    // Custom validation for specific steps
+                    if (_step == 2) { // Contacts step
+                      if (_contactPersons.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please add at least one contact person.')),
+                        );
+                        return;
+                      }
+                    }
+
+                    if (_step == 3) { // Documents & Flags step
+                      final flags = [
+                        'is_digital', 'is_reference', 'is_data_calling', 'is_retail',
+                        'is_under_construction', 'is_rental', 'is_ready_to_move',
+                        'req_calling_support', 'req_digital_kit', 'req_standees',
+                        'req_sms_blast', 'req_whatsapp_blast',
+                      ];
+                      bool anyFlag = flags.any((flag) => _formData[flag] == 1);
+                      if (!anyFlag) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select at least one flag.')),
+                        );
+                        return;
+                      }
+                    }
+
                     if (_step < 3) {
                       setState(() => _step++);
                       _scrollToTop();

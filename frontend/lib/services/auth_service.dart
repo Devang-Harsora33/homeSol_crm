@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:Homesol/services/apis/leads/lead_service.dart';
 import '../models/profile.dart';
 
 class AuthService {
@@ -237,6 +238,14 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(cookieKey);
     await prefs.remove(userKey);
+    
+    // Clear all local caches on logout
+    try {
+      await LeadService.clearAllCaches();
+    } catch (e) {
+      print('AuthService: Error clearing caches on logout: $e');
+    }
+
     // Optional: Notify server to clear session
     try {
       await http.get(Uri.parse('$baseUrl/api/method/logout'));

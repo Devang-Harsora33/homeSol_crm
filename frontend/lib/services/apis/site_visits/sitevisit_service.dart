@@ -5,10 +5,6 @@ import 'package:Homesol/services/databases/site_visit_database.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-
-
-
-
 class SiteVisitService {
   static String get baseUrl => AuthService.baseUrl;
   static const String _lastSyncTimestampKey = "last_sync_timestamp_site_visits";
@@ -146,43 +142,43 @@ class SiteVisitService {
   }
 
   static Future<String?> createSiteVisit(Map<String, dynamic> body) async {
-      try {
-        final headers = await _getHeaders();
-        final url = Uri.parse('${AuthService.baseUrl}/api/resource/Site%20Visit');
-        final response = await http.post(
-          url,
-          headers: headers,
-          body: jsonEncode(body),
-        );
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse('${AuthService.baseUrl}/api/resource/Site%20Visit');
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode(body),
+      );
 
-        print('Create Site Visit response status: ${response.statusCode}');
-        print('Create Site Visit response body: ${response.body}');
+      print('Create Site Visit response status: ${response.statusCode}');
+      print('Create Site Visit response body: ${response.body}');
 
-        if (response.statusCode == 200) {
-          final Map<String, dynamic> responseData = json.decode(response.body);
-          if (responseData.containsKey('message')) {
-            // Frappe often puts success/error details in 'message' field
-            final message = responseData['message'];
-            if (message is String && message.toLowerCase().contains('error')) {
-              return message;
-            }
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        if (responseData.containsKey('message')) {
+          // Frappe often puts success/error details in 'message' field
+          final message = responseData['message'];
+          if (message is String && message.toLowerCase().contains('error')) {
+            return message;
           }
-          // Assuming 200 with no explicit 'error' in message means success
-          return null;
-        } else {
-          return 'Failed to create site visit. Status: ${response.statusCode} - ${response.body}';
         }
-      } on http.ClientException catch (e) {
-        print('❌ ClientException caught: $e');
-        return 'Network error: $e';
-      } on FormatException catch (e) {
-        print('❌ FormatException caught: $e');
-        return 'Invalid response format from server: $e';
-      } catch (e) {
-        print('❌ General exception caught: $e');
-        return 'An unexpected error occurred: $e';
+        // Assuming 200 with no explicit 'error' in message means success
+        return null;
+      } else {
+        return 'Failed to create site visit. Status: ${response.statusCode} - ${response.body}';
       }
+    } on http.ClientException catch (e) {
+      print('❌ ClientException caught: $e');
+      return 'Network error: $e';
+    } on FormatException catch (e) {
+      print('❌ FormatException caught: $e');
+      return 'Invalid response format from server: $e';
+    } catch (e) {
+      print('❌ General exception caught: $e');
+      return 'An unexpected error occurred: $e';
     }
+  }
 
   static Future<List<SiteVisit>> fetchMySiteVisits({bool forceRefresh = false}) async {
     // Load from local database first
@@ -265,7 +261,4 @@ class SiteVisitService {
       return await SiteVisitDatabase.getAllSiteVisits();
     }
   }
-  
-
-
 }

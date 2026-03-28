@@ -5,6 +5,7 @@ import 'dart:convert';
 class ProjectDatabase {
   static final ProjectDatabase _instance = ProjectDatabase._internal();
   static Database? _database;
+  static Database? _testDatabase;
 
   factory ProjectDatabase() {
     return _instance;
@@ -12,7 +13,12 @@ class ProjectDatabase {
 
   ProjectDatabase._internal();
 
+  static void setDatabaseForTesting(Database? db) {
+    _testDatabase = db;
+  }
+
   Future<Database> get database async {
+    if (_testDatabase != null) return _testDatabase!;
     if (_database != null) return _database!;
     _database = await _initDb();
     return _database!;

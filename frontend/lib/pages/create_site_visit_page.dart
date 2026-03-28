@@ -68,7 +68,6 @@ class CreateSiteVisitScreen extends StatefulWidget {
 class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
-  late LeadService _leadService; // Declare LeadService instance
 
   // Form field values
   String? _selectedLead;
@@ -132,7 +131,6 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
   @override
   void initState() {
     super.initState();
-    _leadService = LeadService(); // Initialize LeadService
     _selectedDateTime = DateTime.now();
     _dateController.text = DateFormat(
       'yyyy-MM-dd HH:mm:ss',
@@ -488,7 +486,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
     });
 
     try {
-      await _leadService.syncMyLeads(); // Sync data from API to local DB
+      await LeadService.syncMyLeads(); // Sync data from API to local DB
 
       final List<Map<String, dynamic>> rawLeads = await LeadDatabase().getAllLeads();
       final List<model_lead.Lead> leads = rawLeads.map((data) {
@@ -674,7 +672,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
             "custom_remark": _leadRemarkController.text,
           };
           
-          await _leadService.updateLead(_selectedLead!, leadUpdates);
+          await LeadService.updateLead(_selectedLead!, leadUpdates);
           print('Lead updated successfully with missing fields.');
         }
 

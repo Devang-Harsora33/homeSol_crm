@@ -1258,7 +1258,16 @@ Widget _buildResidenceTypeButtons() {
             'email_id',
             'Email',
             (v) => _formData['email_id'] = v,
+            required: false,
             type: TextInputType.emailAddress,
+            validator: (value) {
+              if (value == null || value.isEmpty) return null;
+              final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+              if (!emailRegex.hasMatch(value)) {
+                return 'Enter a valid email address (e.g., name@example.com)';
+              }
+              return null;
+            },
           ),
           _dropdown(
             'custom_preferred_contact_method',
@@ -1454,6 +1463,7 @@ Widget _buildResidenceTypeButtons() {
                     _formData['qualified_by'] = val as Map<String, String>?,
                 displayKey: 'name',
                 valueKey: 'id',
+                readOnly: true,
               ),
             ]),
           ],

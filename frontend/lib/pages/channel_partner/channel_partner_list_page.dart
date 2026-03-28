@@ -1,5 +1,7 @@
 import 'package:Homesol/models/channel_partner.dart';
 import 'package:Homesol/services/apis/channel_partners/channel_partner.dart';
+import 'package:Homesol/services/apis/leads/lead_service.dart';
+import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -52,23 +54,42 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
     });
   }
 
-  Future<void> _fetchChannelPartners() async {
+  Future<void> _fetchChannelPartners({bool forceRefresh = false}) async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
     try {
-      final partners = await ChannelPartnerService.fetchAllChannelPartners();
-      setState(() {
-        _channelPartners = partners;
-        _filteredPartners = partners;
-        _isLoading = false;
-      });
+      // Sync Leads and Site Visits as requested, but don't let them block channel partners if they fail
+      try {
+        await LeadService.syncMyLeads().timeout(const Duration(seconds: 10));
+      } catch (e) {
+        print('Lead sync failed during CP fetch: $e');
+      }
+      
+      try {
+        await SiteVisitService.fetchMySiteVisits(forceRefresh: forceRefresh).timeout(const Duration(seconds: 10));
+      } catch (e) {
+        print('Site visit sync failed during CP fetch: $e');
+      }
+      
+      final partners = await ChannelPartnerService.fetchAllChannelPartners(forceRefresh: forceRefresh);
+      if (mounted) {
+        setState(() {
+          _channelPartners = partners;
+          _filteredPartners = partners;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Failed to load channel partners. Please swipe down to refresh.";
+          _isLoading = false;
+        });
+      }
+      print('Error fetching channel partners: $e');
     }
   }
 
@@ -84,6 +105,13 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
         centerTitle: true,
         backgroundColor: isDark ? Colors.grey[850] : Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh Channel Partners',
+            onPressed: () => _fetchChannelPartners(forceRefresh: true),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {

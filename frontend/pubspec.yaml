@@ -58,6 +58,7 @@ dependencies:
   flutter_staggered_animations: ^1.1.1
   audioplayers: ^6.1.0
   flutter_dotenv: ^6.0.0
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:

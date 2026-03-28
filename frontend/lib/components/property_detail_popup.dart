@@ -12,6 +12,7 @@ import '../models/developer.dart';
 // import 'add_enquiry_sheet.dart';
 import '../utils.dart';
 import '../pages/crm/lead_creation_page.dart';
+import 'live_inventory_matrix.dart';
 
 class PropertyDetailPopup extends StatefulWidget {
   final Project project;
@@ -425,10 +426,12 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
                           const SizedBox(height: 30),
                           _buildSectionTitle('Documents'),
                           _buildDocumentsList(),
-
                         ],
+                        const SizedBox(height: 30),
+                        _buildSectionTitle('Inventory Matrix'),
+                        LiveInventoryMatrix(projectId: widget.project.id),
                         const SizedBox(height: 24),
-                        _buildSystemInfoCard(), // <--- NEW SYSTEM INFO
+                        _buildSystemInfoCard(), 
                         const SizedBox(height: 40), // Bottom padding
                       ],
                     ),

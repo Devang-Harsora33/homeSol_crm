@@ -5,10 +5,6 @@ import 'package:Homesol/services/databases/user_profile_database.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-
-
-
-
 class UserService {
   static String get baseUrl => AuthService.baseUrl;
   static const String _lastSyncTimestampKey = "last_sync_timestamp_user_profile";
