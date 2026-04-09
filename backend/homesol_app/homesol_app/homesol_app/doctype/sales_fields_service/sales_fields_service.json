@@ -1,0 +1,268 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:SFS-{YYYY}-{#####}",
+ "creation": "2026-04-09 11:37:25.840410",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_rgot",
+  "amended_from",
+  "sales_partner",
+  "contact_person_met",
+  "mobile_number",
+  "whatsapp_number",
+  "column_break_pciy",
+  "visit_status",
+  "visit_date",
+  "remark",
+  "classifications_section",
+  "work_type",
+  "digital",
+  "reference",
+  "data_calling",
+  "column_break_lfcb",
+  "business_mode",
+  "retail",
+  "under_construction",
+  "rental",
+  "ready_to_move",
+  "column_break_wcrc",
+  "cp_requirement",
+  "calling_support",
+  "digital_kit",
+  "standees",
+  "sms_blast",
+  "whatsapp_blast",
+  "geolocation_section",
+  "location",
+  "get_current_location",
+  "address"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_rgot",
+   "fieldtype": "Section Break",
+   "label": "General Information"
+  },
+  {
+   "fieldname": "sales_partner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sales Partner",
+   "no_copy": 1,
+   "options": "Channel Partner",
+   "print_hide": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "visit_status",
+   "fieldtype": "Select",
+   "label": "Visit Status",
+   "options": "\nInterested\nNot Interested"
+  },
+  {
+   "default": "Now",
+   "fieldname": "visit_date",
+   "fieldtype": "Datetime",
+   "label": "Visit Date"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Sales Fields Service",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "contact_person_met",
+   "fieldtype": "Select",
+   "label": "Contact Person Met"
+  },
+  {
+   "fieldname": "mobile_number",
+   "fieldtype": "Data",
+   "label": "Mobile Number"
+  },
+  {
+   "fieldname": "whatsapp_number",
+   "fieldtype": "Data",
+   "label": "Whatsapp Number"
+  },
+  {
+   "fieldname": "column_break_pciy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "label": "Remark"
+  },
+  {
+   "fieldname": "classifications_section",
+   "fieldtype": "Section Break",
+   "label": "Classifications"
+  },
+  {
+   "fieldname": "work_type",
+   "fieldtype": "Heading",
+   "label": "Work Type"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.is_digital",
+   "fieldname": "digital",
+   "fieldtype": "Check",
+   "label": "Digital"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.is_reference",
+   "fieldname": "reference",
+   "fieldtype": "Check",
+   "label": " Reference"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.is_data_calling",
+   "fieldname": "data_calling",
+   "fieldtype": "Check",
+   "label": "Data Calling"
+  },
+  {
+   "fieldname": "column_break_lfcb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "business_mode",
+   "fieldtype": "Heading",
+   "label": "Business Mode"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.is_retail",
+   "fieldname": "retail",
+   "fieldtype": "Check",
+   "label": "Retail"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.is_under_construction",
+   "fieldname": "under_construction",
+   "fieldtype": "Check",
+   "label": "Under Construction"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.is_rental",
+   "fieldname": "rental",
+   "fieldtype": "Check",
+   "label": " Rental"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.is_ready_to_move",
+   "fieldname": "ready_to_move",
+   "fieldtype": "Check",
+   "label": "Ready to Move"
+  },
+  {
+   "fieldname": "column_break_wcrc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cp_requirement",
+   "fieldtype": "Heading",
+   "label": "CP Requirement"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.req_calling_support",
+   "fieldname": "calling_support",
+   "fieldtype": "Check",
+   "label": "Calling Support"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.req_digital_kit",
+   "fieldname": "digital_kit",
+   "fieldtype": "Check",
+   "label": "Digital Kit"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.req_standees",
+   "fieldname": "standees",
+   "fieldtype": "Check",
+   "label": "Standees"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.req_sms_blast",
+   "fieldname": "sms_blast",
+   "fieldtype": "Check",
+   "label": "SMS Blast"
+  },
+  {
+   "default": "0",
+   "fetch_from": "sales_partner.req_whatsapp_blast",
+   "fieldname": "whatsapp_blast",
+   "fieldtype": "Check",
+   "label": "WhatsApp Blast"
+  },
+  {
+   "fieldname": "geolocation_section",
+   "fieldtype": "Section Break",
+   "label": "Geolocation"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Geolocation",
+   "label": "Location"
+  },
+  {
+   "fieldname": "get_current_location",
+   "fieldtype": "Button",
+   "label": "Get Current Location"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Data",
+   "label": "Address"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-04-09 12:32:07.078769",
+ "modified_by": "Administrator",
+ "module": "Homesol App",
+ "name": "Sales Fields Service",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

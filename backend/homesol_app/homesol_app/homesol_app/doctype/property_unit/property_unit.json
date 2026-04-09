@@ -10,8 +10,7 @@
   "project",
   "floor_number",
   "flat_no",
-  "unit_type",
-  "unit_name",
+  "configuration",
   "carpet_area",
   "unit_status",
   "client_name"
@@ -25,6 +24,8 @@
   {
    "fieldname": "project",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Project",
    "options": "Property Projects"
   },
@@ -39,11 +40,6 @@
    "label": "Flat Number"
   },
   {
-   "fieldname": "unit_name",
-   "fieldtype": "Data",
-   "label": "Unit Name"
-  },
-  {
    "fieldname": "carpet_area",
    "fieldtype": "Float",
    "label": "Carpet Area"
@@ -51,25 +47,32 @@
   {
    "fieldname": "unit_status",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Unit Status",
-   "options": "Available\nHold\nRelease"
+   "options": "Available\nHold\nSold"
   },
   {
    "fieldname": "client_name",
-   "fieldtype": "Data",
-   "label": "Client Name"
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Client Name",
+   "options": "Lead"
   },
   {
-   "fieldname": "unit_type",
+   "fieldname": "configuration",
    "fieldtype": "Select",
-   "label": "Unit",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Configuration",
    "options": "1BHK\n2BHK\n3BHK\n4BHK\n5BHK"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-23 16:19:21.503520",
+ "modified": "2026-03-23 20:37:46.304347",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Property Unit",

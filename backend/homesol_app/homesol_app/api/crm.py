@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 import random
+import json
 
 
 @frappe.whitelist()
@@ -363,6 +364,7 @@ def create_followup(lead_id, follow_up_date, status="Open", type="Call", remarks
 
 @frappe.whitelist()
 def update_followup(followup_name, lead_id, status=None, follow_up_date=None, type=None, remarks=None, next_follow_up=None, assigned_to=None):
+
     """
     Updates an existing follow-up entry within a Lead.
     """
@@ -388,3 +390,78 @@ def update_followup(followup_name, lead_id, status=None, follow_up_date=None, ty
         
     lead.save(ignore_permissions=True)
     return "success"
+
+
+@frappe.whitelist()
+def get_lead_activity_logs(lead_id):
+    if not lead_id:
+        return {"error": "Lead ID is required"}
+
+    versions = frappe.get_all(
+        "Version",
+        filters={
+            "ref_doctype": "Lead",
+            "docname": lead_id
+        },
+        fields=["*"],
+        order_by="creation desc",
+        ignore_permissions=True 
+    )
+
+    if not versions:
+        return {"debug": "No versions found matching this Lead ID.", "raw": versions}
+
+    activity_logs = []
+
+    for v in versions:
+        if v.data:
+            try:
+                if isinstance(v.data, str):
+                    changes = json.loads(v.data)
+                else:
+                    changes = v.data 
+
+                if "changed" in changes:
+                    for change in changes["changed"]:
+                        fieldname = change[0]
+                        old_val = change[1]
+                        new_val = change[2]
+                        
+                        clean_fieldname = fieldname.replace("_", " ").title()
+
+                        activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Edit",
+                            "message": f"Changed {clean_fieldname} from '{old_val}' to '{new_val}'",
+                        })
+                
+                elif "added" in changes:
+                    for added_row in changes["added"]:
+                        child_table_name = added_row[0].replace("_", " ").title()
+                        activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Addition",
+                            "message": f"Added a new entry to {child_table_name}"
+                        })
+                
+                else:
+                     activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Creation/Other",
+                            "message": "System Log Created"
+                        })
+
+            except Exception as e:
+                activity_logs.append({
+                    "version_id": v.name,
+                    "error_message": str(e),
+                    "raw_data": str(v.data)
+                })
+
+    return activity_logs
