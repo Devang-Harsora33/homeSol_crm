@@ -1,43 +1,74 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'dart:io';
-import '../models/profile.dart';
-import '../utils.dart';
+import 'package:Homesol/models/profile.dart';
+import 'package:Homesol/services/auth_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:Homesol/services/api_service.dart';
 
-// --- Design System Constants ---
-const Color kPrimaryColor = Color(0xFF675E40); // Olive/Khaki
-const Color kScaffoldBg = Color(0xFFF5F5F7); // Light grey
-const Color kCardBg = Colors.white;
-const Color kTextPrimary = Color(0xFF1A1A1A); // Almost Black
-const Color kTextSecondary = Color(0xFF757575); // Grey for labels
-const Color kDivider = Color(0xFFEEEEEE);
-
-class BrokerProfilePage extends StatelessWidget {
+class BrokerProfilePage extends StatefulWidget {
   final ThemeData theme;
   final Profile? profile;
 
   const BrokerProfilePage({super.key, required this.theme, this.profile});
 
   @override
+  State<BrokerProfilePage> createState() => _BrokerProfilePageState();
+}
+
+class _BrokerProfilePageState extends State<BrokerProfilePage> {
+  Profile? profile;
+  bool isLoading = true;
+  final Color kPrimaryColor = const Color(0xFF675D40);
+  final Color kTextSecondary = Colors.grey.shade600;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.profile != null) {
+      profile = widget.profile;
+      isLoading = false;
+    } else {
+      _loadProfile();
+    }
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final p = await AuthService.getMyProfile();
+      if (mounted) {
+        setState(() {
+          profile = p;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (profile == null) {
       return Scaffold(
-        backgroundColor: kScaffoldBg,
         appBar: AppBar(
+          title: const Text("Profile"),
           backgroundColor: kPrimaryColor,
-          title: const Text('Profile', style: TextStyle(color: Colors.white)),
           leading: IconButton(
-            icon: const FaIcon(FontAwesomeIcons.arrowLeft, color: Colors.white, size: 20),
             onPressed: () => Navigator.pop(context),
+            icon: const FaIcon(FontAwesomeIcons.arrowLeft, color: Colors.white, size: 20),
           ),
         ),
-        body: const Center(
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               FaIcon(FontAwesomeIcons.userSlash, size: 64, color: kTextSecondary),
-              SizedBox(height: 16),
-              Text('No profile data available', style: TextStyle(color: kTextSecondary)),
+              const SizedBox(height: 16),
+              const Text("No profile data found."),
             ],
           ),
         ),
@@ -45,7 +76,6 @@ class BrokerProfilePage extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: kScaffoldBg,
       body: CustomScrollView(
         slivers: [
           _buildSliverAppBar(context, profile!),
@@ -99,88 +129,70 @@ class BrokerProfilePage extends StatelessWidget {
   Widget _buildSliverAppBar(BuildContext context, Profile profile) {
     ImageProvider<Object>? provider;
     if (profile.image != null && profile.image!.isNotEmpty) {
-      final fullImageUrl = buildImageUrl(profile.image!);
-      if (fullImageUrl.startsWith('http')) {
-        provider = NetworkImage(fullImageUrl);
-      } else if (File(fullImageUrl).existsSync()) {
-        provider = FileImage(File(fullImageUrl));
+      String imageUrl = profile.image!;
+      if (!imageUrl.startsWith('http')) {
+        imageUrl = '${AuthService.baseUrl}$imageUrl';
       }
+      provider = NetworkImage(imageUrl);
     }
 
     return SliverAppBar(
-      expandedHeight: 220.0,
+      expandedHeight: 280,
       pinned: true,
-      stretch: true,
       backgroundColor: kPrimaryColor,
       leading: IconButton(
-        icon: const FaIcon(FontAwesomeIcons.chevronLeft, size: 20, color: Colors.white),
         onPressed: () => Navigator.pop(context),
+        icon: const FaIcon(FontAwesomeIcons.chevronLeft, size: 20, color: Colors.white),
       ),
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
-          alignment: Alignment.center,
           fit: StackFit.expand,
           children: [
-            Container(color: kPrimaryColor),
-            
-            // Decorative background icon
-            Positioned(
-              right: -40,
-              top: -40,
-              child: FaIcon(
-                FontAwesomeIcons.solidCircle, 
-                size: 300, 
-                color: Colors.white.withOpacity(0.05)
-              ),
-            ),
-
+            // Banner color or image
+            Container(color: kPrimaryColor.withOpacity(0.9)),
+            // Profile Info Overlay
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: CircleAvatar(
-                    radius: 45,
-                    backgroundColor: Colors.white,
-                    backgroundImage: provider,
-                    child: provider == null
-                        ? Text(
-                            (profile.employeeName.isNotEmpty) ? profile.employeeName[0].toUpperCase() : 'U',
-                            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: kPrimaryColor),
-                          )
-                        : null,
-                  ),
+                const SizedBox(height: 40),
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 60,
+                      backgroundColor: Colors.white,
+                      child: CircleAvatar(
+                        radius: 56,
+                        backgroundColor: Colors.grey.shade200,
+                        backgroundImage: provider,
+                        child: provider == null ? Icon(Icons.person, size: 60, color: kPrimaryColor) : null,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _pickAndUploadImage,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
+                          ),
+                          child: Icon(Icons.camera_alt, size: 20, color: kPrimaryColor),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Text(
                   profile.employeeName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    profile.designation,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                Text(
+                  profile.designation ?? "",
+                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 16),
                 ),
               ],
             ),
@@ -190,32 +202,63 @@ class BrokerProfilePage extends StatelessWidget {
     );
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image != null) {
+      setState(() => isLoading = true);
+      try {
+        final bytes = await image.readAsBytes();
+        final base64Image = 'data:image/${path.extension(image.path).replaceAll('.', '')};base64,${base64.encode(bytes)}';
+        
+        final fileUrl = await ApiService.uploadFile(
+          filename: path.basename(image.path),
+          filedata: base64Image,
+          doctype: 'Employee',
+          docname: profile!.name,
+        );
+
+        if (fileUrl != null) {
+          // Now update the Employee record with the new file URL
+          final result = await ApiService.updateEmployee(profile!.name, {'image': fileUrl});
+          if (result['success']) {
+            _loadProfile();
+          } else {
+             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'])));
+          }
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error uploading image: $e")));
+      } finally {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
   Widget _buildSectionContainer(String title, List<Widget> children) {
-    final visibleChildren = children.where((c) => c is _DetailItem && c.value != null && c.value!.isNotEmpty).toList();
-    
+    // Filter out _DetailItems with null/empty values
+    final visibleChildren = children.where((c) {
+      if (c is _DetailItem) return c.value != null && c.value!.isNotEmpty;
+      return true;
+    }).toList();
+
     if (visibleChildren.isEmpty) return const SizedBox.shrink();
 
     return Container(
       decoration: BoxDecoration(
-        color: kCardBg,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 2)),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
-              title.toUpperCase(),
-              style: const TextStyle(
-                color: kTextSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
+              title,
+              style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
           ...visibleChildren,
@@ -227,7 +270,7 @@ class BrokerProfilePage extends StatelessWidget {
 }
 
 class _DetailItem extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon;
   final String label;
   final String? value;
   final bool isHighlight;
@@ -244,18 +287,18 @@ class _DetailItem extends StatelessWidget {
     if (value == null || value!.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          const SizedBox(width: 16),
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: kPrimaryColor.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
+              color: const Color(0xFF675D40).withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
             ),
-            // Updated to FaIcon for better rendering of FontAwesome glyphs
-            child: FaIcon(icon, size: 18, color: kPrimaryColor),
+            child: FaIcon(icon, size: 18, color: const Color(0xFF675D40)),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -264,20 +307,14 @@ class _DetailItem extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: kTextSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
                 ),
-                const SizedBox(height: 2),
                 Text(
                   value!,
                   style: TextStyle(
-                    color: isHighlight ? kPrimaryColor : kTextPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    height: 1.3,
+                    color: isHighlight ? const Color(0xFF675D40) : Colors.black87,
+                    fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
+                    fontSize: 14,
                   ),
                 ),
               ],

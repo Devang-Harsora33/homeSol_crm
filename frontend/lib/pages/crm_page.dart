@@ -1,6 +1,7 @@
 
 import 'dart:convert';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
+import 'package:Homesol/services/apis/developers/developer_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:Homesol/services/api_service.dart';
@@ -21,7 +22,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class CRMPage extends StatefulWidget {
-  const CRMPage({super.key});
+  final String? developerId;
+  const CRMPage({super.key, this.developerId});
 
   @override
   State<CRMPage> createState() => _CRMPageState();
@@ -59,8 +61,8 @@ class _CRMPageState extends State<CRMPage> {
   final Set<String> _selectedNCD = <String>{};
   final Set<String> _selectedVisited = <String>{};
   final Set<String> _selectedDeadReasons = <String>{};
-  String? _selectedVisitFilter;
-  String? _selectedFollowUpFilter;
+  final Set<String> _selectedVisitFilters = <String>{};
+  final Set<String> _selectedFollowUpFilters = <String>{};
 
   @override
   void initState() {
@@ -252,7 +254,9 @@ class _CRMPageState extends State<CRMPage> {
 
   Future<void> _loadSiteVisits() async {
     try {
-      final fetchedSiteVisits = await SiteVisitService.fetchMySiteVisits(forceRefresh: true);
+      final fetchedSiteVisits = (currentDesignation?.toLowerCase() == 'property developer' && widget.developerId != null)
+          ? await SiteVisitService.fetchDeveloperSiteVisits(widget.developerId!, forceRefresh: true)
+          : await SiteVisitService.fetchMySiteVisits(forceRefresh: true);
       setState(() {
         siteVisits = fetchedSiteVisits;
       });
@@ -328,6 +332,23 @@ class _CRMPageState extends State<CRMPage> {
 
   Future<void> _loadProjects({bool forceRefresh = false}) async {
     try {
+      if (widget.developerId != null) {
+        final dev = await DeveloperService.fetchDeveloperById(widget.developerId!);
+        if (dev != null) {
+          final allProjects = await ProjectService.fetchProjects();
+          final List<Project> devProjects = [];
+          for (final devProj in dev.projectsList) {
+            try {
+              final p = allProjects.firstWhere((element) => element.id == devProj.project);
+              devProjects.add(p);
+            } catch (_) {}
+          }
+          setState(() {
+            projects = devProjects;
+          });
+          return;
+        }
+      }
       final fetchedProjects = await ProjectService.syncProjects(forceRefresh: forceRefresh);
       setState(() {
         projects = fetchedProjects;
@@ -344,24 +365,25 @@ class _CRMPageState extends State<CRMPage> {
     });
 
     try {
-      if (forceRefresh) {
-        await LeadService.syncMyLeads(); // Sync data from API to local DB
-        await _loadFollowUps();
+      if (widget.developerId != null) {
+        // Fetch leads for a specific developer from API
+        final fetchedLeads = await LeadService.fetchLeadsByDeveloper(widget.developerId!);
+        setState(() {
+          leads = fetchedLeads;
+          isLoading = false;
+        });
+        print('🔍 [CRM_PAGE] Loaded ${fetchedLeads.length} leads for developer ${widget.developerId} from API');
+        return;
       }
-      
-      // Fetch leads from local database
-      final List<Map<String, dynamic>> rawLeads = await LeadDatabase().getAllLeads();
-      final fetchedLeads = rawLeads.map((data) {
-        // Since 'data' column stores the full JSON, decode it back to a Lead object
-        final leadJson = json.decode(data['data']);
-        return model_lead.Lead.fromJson(leadJson);
-      }).toList();
+
+      // LeadService.fetchMyLeads handles local caching, connectivity checks, and sync
+      final fetchedLeads = await LeadService.fetchMyLeads(forceRefresh: forceRefresh);
 
       setState(() {
         leads = fetchedLeads;
         isLoading = false;
       });
-      print('🔍 [CRM_PAGE] Loaded ${fetchedLeads.length} leads from local DB');
+      print('🔍 [CRM_PAGE] Loaded ${fetchedLeads.length} leads');
        for (var i = 0; i < fetchedLeads.length; i++) {
          print('   Lead $i: ${fetchedLeads[i].name} - ${fetchedLeads[i].customerName}');
        }
@@ -578,28 +600,62 @@ class _CRMPageState extends State<CRMPage> {
     }
 
     // Visit Overview Filter
-    if (_selectedVisitFilter != null) {
+    if (_selectedVisitFilters.isNotEmpty) {
       filtered = filtered.where((lead) {
         final leadVisits = siteVisits.where((v) => v.lead == lead.name).toList();
         
-        switch (_selectedVisitFilter) {
-          case 'Scheduled':
-            return leadVisits.any((v) => v.status.toLowerCase() == 'scheduled');
-          case 'Rescheduled':
-            // Explicit rescheduled OR multiple scheduled
-            if (leadVisits.any((v) => v.status.toLowerCase() == 'rescheduled')) return true;
-            return leadVisits.where((v) => v.status.toLowerCase() == 'scheduled').length > 1;
-          case 'Site Visits Done':
-            return leadVisits.any((v) => v.status.toLowerCase() == 'visit done');
-          case 'Revisits Done':
-            return leadVisits.any((v) => v.status.toLowerCase() == 'revisit done');
-          case 'Cancelled Visits':
-            return leadVisits.any((v) => 
-              v.status.toLowerCase() == 'cancelled' || v.status.toLowerCase() == 'canceled'
-            );
-          default:
-            return true;
+        for (final filter in _selectedVisitFilters) {
+          switch (filter) {
+            case 'Scheduled':
+              if (leadVisits.any((v) => v.status.toLowerCase() == 'scheduled')) return true;
+              break;
+            case 'Rescheduled':
+              if (leadVisits.any((v) => v.status.toLowerCase() == 'rescheduled')) return true;
+              if (leadVisits.where((v) => v.status.toLowerCase() == 'scheduled').length > 1) return true;
+              break;
+            case 'Site Visits Done':
+              if (leadVisits.any((v) => v.status.toLowerCase() == 'visit done')) return true;
+              break;
+            case 'Revisits Done':
+              if (leadVisits.any((v) => v.status.toLowerCase() == 'revisit done')) return true;
+              break;
+            case 'Cancelled Visits':
+              if (leadVisits.any((v) => 
+                v.status.toLowerCase() == 'cancelled' || v.status.toLowerCase() == 'canceled'
+              )) return true;
+              break;
+          }
         }
+        return false;
+      }).toList();
+    }
+
+    // Follow-up Overview Filter
+    if (_selectedFollowUpFilters.isNotEmpty) {
+      final now = DateTime.now();
+      filtered = filtered.where((lead) {
+        final leadFollowUps = followUps.where((f) => f.leadId == lead.name).toList();
+        
+        for (final filter in _selectedFollowUpFilters) {
+          switch (filter) {
+            case 'Open':
+              if (leadFollowUps.any((f) => f.status?.toLowerCase() == 'open')) return true;
+              break;
+            case 'Completed':
+              if (leadFollowUps.any((f) => f.status?.toLowerCase() == 'completed')) return true;
+              break;
+            case 'Missed':
+              if (leadFollowUps.any((f) {
+                if (f.status?.toLowerCase() != 'open') return false;
+                if (f.followUpDate == null) return false;
+                final fDate = DateTime.tryParse(f.followUpDate!);
+                if (fDate == null) return false;
+                return fDate.isBefore(now);
+              })) return true;
+              break;
+          }
+        }
+        return false;
       }).toList();
     }
 
@@ -619,7 +675,9 @@ class _CRMPageState extends State<CRMPage> {
         _selectedIndustries.isNotEmpty ||
         _selectedNCD.isNotEmpty ||
         _selectedVisited.isNotEmpty ||
-        _selectedDeadReasons.isNotEmpty;
+        _selectedDeadReasons.isNotEmpty ||
+        _selectedVisitFilters.isNotEmpty ||
+        _selectedFollowUpFilters.isNotEmpty;
   }
 
   void _clearAllFilters() {
@@ -638,7 +696,8 @@ class _CRMPageState extends State<CRMPage> {
       _selectedNCD.clear();
       _selectedVisited.clear();
       _selectedDeadReasons.clear();
-      _selectedVisitFilter = null;
+      _selectedVisitFilters.clear();
+      _selectedFollowUpFilters.clear();
     });
   }
 
@@ -646,10 +705,51 @@ class _CRMPageState extends State<CRMPage> {
   //   return _filteredLeads.where((lead) => lead.customLeadStatus == status).length;
   // }
 
+  // ---------- helpers for filter bottom sheet ----------
+  int _getFilterCount(String category) {
+    switch (category) {
+      case 'Projects':       return _selectedProjects.length;
+      case 'Status':         return _selectedStatuses.length;
+      case 'Budget':         return (_budgetMinSlider > 0.5 || _budgetMaxSlider < 50.0) ? 1 : 0;
+      case 'Configuration': return _selectedConfigurations.length;
+      case 'Date Added':    return _selectedDateFilters.length;
+      case 'Source':        return _selectedSources.length;
+      case 'Lead Quality':  return _selectedLeadQualities.length;
+      case 'Industry':      return _selectedIndustries.length;
+      case 'Next Contact':  return _selectedNCD.length;
+      case 'Visited':       return _selectedVisited.length;
+      case 'Visit Status':  return _selectedVisitFilters.length;
+      case 'Follow-up Status': return _selectedFollowUpFilters.length;
+      default: return 0;
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Projects':       return Icons.apartment_rounded;
+      case 'Status':         return Icons.label_rounded;
+      case 'Budget':         return Icons.currency_rupee_rounded;
+      case 'Configuration': return Icons.bed_rounded;
+      case 'Date Added':    return Icons.calendar_today_rounded;
+      case 'Source':        return Icons.alt_route_rounded;
+      case 'Lead Quality':  return Icons.star_rounded;
+      case 'Industry':      return Icons.business_center_rounded;
+      case 'Next Contact':  return Icons.schedule_rounded;
+      case 'Visited':       return Icons.home_work_rounded;
+      case 'Visit Status':  return Icons.explore_rounded;
+      case 'Follow-up Status': return Icons.phone_callback_rounded;
+      default: return Icons.filter_list_rounded;
+    }
+  }
+
   void _showFiltersSheet(BuildContext context) {
     const kAccent = Color(0xFF675D40);
+    const kAccentLight = Color(0xFFF5F0E8);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final sidebarBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
+    final contentBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
 
     final projectNames = projects.map((p) => p.projectName).toList();
     final List<String> fixedConfigurations = [
@@ -659,36 +759,85 @@ class _CRMPageState extends State<CRMPage> {
     final allSources = leads.map((l) => l.source ?? '').where((s) => s.isNotEmpty).toSet().toList()..sort();
     final allIndustries = leads.map((l) => l.industry ?? '').where((i) => i.isNotEmpty).toSet().toList()..sort();
 
+    // Display labels for sidebar (shorter to avoid wrapping)
+    final Map<String, String> categoryLabels = {
+      'Projects':        'Projects',
+      'Status':          'Status',
+      'Budget':          'Budget',
+      'Configuration':   'Config',
+      'Date Added':      'Date Added',
+      'Source':          'Source',
+      'Lead Quality':    'Quality',
+      'Industry':        'Industry',
+      'Next Contact':    'Next Contact',
+      'Visited':         'Visited',
+      'Visit Status':    'Visit Status',
+      'Follow-up Status':'Follow-up',
+    };
+
     final Map<String, List<String>> categories = {
-      'Projects': ['All', ...projectNames],
+      'Projects': projectNames,
       'Status': ['Open', 'Prospect', 'Won', 'Lost'],
-      'Budget': ['< 50L', '50L - 1Cr', '1Cr - 2Cr', '> 2Cr'],
+      'Budget': [],
       'Configuration': fixedConfigurations,
       'Date Added': ['Today', 'Last 7 days', 'This month'],
       'Source': allSources,
       'Lead Quality': ['⭐⭐⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐', '⭐⭐', '⭐'],
       'Industry': allIndustries,
-      'Next Contact': ['Today', 'Tomorrow', 'This Week'],
+      if (currentDesignation?.toLowerCase() != 'property developer') ...{
+        'Next Contact': ['Today', 'Tomorrow', 'This Week'],
+      },
       'Visited': ['Yes', 'No'],
+      'Visit Status': ['Scheduled', 'Rescheduled', 'Site Visits Done', 'Revisits Done', 'Cancelled Visits'],
+      if (currentDesignation?.toLowerCase() != 'property developer') ...{
+        'Follow-up Status': ['Open', 'Missed', 'Completed'],
+      },
     };
 
     String currentCategory = 'Projects';
     Set<String> checked = <String>{};
+    double localBudgetMin = _budgetMinSlider;
+    double localBudgetMax = _budgetMaxSlider;
 
     void updateCheckedItems() {
       switch (currentCategory) {
-        case 'Projects': checked = Set.from(_selectedProjects); break;
-        case 'Status': checked = Set.from(_selectedStatuses); break;
-        case 'Budget': break; // Budget is handled by sliders
-        case 'Configuration': checked = Set.from(_selectedConfigurations); break;
-        case 'Date Added': checked = Set.from(_selectedDateFilters); break;
-        case 'Source': checked = Set.from(_selectedSources); break;
-        case 'Lead Quality': checked = Set.from(_selectedLeadQualities); break;
-        case 'Industry': checked = Set.from(_selectedIndustries); break;
-        case 'Next Contact': checked = Set.from(_selectedNCD); break;
-        case 'Visited': checked = Set.from(_selectedVisited); break;
+        case 'Projects':       checked = Set.from(_selectedProjects); break;
+        case 'Status':         checked = Set.from(_selectedStatuses); break;
+        case 'Budget':         break;
+        case 'Configuration':  checked = Set.from(_selectedConfigurations); break;
+        case 'Date Added':     checked = Set.from(_selectedDateFilters); break;
+        case 'Source':         checked = Set.from(_selectedSources); break;
+        case 'Lead Quality':   checked = Set.from(_selectedLeadQualities); break;
+        case 'Industry':       checked = Set.from(_selectedIndustries); break;
+        case 'Next Contact':   checked = Set.from(_selectedNCD); break;
+        case 'Visited':        checked = Set.from(_selectedVisited); break;
+        case 'Visit Status':   checked = Set.from(_selectedVisitFilters); break;
+        case 'Follow-up Status': checked = Set.from(_selectedFollowUpFilters); break;
         default: checked = <String>{};
       }
+    }
+
+    void applyAllFilters(StateSetter setSheet) {
+      setState(() {
+        // Persist whatever is currently in "checked" for the current tab
+        switch (currentCategory) {
+          case 'Projects':       _selectedProjects.clear(); _selectedProjects.addAll(checked); break;
+          case 'Status':         _selectedStatuses.clear(); _selectedStatuses.addAll(checked); break;
+          case 'Budget':         _budgetMinSlider = localBudgetMin; _budgetMaxSlider = localBudgetMax; break;
+          case 'Configuration':  _selectedConfigurations.clear(); _selectedConfigurations.addAll(checked); break;
+          case 'Date Added':     _selectedDateFilters.clear(); _selectedDateFilters.addAll(checked); break;
+          case 'Source':         _selectedSources.clear(); _selectedSources.addAll(checked); break;
+          case 'Lead Quality':   _selectedLeadQualities.clear(); _selectedLeadQualities.addAll(checked); break;
+          case 'Industry':       _selectedIndustries.clear(); _selectedIndustries.addAll(checked); break;
+          case 'Next Contact':   _selectedNCD.clear(); _selectedNCD.addAll(checked); break;
+          case 'Visited':        _selectedVisited.clear(); _selectedVisited.addAll(checked); break;
+          case 'Visit Status':   _selectedVisitFilters.clear(); _selectedVisitFilters.addAll(checked); break;
+          case 'Follow-up Status': _selectedFollowUpFilters.clear(); _selectedFollowUpFilters.addAll(checked); break;
+        }
+        // Budget always applied from local sliders
+        _budgetMinSlider = localBudgetMin;
+        _budgetMaxSlider = localBudgetMax;
+      });
     }
 
     updateCheckedItems();
@@ -696,200 +845,447 @@ class _CRMPageState extends State<CRMPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: isDark ? Colors.grey[900] : kBackgroundColor,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.4),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final options = categories[currentCategory] ?? const <String>[];
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.85,
+            final int totalActiveCount = [
+              _selectedProjects, _selectedStatuses, _selectedConfigurations,
+              _selectedDateFilters, _selectedSources, _selectedLeadQualities,
+              _selectedIndustries, _selectedNCD, _selectedVisited,
+              _selectedVisitFilters, _selectedFollowUpFilters,
+            ].fold(0, (sum, s) => sum + s.length) +
+            (localBudgetMin > 0.5 || localBudgetMax < 50.0 ? 1 : 0);
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.88,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              ),
               child: Column(
                 children: [
+                  // ── Handle bar ──
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                    padding: const EdgeInsets.only(top: 12, bottom: 4),
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // ── Header ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Flexible(
-                          child: Text('Filters', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                        // Icon
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: kAccent.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.tune_rounded, color: kAccent, size: 20),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Filter Leads',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3),
+                              ),
+                              Text(
+                                totalActiveCount > 0
+                                    ? '$totalActiveCount filter${totalActiveCount > 1 ? 's' : ''} active'
+                                    : 'No filters applied',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: totalActiveCount > 0 ? kAccent : Colors.grey.shade500,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Clear all
                         TextButton(
-                          onPressed: () => setSheetState(() => checked.clear()),
-                          child: const Text('Clear All', style: TextStyle(color: Colors.red), overflow: TextOverflow.ellipsis),
+                          onPressed: () {
+                            setSheetState(() {
+                              checked.clear();
+                              localBudgetMin = 0.5;
+                              localBudgetMax = 50.0;
+                            });
+                            setState(() {
+                              _clearAllFilters();
+                            });
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red.shade400,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          child: const Text('Clear All', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),
                   ),
+
+                  const Divider(height: 1, thickness: 0.5),
+
+                  // ── Body: Sidebar + Content ──
                   Expanded(
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // ─ LEFT SIDEBAR ─
                         Container(
-                          width: MediaQuery.of(context).size.width * 0.35,
-                          color: isDark ? Colors.grey[850] : Colors.white,
+                          width: 148,
+                          decoration: BoxDecoration(
+                            color: sidebarBg,
+                            border: Border(
+                              right: BorderSide(
+                                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                                width: 1,
+                              ),
+                            ),
+                          ),
                           child: ListView(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                             children: categories.keys.map((k) {
                               final bool selected = k == currentCategory;
-                              return Material(
-                                color: selected ? (isDark ? kAccent.withOpacity(0.3) : kAccent.withOpacity(0.1)) : Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    setSheetState(() {
-                                      currentCategory = k;
-                                      updateCheckedItems();
-                                    });
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                    decoration: BoxDecoration(
-                                      border: Border(left: BorderSide(color: selected ? kAccent : Colors.transparent, width: 3)),
-                                    ),
-                                    child: Text(k, 
-                                      style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal, color: selected ? kAccent : null),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                              final int count = _getFilterCount(k);
+                              final String displayLabel = categoryLabels[k] ?? k;
+                              return GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  setSheetState(() {
+                                    switch (currentCategory) {
+                                      case 'Projects':       _selectedProjects.clear(); _selectedProjects.addAll(checked); break;
+                                      case 'Status':         _selectedStatuses.clear(); _selectedStatuses.addAll(checked); break;
+                                      case 'Configuration':  _selectedConfigurations.clear(); _selectedConfigurations.addAll(checked); break;
+                                      case 'Date Added':     _selectedDateFilters.clear(); _selectedDateFilters.addAll(checked); break;
+                                      case 'Source':         _selectedSources.clear(); _selectedSources.addAll(checked); break;
+                                      case 'Lead Quality':   _selectedLeadQualities.clear(); _selectedLeadQualities.addAll(checked); break;
+                                      case 'Industry':       _selectedIndustries.clear(); _selectedIndustries.addAll(checked); break;
+                                      case 'Next Contact':   _selectedNCD.clear(); _selectedNCD.addAll(checked); break;
+                                      case 'Visited':        _selectedVisited.clear(); _selectedVisited.addAll(checked); break;
+                                      case 'Visit Status':   _selectedVisitFilters.clear(); _selectedVisitFilters.addAll(checked); break;
+                                      case 'Follow-up Status': _selectedFollowUpFilters.clear(); _selectedFollowUpFilters.addAll(checked); break;
+                                      case 'Budget':         _budgetMinSlider = localBudgetMin; _budgetMaxSlider = localBudgetMax; break;
+                                    }
+                                    setState(() {});
+                                    currentCategory = k;
+                                    updateCheckedItems();
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 160),
+                                  margin: const EdgeInsets.fromLTRB(8, 2, 8, 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: selected
+                                        ? (isDark ? kAccent.withOpacity(0.22) : kAccentLight)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Left accent bar
+                                      AnimatedContainer(
+                                        duration: const Duration(milliseconds: 160),
+                                        width: 3,
+                                        height: 18,
+                                        margin: const EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          color: selected ? kAccent : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      Icon(
+                                        _getCategoryIcon(k),
+                                        size: 14,
+                                        color: selected
+                                            ? kAccent
+                                            : (isDark ? Colors.grey.shade500 : Colors.grey.shade500),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          displayLabel,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                            color: selected
+                                                ? kAccent
+                                                : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      ),
+                                      if (count > 0)
+                                        Container(
+                                          width: 18,
+                                          height: 18,
+                                          alignment: Alignment.center,
+                                          decoration: const BoxDecoration(
+                                            color: kAccent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Text(
+                                            count.toString(),
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                               );
                             }).toList(),
                           ),
                         ),
+
+                        // ─ RIGHT CONTENT ─
                         Expanded(
-                          child: currentCategory == 'Budget'
-                            ? Padding(
-                                padding: const EdgeInsets.all(24.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Minimum Budget: ₹${_budgetMinSlider.toStringAsFixed(1)} Cr',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                    ),
-                                    Slider(
-                                      value: _budgetMinSlider,
-                                      min: 0.5,
-                                      max: 50,
-                                      divisions: 99,
-                                      activeColor: kAccent,
-                                      onChanged: (value) {
-                                        setSheetState(() {
-                                          if (value <= _budgetMaxSlider) {
-                                            _budgetMinSlider = value;
-                                          }
-                                        });
-                                      },
-                                    ),
-                                    const SizedBox(height: 32),
-                                    Text(
-                                      'Maximum Budget: ₹${_budgetMaxSlider.toStringAsFixed(1)} Cr',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                    ),
-                                    Slider(
-                                      value: _budgetMaxSlider,
-                                      min: 0.5,
-                                      max: 50,
-                                      divisions: 99,
-                                      activeColor: kAccent,
-                                      onChanged: (value) {
-                                        setSheetState(() {
-                                          if (value >= _budgetMinSlider) {
-                                            _budgetMaxSlider = value;
-                                          }
-                                        });
-                                      },
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: kAccent.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            color: contentBg,
+                            child: currentCategory == 'Budget'
+                                ? _buildBudgetPanel(setSheetState, localBudgetMin, localBudgetMax, (min, max) {
+                                    setSheetState(() {
+                                      localBudgetMin = min;
+                                      localBudgetMax = max;
+                                    });
+                                  })
+                                : options.isEmpty
+                                    ? Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(32),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.all(18),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade100,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Icon(Icons.filter_list_off_rounded, size: 28, color: Colors.grey.shade400),
+                                              ),
+                                              const SizedBox(height: 14),
+                                              Text(
+                                                'No options',
+                                                style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w600),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Nothing to filter here',
+                                                style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                    : Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          // Section header inside content
+                                          Padding(
+                                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                                            child: Row(
+                                              children: [
+                                                Text(
+                                                  currentCategory,
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                if (checked.isNotEmpty)
+                                                  GestureDetector(
+                                                    onTap: () => setSheetState(() => checked.clear()),
+                                                    child: Text(
+                                                      'Clear',
+                                                      style: TextStyle(
+                                                        fontSize: 11.5,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: Colors.red.shade400,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: ListView.builder(
+                                              padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                                              itemCount: options.length,
+                                              itemBuilder: (context, index) {
+                                                final opt = options[index];
+                                                final isSelected = checked.contains(opt);
+                                                return GestureDetector(
+                                                  behavior: HitTestBehavior.opaque,
+                                                  onTap: () => setSheetState(() {
+                                                    if (isSelected) {
+                                                      checked.remove(opt);
+                                                    } else {
+                                                      checked.add(opt);
+                                                    }
+                                                  }),
+                                                  child: AnimatedContainer(
+                                                    duration: const Duration(milliseconds: 150),
+                                                    margin: const EdgeInsets.only(bottom: 4),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+                                                    decoration: BoxDecoration(
+                                                      color: isSelected
+                                                          ? kAccent.withOpacity(isDark ? 0.2 : 0.07)
+                                                          : Colors.transparent,
+                                                      borderRadius: BorderRadius.circular(10),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        // Custom checkbox
+                                                        AnimatedContainer(
+                                                          duration: const Duration(milliseconds: 150),
+                                                          width: 20,
+                                                          height: 20,
+                                                          decoration: BoxDecoration(
+                                                            color: isSelected ? kAccent : Colors.transparent,
+                                                            borderRadius: BorderRadius.circular(5),
+                                                            border: Border.all(
+                                                              color: isSelected
+                                                                  ? kAccent
+                                                                  : (isDark ? Colors.grey.shade600 : Colors.grey.shade300),
+                                                              width: 1.5,
+                                                            ),
+                                                          ),
+                                                          child: isSelected
+                                                              ? const Icon(Icons.check_rounded, size: 13, color: Colors.white)
+                                                              : null,
+                                                        ),
+                                                        const SizedBox(width: 11),
+                                                        Expanded(
+                                                          child: Text(
+                                                            opt,
+                                                            style: TextStyle(
+                                                              fontSize: 13.5,
+                                                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                                              color: isSelected
+                                                                  ? (isDark ? Colors.white : const Color(0xFF3D3420))
+                                                                  : (isDark ? Colors.grey.shade200 : Colors.grey.shade800),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        if (isSelected)
+                                                          Icon(
+                                                            Icons.check_circle_rounded,
+                                                            size: 15,
+                                                            color: kAccent.withOpacity(0.5),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      child: Text(
-                                        'Range: ₹${_budgetMinSlider.toStringAsFixed(1)} Cr - ₹${_budgetMaxSlider.toStringAsFixed(1)} Cr',
-                                        style: TextStyle(color: kAccent, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : ListView.builder(
-                                itemCount: options.length,
-                                itemBuilder: (context, index) {
-                                  final opt = options[index];
-                                  final value = checked.contains(opt);
-                                  return CheckboxListTile(
-                                    dense: true,
-                                    controlAffinity: ListTileControlAffinity.leading,
-                                    activeColor: kAccent,
-                                    value: value,
-                                    onChanged: (v) => setSheetState(() {
-                                      if (v == true) {
-                                        checked.add(opt);
-                                      } else {
-                                        checked.remove(opt);
-                                      }
-                                    }),
-                                    title: Text(opt, overflow: TextOverflow.ellipsis),
-                                  );
-                                },
-                              ),
+                          ),
                         ),
                       ],
                     ),
                   ),
+
+                  // ── Bottom Action Bar ──
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[850] : Colors.white,
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+                      color: bgColor,
+                      border: Border(
+                        top: BorderSide(
+                          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                          width: 1,
+                        ),
+                      ),
                     ),
                     child: Row(
                       children: [
+                        // Cancel
                         Expanded(
+                          flex: 2,
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context),
                             style: OutlinedButton.styleFrom(
+                              foregroundColor: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                              side: BorderSide(
+                                color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
-                            child: const Text('Close'),
+                            child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
+                        // Apply
                         Expanded(
+                          flex: 3,
                           child: ElevatedButton(
                             onPressed: () {
-                              setState(() {
-                                switch (currentCategory) {
-                                  case 'Projects': _selectedProjects.clear(); _selectedProjects.addAll(checked); break;
-                                  case 'Status': _selectedStatuses.clear(); _selectedStatuses.addAll(checked); break;
-                                  case 'Budget': break; // Budget is handled by sliders, no action needed here
-                                  case 'Configuration': _selectedConfigurations.clear(); _selectedConfigurations.addAll(checked); break;
-                                  case 'Date Added': _selectedDateFilters.clear(); _selectedDateFilters.addAll(checked); break;
-                                  case 'Source': _selectedSources.clear(); _selectedSources.addAll(checked); break;
-                                  case 'Lead Quality': _selectedLeadQualities.clear(); _selectedLeadQualities.addAll(checked); break;
-                                  case 'Industry': _selectedIndustries.clear(); _selectedIndustries.addAll(checked); break;
-                                  case 'Next Contact': _selectedNCD.clear(); _selectedNCD.addAll(checked); break;
-                                  case 'Visited': _selectedVisited.clear(); _selectedVisited.addAll(checked); break;
-                                }
-                              });
+                              applyAllFilters(setSheetState);
                               Navigator.pop(context);
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: kAccent,
                               foregroundColor: Colors.white,
+                              elevation: 2,
+                              shadowColor: kAccent.withOpacity(0.4),
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
-                            child: const Text('Apply Filters'),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                                if (checked.isNotEmpty || localBudgetMin > 0.5 || localBudgetMax < 50.0) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.25),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      checked.isNotEmpty ? checked.length.toString() :
+                                          (localBudgetMin > 0.5 || localBudgetMax < 50.0 ? '1' : ''),
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  )
+                  ),
                 ],
               ),
             );
@@ -899,66 +1295,269 @@ class _CRMPageState extends State<CRMPage> {
     );
   }
 
+  Widget _buildBudgetPanel(
+    StateSetter setSheetState,
+    double localMin,
+    double localMax,
+    void Function(double, double) onChanged,
+  ) {
+    const kAccent = Color(0xFF675D40);
+    String _formatBudget(double val) {
+      if (val < 1.0) return '₹${(val * 100).round()}L';
+      return '₹${val % 1 == 0 ? val.toInt() : val.toStringAsFixed(1)}Cr';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          const Text(
+            'Budget Range',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.2),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Filter leads by their target budget',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          ),
+          const SizedBox(height: 24),
+
+          // Range display card
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [kAccent.withOpacity(0.08), kAccent.withOpacity(0.04)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: kAccent.withOpacity(0.2)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Minimum', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatBudget(localMin),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kAccent),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 36,
+                  color: kAccent.withOpacity(0.2),
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Maximum', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatBudget(localMax),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kAccent),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // Min slider
+          Row(
+            children: [
+              const Icon(Icons.south_west_rounded, size: 14, color: Color(0xFF675D40)),
+              const SizedBox(width: 6),
+              Text('Minimum Budget', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            ],
+          ),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: kAccent,
+              inactiveTrackColor: kAccent.withOpacity(0.15),
+              thumbColor: kAccent,
+              overlayColor: kAccent.withOpacity(0.12),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: localMin,
+              min: 0.5,
+              max: 50,
+              divisions: 99,
+              onChanged: (value) {
+                if (value <= localMax) onChanged(value, localMax);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Max slider
+          Row(
+            children: [
+              const Icon(Icons.north_east_rounded, size: 14, color: Color(0xFF675D40)),
+              const SizedBox(width: 6),
+              Text('Maximum Budget', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            ],
+          ),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: kAccent,
+              inactiveTrackColor: kAccent.withOpacity(0.15),
+              thumbColor: kAccent,
+              overlayColor: kAccent.withOpacity(0.12),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: localMax,
+              min: 0.5,
+              max: 50,
+              divisions: 99,
+              onChanged: (value) {
+                if (value >= localMin) onChanged(localMin, value);
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Quick presets
+          Text('Quick Presets', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _buildBudgetPreset('< 50L', 0.5, 0.5, localMin, localMax, onChanged),
+              _buildBudgetPreset('50L-1Cr', 0.5, 1.0, localMin, localMax, onChanged),
+              _buildBudgetPreset('1Cr-2Cr', 1.0, 2.0, localMin, localMax, onChanged),
+              _buildBudgetPreset('2Cr-5Cr', 2.0, 5.0, localMin, localMax, onChanged),
+              _buildBudgetPreset('5Cr+', 5.0, 50.0, localMin, localMax, onChanged),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetPreset(String label, double min, double max, double currentMin, double currentMax, void Function(double, double) onChanged) {
+    const kAccent = Color(0xFF675D40);
+    final isActive = currentMin == min && currentMax == max;
+    return GestureDetector(
+      onTap: () => onChanged(min, max),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isActive ? kAccent : kAccent.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isActive ? kAccent : kAccent.withOpacity(0.25)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isActive ? Colors.white : kAccent,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const LeadCreationPage()),
-          ).then((_) => _loadLeads(forceRefresh: true)); // Refresh leads when returning from LeadCreationPage
-        },
-        backgroundColor: const Color(0xFF675D40),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: (currentDesignation?.toLowerCase() == 'property developer')
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(bottom: 70.0),
+              child: FloatingActionButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LeadCreationPage()),
+                  ).then((_) => _loadLeads(
+                      forceRefresh:
+                          true)); // Refresh leads when returning from LeadCreationPage
+                },
+                backgroundColor: const Color(0xFF1A1A1A),
+                child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+              ),
+            ),
       body: SafeArea(
+        bottom: false,
         child: Padding(
-          padding: EdgeInsets.all(MediaQuery.of(context).size.width > 600 ? 20 : 16),
+          padding: EdgeInsets.fromLTRB(
+            MediaQuery.of(context).size.width > 600 ? 20 : 16,
+            MediaQuery.of(context).size.width > 600 ? 20 : 16,
+            MediaQuery.of(context).size.width > 600 ? 20 : 16,
+            0,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Page Header ──
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Flexible(
-                    child: Text(
-                      'CRM',
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'My Leads',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          height: 1.1,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isLoading
+                            ? 'Loading...'
+                            : '${_filteredLeads.length} of ${leads.length} leads',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                   Row(
                     children: [
-                      IconButton(
-                        onPressed: () => _loadLeads(forceRefresh: true),
-                        tooltip: 'Refresh',
-                        icon: Icon(
-                          Icons.refresh,
-                          color: (isDark ? Colors.white : Colors.black)
-                              .withOpacity(0.9),
-                        ),
+                      _buildHeaderIconButton(
+                        icon: Icons.refresh_rounded,
+                        onTap: () => _loadLeads(forceRefresh: true),
+                        isDark: isDark,
                       ),
-                      IconButton(
-                        onPressed: () {},
-                        icon: Icon(
-                          Icons.bookmark_border,
-                          color: (isDark ? Colors.white : Colors.black)
-                              .withOpacity(0.9),
-                        ),
+                      const SizedBox(width: 8),
+                      _buildHeaderIconButton(
+                        icon: Icons.bookmark_border_rounded,
+                        onTap: () {},
+                        isDark: isDark,
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               _buildSearchAndFilterCard(),
               const SizedBox(height: 16),
               Expanded(
@@ -1079,10 +1678,10 @@ Widget _buildSummaryWidgets() {
 
                               if (event is FlTapUpEvent) {
                                 setState(() {
-                                  if (_selectedVisitFilter == label) {
-                                    _selectedVisitFilter = null;
+                                  if (_selectedVisitFilters.contains(label)) {
+                                    _selectedVisitFilters.remove(label);
                                   } else {
-                                    _selectedVisitFilter = label;
+                                    _selectedVisitFilters.add(label);
                                   }
                                 });
                               }
@@ -1234,10 +1833,10 @@ Widget _buildFollowUpSummaryWidgets() {
 
                               if (event is FlTapUpEvent) {
                                 setState(() {
-                                  if (_selectedFollowUpFilter == label) {
-                                    _selectedFollowUpFilter = null;
+                                  if (_selectedFollowUpFilters.contains(label)) {
+                                    _selectedFollowUpFilters.remove(label);
                                   } else {
-                                    _selectedFollowUpFilter = label;
+                                    _selectedFollowUpFilters.add(label);
                                   }
                                 });
                               }
@@ -1283,9 +1882,9 @@ Widget _buildFollowUpSummaryWidgets() {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildFollowUpLegendRow(Icons.people_outline, 'My Leads', totalLeadsCount, Colors.orange),
-                    _buildFollowUpLegendRow(Icons.history, 'Total Count', totalFollowUps, Colors.blueGrey),
-                    _buildFollowUpLegendRow(Icons.pending_actions, 'Pending & Open', pendingAndOpen, Colors.blue),
+                    _buildFollowUpLegendRow(Icons.people_outline, 'My Leads', totalLeadsCount, Colors.orange, isInteractive: false),
+                    _buildFollowUpLegendRow(Icons.history, 'Total Count', totalFollowUps, Colors.blueGrey, isInteractive: false),
+                    _buildFollowUpLegendRow(Icons.pending_actions, 'Open', pendingAndOpen, Colors.blue),
                     _buildFollowUpLegendRow(Icons.event_busy, 'Missed', missed, Colors.red),
                     _buildFollowUpLegendRow(Icons.check_circle_outline, 'Completed', completed, Colors.green),
                   ],
@@ -1300,7 +1899,7 @@ Widget _buildFollowUpSummaryWidgets() {
 }
 
 PieChartSectionData _buildFollowUpChartSection(int value, Color color, String label) {
-  final bool isSelected = _selectedFollowUpFilter == label;
+  final bool isSelected = _selectedFollowUpFilters.contains(label);
   return _PieData(
     label: label,
     color: isSelected ? color.withOpacity(0.8) : color,
@@ -1310,25 +1909,25 @@ PieChartSectionData _buildFollowUpChartSection(int value, Color color, String la
   );
 }
 
-Widget _buildFollowUpLegendRow(IconData icon, String label, int count, Color color) {
-  final bool isSelected = _selectedFollowUpFilter == label;
+Widget _buildFollowUpLegendRow(IconData icon, String label, int count, Color color, {bool isInteractive = true}) {
+  final bool isSelected = _selectedFollowUpFilters.contains(label);
   return Padding(
     padding: const EdgeInsets.only(bottom: 6.0),
     child: InkWell(
-      onTap: () {
+      onTap: isInteractive ? () {
         setState(() {
-          if (_selectedFollowUpFilter == label) {
-            _selectedFollowUpFilter = null;
+          if (_selectedFollowUpFilters.contains(label)) {
+            _selectedFollowUpFilters.remove(label);
           } else {
-            _selectedFollowUpFilter = label;
+            _selectedFollowUpFilters.add(label);
           }
         });
-      },
+      } : null,
       borderRadius: BorderRadius.circular(4),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
+          color: (isInteractive && isSelected) ? color.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Row(
@@ -1340,8 +1939,8 @@ Widget _buildFollowUpLegendRow(IconData icon, String label, int count, Color col
                 label,
                 style: TextStyle(
                   fontSize: 12, 
-                  color: isSelected ? color : Colors.grey.shade800,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: (isInteractive && isSelected) ? color : Colors.grey.shade800,
+                  fontWeight: (isInteractive && isSelected) ? FontWeight.bold : FontWeight.normal,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1350,8 +1949,8 @@ Widget _buildFollowUpLegendRow(IconData icon, String label, int count, Color col
               count.toString(),
               style: TextStyle(
                 fontSize: 13, 
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.bold,
-                color: isSelected ? color : null,
+                fontWeight: (isInteractive && isSelected) ? FontWeight.w800 : FontWeight.bold,
+                color: (isInteractive && isSelected) ? color : null,
               ),
             ),
           ],
@@ -1362,7 +1961,7 @@ Widget _buildFollowUpLegendRow(IconData icon, String label, int count, Color col
 }
 
 PieChartSectionData _buildChartSection(int value, Color color, String label) {
-  final bool isSelected = _selectedVisitFilter == label;
+  final bool isSelected = _selectedVisitFilters.contains(label);
   return _PieData(
     label: label,
     color: isSelected ? color.withOpacity(0.8) : color,
@@ -1373,16 +1972,16 @@ PieChartSectionData _buildChartSection(int value, Color color, String label) {
 }
 
 Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
-  final bool isSelected = _selectedVisitFilter == label;
+  final bool isSelected = _selectedVisitFilters.contains(label);
   return Padding(
     padding: const EdgeInsets.only(bottom: 8.0), // Tighter spacing
     child: InkWell(
       onTap: () {
         setState(() {
-          if (_selectedVisitFilter == label) {
-            _selectedVisitFilter = null;
+          if (_selectedVisitFilters.contains(label)) {
+            _selectedVisitFilters.remove(label);
           } else {
-            _selectedVisitFilter = label;
+            _selectedVisitFilters.add(label);
           }
         });
       },
@@ -1427,62 +2026,119 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     const kAccent = Color(0xFF675D40);
+    final activeFilterCount = _countActiveFilters();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey[850] : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Search Row ──
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey[850] : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
                 child: TextField(
                   controller: _searchController,
                   onChanged: (value) => setState(() => _searchQuery = value),
+                  style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
                   decoration: InputDecoration(
-                    hintText: 'Search by name, phone, project...',
-                    prefixIcon: Icon(Icons.search, color: Colors.grey.shade500),
+                    hintText: 'Search name, phone, project...',
+                    hintStyle: TextStyle(fontSize: 13.5, color: Colors.grey.shade400, fontWeight: FontWeight.w400),
+                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () => setState(() { _searchQuery = ''; _searchController.clear(); }),
+                            child: Icon(Icons.close_rounded, color: Colors.grey.shade400, size: 18),
+                          )
+                        : null,
                     filled: true,
-                    fillColor: isDark ? Colors.grey[800] : Colors.grey[100],
+                    fillColor: Colors.transparent,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () => _showFiltersSheet(context),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: kAccent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.tune, color: Colors.white),
+            ),
+            const SizedBox(width: 10),
+            // Filter button with badge
+            GestureDetector(
+              onTap: () => _showFiltersSheet(context),
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: activeFilterCount > 0 ? kAccent : (isDark ? Colors.grey[800] : Colors.white),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: activeFilterCount > 0
+                          ? kAccent.withOpacity(0.35)
+                          : Colors.black.withOpacity(0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      Icons.tune_rounded,
+                      color: activeFilterCount > 0 ? Colors.white : (isDark ? Colors.grey.shade300 : Colors.grey.shade600),
+                      size: 22,
+                    ),
+                    if (activeFilterCount > 0)
+                      Positioned(
+                        top: -5,
+                        right: -5,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade500,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            activeFilterCount.toString(),
+                            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
+            ),
+          ],
+        ),
+
+        // ── Quick Action Buttons (non-developer only) ──
+        if (currentDesignation?.toLowerCase() != 'property developer') ...[
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
+                child: _buildActionButton(
+                  icon: const FaIcon(FontAwesomeIcons.house, size: 13),
+                  label: 'Site Visit',
+                  color: kAccent,
+                  onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -1495,22 +2151,15 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
                       ),
                     );
                   },
-                  icon: const FaIcon(FontAwesomeIcons.house, size: 14),
-                  label: const Text('Add Site Visit'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF675D40),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
+                child: _buildActionButton(
+                  icon: const Icon(Icons.phone_callback_rounded, size: 16),
+                  label: 'Follow Up',
+                  color: const Color(0xFF2A2A2A),
+                  onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -1523,68 +2172,182 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.history, size: 16),
-                  label: const Text('Follow Up'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2A2A2A),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
                 ),
               ),
             ],
           ),
-
-          if (_hasActiveFilters()) ...[
-            const SizedBox(height: 16),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ..._selectedProjects.map((p) => _buildFilterChip(p, () => setState(() => _selectedProjects.remove(p)))),
-                  ..._selectedStatuses.map((s) => _buildFilterChip(s, () => setState(() => _selectedStatuses.remove(s)))),
-                  if (_budgetMinSlider > 0.5 || _budgetMaxSlider < 50.0)
-                    _buildFilterChip(
-                      '₹${_budgetMinSlider.toStringAsFixed(1)}-${_budgetMaxSlider.toStringAsFixed(1)} Cr',
-                      () => setState(() {
-                        _budgetMinSlider = 0.5;
-                        _budgetMaxSlider = 50.0;
-                      })
-                    ),
-                  ..._selectedConfigurations.map((c) => _buildFilterChip(c, () => setState(() => _selectedConfigurations.remove(c)))),
-                  ..._selectedDateFilters.map((d) => _buildFilterChip(d, () => setState(() => _selectedDateFilters.remove(d)))),
-                  ..._selectedNCD.map((n) => _buildFilterChip(n, () => setState(() => _selectedNCD.remove(n)))),
-                  ..._selectedVisited.map((v) => _buildFilterChip(v, () => setState(() => _selectedVisited.remove(v)))),
-                  ..._selectedDeadReasons.map((r) => _buildFilterChip(r, () => setState(() => _selectedDeadReasons.remove(r)))),
-                  
-                  TextButton.icon(
-                    onPressed: _clearAllFilters,
-                    icon: const Icon(Icons.clear, size: 16),
-                    label: const Text('Clear All'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.red,
-                    ),
-                  )
-                ],
-              ),
-            ),
-          ]
         ],
+
+        // ── Active Filter Chips ──
+        if (_hasActiveFilters()) ...[
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                ..._selectedProjects.map((p) => _buildFilterChip(p, Icons.apartment_rounded, const Color(0xFF5C6BC0), () => setState(() => _selectedProjects.remove(p)))),
+                ..._selectedStatuses.map((s) => _buildFilterChip(s, Icons.label_rounded, const Color(0xFF26A69A), () => setState(() => _selectedStatuses.remove(s)))),
+                if (_budgetMinSlider > 0.5 || _budgetMaxSlider < 50.0)
+                  _buildFilterChip(
+                    '₹${_budgetMinSlider < 1 ? "${(_budgetMinSlider * 100).round()}L" : "${_budgetMinSlider.toStringAsFixed(1)}Cr"} – ${_budgetMaxSlider < 1 ? "${(_budgetMaxSlider * 100).round()}L" : "${_budgetMaxSlider.toStringAsFixed(1)}Cr"}',
+                    Icons.currency_rupee_rounded,
+                    const Color(0xFFEF6C00),
+                    () => setState(() { _budgetMinSlider = 0.5; _budgetMaxSlider = 50.0; }),
+                  ),
+                ..._selectedConfigurations.map((c) => _buildFilterChip(c, Icons.bed_rounded, const Color(0xFF7B1FA2), () => setState(() => _selectedConfigurations.remove(c)))),
+                ..._selectedDateFilters.map((d) => _buildFilterChip(d, Icons.calendar_today_rounded, const Color(0xFF00838F), () => setState(() => _selectedDateFilters.remove(d)))),
+                ..._selectedNCD.map((n) => _buildFilterChip(n, Icons.schedule_rounded, const Color(0xFF2E7D32), () => setState(() => _selectedNCD.remove(n)))),
+                ..._selectedVisited.map((v) => _buildFilterChip(v, Icons.home_work_rounded, const Color(0xFF6D4C41), () => setState(() => _selectedVisited.remove(v)))),
+                ..._selectedSources.map((s) => _buildFilterChip(s, Icons.alt_route_rounded, const Color(0xFF1565C0), () => setState(() => _selectedSources.remove(s)))),
+                ..._selectedLeadQualities.map((q) => _buildFilterChip(q, Icons.star_rounded, const Color(0xFFF9A825), () => setState(() => _selectedLeadQualities.remove(q)))),
+                ..._selectedIndustries.map((i) => _buildFilterChip(i, Icons.business_center_rounded, const Color(0xFF37474F), () => setState(() => _selectedIndustries.remove(i)))),
+                ..._selectedDeadReasons.map((r) => _buildFilterChip(r, Icons.block_rounded, Colors.red.shade700, () => setState(() => _selectedDeadReasons.remove(r)))),
+                ..._selectedVisitFilters.map((v) => _buildFilterChip(v, Icons.explore_rounded, const Color(0xFF00695C), () => setState(() => _selectedVisitFilters.remove(v)))),
+                ..._selectedFollowUpFilters.map((f) => _buildFilterChip(f, Icons.phone_callback_rounded, const Color(0xFF558B2F), () => setState(() => _selectedFollowUpFilters.remove(f)))),
+                // Clear All pill
+                GestureDetector(
+                  onTap: _clearAllFilters,
+                  child: Container(
+                    margin: const EdgeInsets.only(left: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.delete_sweep_rounded, size: 13, color: Colors.red.shade600),
+                        const SizedBox(width: 4),
+                        Text('Clear All', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  int _countActiveFilters() {
+    return _selectedProjects.length +
+        _selectedStatuses.length +
+        _selectedConfigurations.length +
+        _selectedDateFilters.length +
+        _selectedSources.length +
+        _selectedLeadQualities.length +
+        _selectedIndustries.length +
+        _selectedNCD.length +
+        _selectedVisited.length +
+        _selectedDeadReasons.length +
+        _selectedVisitFilters.length +
+        _selectedFollowUpFilters.length +
+        (_budgetMinSlider > 0.5 || _budgetMaxSlider < 50.0 ? 1 : 0) +
+        (_searchQuery.isNotEmpty ? 1 : 0);
+  }
+
+  Widget _buildHeaderIconButton({required IconData icon, required VoidCallback onTap, required bool isDark}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey.shade800 : Colors.white,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.07),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          size: 19,
+          color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+        ),
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, VoidCallback onDeleted) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: Chip(
-        label: Text(label),
-        onDeleted: onDeleted,
-        backgroundColor: Colors.grey.shade200,
-        deleteIconColor: Colors.grey.shade700,
+  Widget _buildActionButton({
+    required Widget icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(13),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.28),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconTheme(data: const IconThemeData(color: Colors.white), child: icon),
+            const SizedBox(width: 7),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.1)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, IconData icon, Color color, VoidCallback onRemove) {
+    return GestureDetector(
+      onTap: onRemove,
+      child: Container(
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.fromLTRB(9, 6, 8, 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: color.withOpacity(0.3), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color,
+                letterSpacing: 0.1,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: 6),
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.close_rounded, size: 9, color: color),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1673,7 +2436,7 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
       print('   [BUILD_LEADS] Lead $i: ${filteredLeads[i].name} - ${filteredLeads[i].customerName}');
     }
 
-    if (filteredLeads.isEmpty && (_hasActiveFilters() || _selectedVisitFilter != null)) {
+    if (filteredLeads.isEmpty && _hasActiveFilters()) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1703,13 +2466,15 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
     }
 
     return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 100),
       itemCount: filteredLeads.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
           return Column(
             children: [
               _buildSummaryWidgets(),
-              _buildFollowUpSummaryWidgets(),
+              if (currentDesignation?.toLowerCase() != 'property developer')
+                _buildFollowUpSummaryWidgets(),
             ],
           );
         }
@@ -1998,7 +2763,7 @@ class _LeadCard extends StatelessWidget {
                     isBold: true),
               ],
               
-              if (latestFollowUp != null)
+              if (latestFollowUp != null && currentDesignation?.toLowerCase() != 'property developer')
                 _leadDetailRow(context, Icons.event_note_rounded,
                     'Follow up: ${_formatPostedDate(DateTime.tryParse(latestFollowUp.followUpDate ?? ''))} (${latestFollowUp.status})',
                     color: Colors.orange.shade800),
@@ -2030,42 +2795,44 @@ class _LeadCard extends StatelessWidget {
                 const SizedBox(width: 8), 
 
                 // 3. Site Visit (Primary Action Button)
-                ElevatedButton.icon(
-                  onPressed: onSiteVisit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccent, // Your Gold #675d40
-                    foregroundColor: Colors.white, // Text & Icon Color
-                    elevation: 0, // Flat "Matte" look
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8), // Slightly rounded corners
+                if (currentDesignation?.toLowerCase() != 'property developer') ...[
+                  ElevatedButton.icon(
+                    onPressed: onSiteVisit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kAccent, // Your Gold #675d40
+                      foregroundColor: Colors.white, // Text & Icon Color
+                      elevation: 0, // Flat "Matte" look
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8), // Slightly rounded corners
+                      ),
+                    ),
+                    icon: const FaIcon(FontAwesomeIcons.house, size: 14),
+                    label: const Text(
+                      "Site Visit",
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                     ),
                   ),
-                  icon: const FaIcon(FontAwesomeIcons.house, size: 14),
-                  label: const Text(
-                    "Site Visit",
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                ),
 
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: onFollowUp,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2A2A2A),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: onFollowUp,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2A2A2A),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: const Icon(Icons.history, size: 14),
+                    label: const Text(
+                      "Follow Up",
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                     ),
                   ),
-                  icon: const Icon(Icons.history, size: 14),
-                  label: const Text(
-                    "Follow Up",
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                ),
+                ],
               ],
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/projects/project_service.dart';
+import 'package:Homesol/components/cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -16,11 +17,13 @@ import '../../utils.dart';
 class DeveloperDetailPopup extends StatefulWidget {
   final Developer developer;
   final List<Project> projects;
+  final String? designation;
 
   const DeveloperDetailPopup({
     super.key,
     required this.developer,
     required this.projects,
+    this.designation,
   });
 
   @override
@@ -40,11 +43,26 @@ class _DeveloperDetailPopupState extends State<DeveloperDetailPopup> {
   static const Color kSurfaceWhite = Colors.white;
   static const Color kBackground = Color(0xFFF9F9F9);
 
+  String? _currentDesignation;
+
   @override
   void initState() {
     super.initState();
+    _currentDesignation = widget.designation;
     _initDeveloperBookmarkState();
     _fetchDetailedProjects();
+    if (_currentDesignation == null) {
+      _fetchDesignation();
+    }
+  }
+
+  Future<void> _fetchDesignation() async {
+    final profile = await AuthService.getMyProfile();
+    if (profile != null && mounted) {
+      setState(() {
+        _currentDesignation = profile.designation;
+      });
+    }
   }
 
   Future<void> _fetchDetailedProjects() async {
@@ -252,20 +270,11 @@ class _DeveloperDetailPopupState extends State<DeveloperDetailPopup> {
           children: [
             Hero(
               tag: 'dev_logo_${widget.developer.id}',
-              child: Image.network(
-                buildImageUrl(widget.developer.logoUrl),
+              child: CachedImage(
+                imageUrl: buildImageUrl(widget.developer.logoUrl),
                 fit: BoxFit.cover,
                 color: Colors.black.withOpacity(0.5),
                 colorBlendMode: BlendMode.darken,
-                errorBuilder: (_, __, ___) => Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [kPrimaryGold, Colors.black],
-                    ),
-                  ),
-                ),
               ),
             ),
           ],
@@ -287,6 +296,18 @@ class _DeveloperDetailPopupState extends State<DeveloperDetailPopup> {
             fontFamily: 'Serif',
           ),
         ),
+        if (widget.developer.username.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            '@${widget.developer.username}',
+            style: TextStyle(
+              color: kPrimaryGold.withOpacity(0.8),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         Row(
           children: [
@@ -450,11 +471,11 @@ class _DeveloperDetailPopupState extends State<DeveloperDetailPopup> {
         itemBuilder: (context, index) {
           final project = _detailedProjects[index];
           return _ProjectCard(
-            project: project,
-            developer: widget.developer,
-            width: MediaQuery.of(context).size.width * 0.7,
-          );
-        },
+           project: project,
+           developer: widget.developer,
+           width: MediaQuery.of(context).size.width * 0.7,
+           designation: _currentDesignation,
+          );        },
       ),
     );
   }
@@ -478,7 +499,7 @@ class _DeveloperDetailPopupState extends State<DeveloperDetailPopup> {
 }
 
 class _ContactTile extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon;
   final String label;
   final String value;
   final bool isLink;
@@ -574,8 +595,14 @@ class _ProjectCard extends StatelessWidget {
   final Project project;
   final Developer developer;
   final double width;
+  final String? designation;
 
-  const _ProjectCard({required this.project, required this.developer, required this.width});
+  const _ProjectCard({
+    required this.project,
+    required this.developer,
+    required this.width,
+    this.designation,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -584,7 +611,11 @@ class _ProjectCard extends StatelessWidget {
         showDialog(
           context: context,
           barrierColor: Colors.black54,
-          builder: (_) => PropertyDetailPopup(project: project, developer: developer),
+          builder: (_) => PropertyDetailPopup(
+            project: project,
+            developer: developer,
+            designation: designation,
+          ),
         );
       },
       child: Container(
@@ -611,10 +642,9 @@ class _ProjectCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(
-                      project.galleryImages.isNotEmpty ? buildImageUrl(project.galleryImages.first.images) : '',
+                    CachedImage(
+                      imageUrl: project.galleryImages.isNotEmpty ? buildImageUrl(project.galleryImages.first.images) : '',
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: Colors.grey[300]),
                     ),
                     Positioned(
                       top: 8,

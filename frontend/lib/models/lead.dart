@@ -112,18 +112,18 @@ class Lead {
   final String? customAttendedBy;
   final String? customSalesManager;
   final String? customSourceType;
-  // final int? isDigital;
-  // final int? isReference;
-  // final int? isDataCalling;
-  // final int? isRetail;
-  // final int? isUnderConstruction;
-  // final int? isRental;
-  // final int? isReadyToMove;
-  // final int? reqCallingSupport;
-  // final int? reqDigitalKit;
-  // final int? reqStandees;
-  // final int? reqSmsBlast;
-  // final int? reqWhatsappBlast;
+  final int? isDigital;
+  final int? isReference;
+  final int? isDataCalling;
+  final int? isRetail;
+  final int? isUnderConstruction;
+  final int? isRental;
+  final int? isReadyToMove;
+  final int? reqCallingSupport;
+  final int? reqDigitalKit;
+  final int? reqStandees;
+  final int? reqSmsBlast;
+  final int? reqWhatsappBlast;
 
 
   final String customerPhone;
@@ -225,18 +225,18 @@ class Lead {
     this.customAttendedBy,
     this.customSalesManager,
     this.customSourceType,
-    // this.isDigital,
-    // this.isReference,
-    // this.isDataCalling,
-    // this.isRetail,
-    // this.isUnderConstruction,
-    // this.isRental,
-    // this.isReadyToMove,
-    // this.reqCallingSupport,
-    // this.reqDigitalKit,
-    // this.reqStandees,
-    // this.reqSmsBlast,
-    // this.reqWhatsappBlast,
+    this.isDigital,
+    this.isReference,
+    this.isDataCalling,
+    this.isRetail,
+    this.isUnderConstruction,
+    this.isRental,
+    this.isReadyToMove,
+    this.reqCallingSupport,
+    this.reqDigitalKit,
+    this.reqStandees,
+    this.reqSmsBlast,
+    this.reqWhatsappBlast,
   });
 
   factory Lead.fromJson(Map<String, dynamic> json) {
@@ -359,18 +359,18 @@ class Lead {
       customAttendedBy: json['custom_attended_by']?.toString(),
       customSalesManager: json['custom_sales_manager']?.toString(),
       customSourceType: json['custom_source_type']?.toString(),
-      // isDigital: json['is_digital']?.toInt(),
-      // isReference: json['is_reference']?.toInt(),
-      // isDataCalling: json['is_data_calling']?.toInt(),
-      // isRetail: json['is_retail']?.toInt(),
-      // isUnderConstruction: json['is_under_construction']?.toInt(),
-      // isRental: json['is_rental']?.toInt(),
-      // isReadyToMove: json['is_ready_to_move']?.toInt(),
-      // reqCallingSupport: json['req_calling_support']?.toInt(),
-      // reqDigitalKit: json['req_digital_kit']?.toInt(),
-      // reqStandees: json['req_standees']?.toInt(),
-      // reqSmsBlast: json['req_sms_blast']?.toInt(),
-      // reqWhatsappBlast: json['req_whatsapp_blast']?.toInt(),
+      isDigital: json['is_digital']?.toInt(),
+      isReference: json['is_reference']?.toInt(),
+      isDataCalling: json['is_data_calling']?.toInt(),
+      isRetail: json['is_retail']?.toInt(),
+      isUnderConstruction: json['is_under_construction']?.toInt(),
+      isRental: json['is_rental']?.toInt(),
+      isReadyToMove: json['is_ready_to_move']?.toInt(),
+      reqCallingSupport: json['req_calling_support']?.toInt(),
+      reqDigitalKit: json['req_digital_kit']?.toInt(),
+      reqStandees: json['req_standees']?.toInt(),
+      reqSmsBlast: json['req_sms_blast']?.toInt(),
+      reqWhatsappBlast: json['req_whatsapp_blast']?.toInt(),
     );
   }
 
@@ -392,6 +392,18 @@ class Lead {
       'source': source,
       'custom_source_type': customSourceType,
       'location_coordinates': locationCoordinates,
+      'is_digital': isDigital,
+      'is_reference': isReference,
+      'is_data_calling': isDataCalling,
+      'is_retail': isRetail,
+      'is_under_construction': isUnderConstruction,
+      'is_rental': isRental,
+      'is_ready_to_move': isReadyToMove,
+      'req_calling_support': reqCallingSupport,
+      'req_digital_kit': reqDigitalKit,
+      'req_standees': reqStandees,
+      'req_sms_blast': reqSmsBlast,
+      'req_whatsapp_blast': reqWhatsappBlast,
       // Add custom fields to toJson if needed for sending data back to server
     };
   }

@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/developers/developer_service.dart';
+import 'package:Homesol/components/cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:Homesol/services/auth_service.dart';
 
 import '../models/project.dart';
 import '../models/developer.dart';
@@ -17,11 +19,13 @@ import 'live_inventory_matrix.dart';
 class PropertyDetailPopup extends StatefulWidget {
   final Project project;
   final Developer? developer;
+  final String? designation;
 
   const PropertyDetailPopup({
     super.key,
     required this.project,
     this.developer,
+    this.designation,
   });
 
   @override
@@ -31,6 +35,25 @@ class PropertyDetailPopup extends StatefulWidget {
 class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
   int _currentImageIndex = 0;
   final PageController _imagePageController = PageController();
+  String? _currentDesignation;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentDesignation = widget.designation;
+    if (_currentDesignation == null) {
+      _fetchDesignation();
+    }
+  }
+
+  Future<void> _fetchDesignation() async {
+    final profile = await AuthService.getMyProfile();
+    if (profile != null && mounted) {
+      setState(() {
+        _currentDesignation = profile.designation;
+      });
+    }
+  }
 
   // --- Theme Constants ---
   static const Color kPrimaryGold = Color(0xFF675D40);
@@ -121,7 +144,7 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
 
     shareText += "📍 *Project USP:*\n";
     if (project.description.isNotEmpty) {
-      shareText += "${project.description}\n\n";
+      shareText += "${stripHtml(project.description)}\n\n";
     } else {
       // Fallback to hardcoded USPs if project.description is empty
       shareText += "- _*Derasar Within the Premises*_ 🛕\n";
@@ -150,7 +173,7 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
     shareText += "📍 *Indulge in a Luxury Lifestyle Curated for you:* 😎\n";
     if (project.amenities.isNotEmpty) {
       for (var amenity in project.amenities) {
-        shareText += "- ${amenity.data}\n";
+        shareText += "- ${stripHtml(amenity.data)}\n";
       }
     } else {
       // Fallback if no amenities are found, using example text
@@ -203,8 +226,8 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
             controller: PageController(initialPage: initialIndex),
             itemCount: images.length,
             itemBuilder: (_, i) => InteractiveViewer(
-              child: Image.network(
-                buildImageUrl(images[i].images),
+              child: CachedImage(
+                imageUrl: buildImageUrl(images[i].images),
                 fit: BoxFit.contain,
               ),
             ),
@@ -262,23 +285,9 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
                       fit: StackFit.expand,
                       children: [
                         // The Image
-                        Image.network(
-                          buildImageUrl(images[index].images),
+                        CachedImage(
+                          imageUrl: buildImageUrl(images[index].images),
                           fit: BoxFit.cover, // Covers the box cleanly
-                          loadingBuilder: (ctx, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Center(
-                              child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                    : null,
-                                color: kPrimaryGold,
-                              ),
-                            );
-                          },
-                          errorBuilder: (ctx, error, stackTrace) =>
-                              const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
                         ),
                         // A subtle gradient overlay at the bottom for visibility
                         Positioned(
@@ -388,7 +397,9 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
           backgroundColor: kBackground,
           child: Scaffold(
             backgroundColor: kBackground,
-            bottomNavigationBar: _buildBottomAction(context),
+            bottomNavigationBar: (_currentDesignation?.toLowerCase().contains('sourcing') ?? false)
+                ? null
+                : _buildBottomAction(context),
             body: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
@@ -429,7 +440,10 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
                         ],
                         const SizedBox(height: 30),
                         _buildSectionTitle('Inventory Matrix'),
-                        LiveInventoryMatrix(projectId: widget.project.id),
+                        LiveInventoryMatrix(
+                          projectId: widget.project.id,
+                          designation: _currentDesignation,
+                        ),
                         const SizedBox(height: 24),
                         _buildSystemInfoCard(), 
                         const SizedBox(height: 40), // Bottom padding
@@ -483,11 +497,10 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
                 itemCount: widget.project.galleryImages.length,
                 itemBuilder: (_, i) => GestureDetector(
                   onTap: () => _openImageViewer(initialIndex: i),
-                  child: Image.network(
-                    buildImageUrl(widget.project.galleryImages[i].images),
+                  child: CachedImage(
+                    imageUrl: buildImageUrl(widget.project.galleryImages[i].images),
                     fit: BoxFit.cover,
                     width: double.infinity,
-                    errorBuilder: (_, __, ___) => Container(color: Colors.grey[200]),
                   ),
                 ),
               )

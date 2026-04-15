@@ -6,6 +6,8 @@ import 'auth_service.dart';
 import 'databases/sales_team_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'connectivity_service.dart';
+
 class ApiService {
   static String get baseUrl => '${AuthService.baseUrl}/api/resource';
   static const String _lastSyncTimestampKey = "last_sync_timestamp_sales_teams";
@@ -21,6 +23,11 @@ class ApiService {
 
   // Helper to fetch all sales team names from server for deletion comparison
   static Future<List<String>> fetchSalesTeamNamesFromServer() async {
+    // Check if we are online before trying to fetch from API
+    if (!ConnectivityService.isOnline) {
+      return [];
+    }
+
     try {
       final headers = await _getHeaders();
       final uri = Uri.parse(
@@ -45,6 +52,18 @@ class ApiService {
 
   // Sync sales teams from API and store in local database
   static Future<List<SalesTeam>> syncSalesTeams({bool forceRefresh = false}) async {
+    // Check if we are online before trying to fetch from API
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Loading sales teams from local database');
+      final SalesTeamDatabase teamDb = SalesTeamDatabase();
+      final List<Map<String, dynamic>> rawTeams =
+          await teamDb.getAllSalesTeams();
+      return rawTeams.map((data) {
+        final teamJson = json.decode(data['data']);
+        return SalesTeam.fromJson(teamJson);
+      }).toList();
+    }
+
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     String lastSyncTimestamp =
         prefs.getString(_lastSyncTimestampKey) ?? "2000-01-01 00:00:00";
@@ -109,42 +128,35 @@ class ApiService {
 
         for (var teamJson in jsonData) {
           SalesTeam salesTeam = SalesTeam.fromJson(teamJson);
-          List<Member> updatedMembers = [];
-
-          for (var member in salesTeam.members) {
-            // Only fetch employee details if userId is missing and employee ID is present
+          
+          // Fetch all missing member details in parallel
+          List<Future<Member>> memberFutures = salesTeam.members.map((member) async {
             if (member.userId == null && member.employee.isNotEmpty) {
-              Profile? employeeProfile = await fetchEmployeeDetails(
-                member.employee,
-              );
+              Profile? employeeProfile = await fetchEmployeeDetails(member.employee);
               if (employeeProfile != null) {
-                // Create a new Member with the userId
-                updatedMembers.add(
-                  Member(
-                    name: member.name,
-                    owner: member.owner,
-                    creation: member.creation,
-                    modified: member.modified,
-                    modifiedBy: member.modifiedBy,
-                    docstatus: member.docstatus,
-                    idx: member.idx,
-                    employee: member.employee,
-                    employeeName: member.employeeName,
-                    userId: employeeProfile.userId,
-                    role: member.role,
-                    parent: member.parent,
-                    parentfield: member.parentfield,
-                    parenttype: member.parenttype,
-                    doctype: member.doctype,
-                  ),
+                return Member(
+                  name: member.name,
+                  owner: member.owner,
+                  creation: member.creation,
+                  modified: member.modified,
+                  modifiedBy: member.modifiedBy,
+                  docstatus: member.docstatus,
+                  idx: member.idx,
+                  employee: member.employee,
+                  employeeName: member.employeeName,
+                  userId: employeeProfile.userId,
+                  role: member.role,
+                  parent: member.parent,
+                  parentfield: member.parentfield,
+                  parenttype: member.parenttype,
+                  doctype: member.doctype,
                 );
-              } else {
-                updatedMembers.add(member);
               }
-            } else {
-              updatedMembers.add(member);
             }
-          }
+            return member;
+          }).toList();
+
+          List<Member> updatedMembers = await Future.wait(memberFutures);
 
           // Reconstruct SalesTeam with updated members
           final updatedTeam = SalesTeam(
@@ -170,9 +182,7 @@ class ApiService {
           }
 
           // Store in local database
-          final Map<String, dynamic> teamMap = updatedTeam.toJson();
-          final SalesTeamDatabase teamDb = SalesTeamDatabase();
-          await teamDb.upsertSalesTeam(teamMap);
+          await teamDb.upsertSalesTeam(updatedTeam.toJson());
         }
 
         // Save the new latest modified timestamp
@@ -308,9 +318,6 @@ class ApiService {
   static Future<Profile?> fetchEmployeeDetails(String employeeId) async {
     try {
       final headers = await _getHeaders();
-      print(
-        'Fetching employee details for: $employeeId from $baseUrl/Employee/$employeeId',
-      );
       final response = await http.get(
         Uri.parse(
           '$baseUrl/Employee/$employeeId',
@@ -318,22 +325,22 @@ class ApiService {
         headers: headers,
       );
 
-      print('Employee details response status: ${response.statusCode}');
-      print('Employee details response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         final Profile employeeProfile = Profile.fromJson(responseData['data']);
         print('Extracted userId for $employeeId: ${employeeProfile.userId}');
         return employeeProfile;
+      } else if (response.statusCode == 403) {
+        // Silently return null for permission errors to avoid log noise for developers/brokers
+        return null;
       } else {
         print(
-          'Error fetching employee details: ${response.statusCode} - ${response.body}',
+          'Error fetching employee details for $employeeId: ${response.statusCode}',
         );
         return null;
       }
     } catch (e) {
-      print('Exception fetching employee details: $e');
+      print('Exception fetching employee details for $employeeId: $e');
       return null;
     }
   }
@@ -369,6 +376,40 @@ class ApiService {
     } catch (e) {
       print('Error updating Broker: $e');
       return {'success': false, 'message': 'Error updating broker: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateEmployee(
+    String employeeId,
+    Map<String, dynamic> updateBody,
+  ) async {
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse(
+        '${AuthService.baseUrl}/api/resource/Employee/$employeeId',
+      );
+
+      final response = await http.put(
+        url,
+        headers: headers,
+        body: jsonEncode(updateBody),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        return {'success': true, 'data': responseData['data']};
+      } else {
+        print(
+          'Update Employee failed: ${response.statusCode} - ${response.body}',
+        );
+        return {
+          'success': false,
+          'message': 'Failed to update employee: ${response.body}',
+        };
+      }
+    } catch (e) {
+      print('Error updating Employee: $e');
+      return {'success': false, 'message': 'Error updating employee: $e'};
     }
   }
 }

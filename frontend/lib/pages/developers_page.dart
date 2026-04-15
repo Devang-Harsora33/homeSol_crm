@@ -1,5 +1,6 @@
 import 'package:Homesol/services/apis/developers/developer_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
+import 'package:Homesol/components/cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../components/property_detail_popup.dart';
@@ -18,8 +19,15 @@ import '../components/projects/filters/developer_filter.dart';
 
 class DevelopersPage extends StatefulWidget {
   final String? initialSearchQuery;
+  final String? developerId;
+  final String? designation;
 
-  const DevelopersPage({super.key, this.initialSearchQuery});
+  const DevelopersPage({
+    super.key,
+    this.initialSearchQuery,
+    this.developerId,
+    this.designation,
+  });
 
   @override
   State<DevelopersPage> createState() => _DevelopersPageState();
@@ -387,160 +395,119 @@ class _DevelopersPageState extends State<DevelopersPage>
     bool isDark,
     void Function(void Function()) setSheetState,
   ) {
+    const kAccent = Color(0xFF675D40);
+
+    final sliderTheme = SliderTheme.of(context).copyWith(
+      activeTrackColor: kAccent.withOpacity(0.7),
+      inactiveTrackColor: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+      thumbColor: kAccent,
+      overlayColor: kAccent.withOpacity(0.12),
+      trackHeight: 4,
+      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+      overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+    );
+
+    Widget _rangeRow(String leftLabel, String leftVal, String rightLabel, String rightVal) {
+      return Row(
+        children: [
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: kAccent.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(leftLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(leftVal, style: TextStyle(fontSize: 14, color: kAccent, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.grey.shade400),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: kAccent.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(rightLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(rightVal, style: TextStyle(fontSize: 14, color: kAccent, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
+        ],
+      );
+    }
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Price/Size',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Min - Price',
-            style: TextStyle(
-              color: Colors.grey.shade800,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
+          // ── Price Section ──
+          Text('Price Range', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+
+          _rangeRow(
+            'Min Price',
             '₹${_formatCr(_pPriceMinCr ?? _pGlobalPriceMinCr)} Cr',
-            style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: theme.colorScheme.primary.withOpacity(0.6),
-              inactiveTrackColor: Colors.grey.shade200,
-              thumbColor: theme.colorScheme.primary,
-              overlayColor: Colors.grey.shade200.withOpacity(0.2),
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-            ),
-            child: Slider(
-              value: (_pPriceMinCr ?? _pGlobalPriceMinCr).clamp(
-                _pGlobalPriceMinCr,
-                _pGlobalPriceMaxCr,
-              ),
-              min: _pGlobalPriceMinCr,
-              max: _pGlobalPriceMaxCr,
-              onChanged: (v) => setSheetState(() => _pPriceMinCr = v),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Max - Price',
-            style: TextStyle(
-              color: Colors.grey.shade800,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
+            'Max Price',
             '₹${_formatCr(_pPriceMaxCr ?? _pGlobalPriceMaxCr)} Cr',
-            style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
           ),
           const SizedBox(height: 8),
+
           SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: theme.colorScheme.primary.withOpacity(0.6),
-              inactiveTrackColor: Colors.grey.shade200,
-              thumbColor: theme.colorScheme.primary,
-              overlayColor: Colors.grey.shade200.withOpacity(0.2),
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-            ),
-            child: Slider(
-              value: (_pPriceMaxCr ?? _pGlobalPriceMaxCr).clamp(
-                _pGlobalPriceMinCr,
-                _pGlobalPriceMaxCr,
+            data: sliderTheme,
+            child: RangeSlider(
+              values: RangeValues(
+                (_pPriceMinCr ?? _pGlobalPriceMinCr).clamp(_pGlobalPriceMinCr, _pGlobalPriceMaxCr),
+                (_pPriceMaxCr ?? _pGlobalPriceMaxCr).clamp(_pGlobalPriceMinCr, _pGlobalPriceMaxCr),
               ),
               min: _pGlobalPriceMinCr,
               max: _pGlobalPriceMaxCr,
-              onChanged: (v) => setSheetState(() => _pPriceMaxCr = v),
+              onChanged: (v) => setSheetState(() {
+                _pPriceMinCr = v.start;
+                _pPriceMaxCr = v.end;
+              }),
             ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Min - Size',
-            style: TextStyle(
-              color: Colors.grey.shade800,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+
+          const SizedBox(height: 20),
+
+          // ── Size Section ──
+          Text('Size Range', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+
+          _rangeRow(
+            'Min Size',
+            '${(_pAreaMinSqft ?? _pGlobalAreaMinSqft).toStringAsFixed(0)} sq.ft',
+            'Max Size',
+            '${(_pAreaMaxSqft ?? _pGlobalAreaMaxSqft).toStringAsFixed(0)} sq.ft',
           ),
           const SizedBox(height: 8),
-          Text(
-            '${(_pAreaMinSqft ?? _pGlobalAreaMinSqft).toStringAsFixed(0)} (sq. ft.)',
-            style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
+
           SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: theme.colorScheme.primary.withOpacity(0.6),
-              inactiveTrackColor: Colors.grey.shade200,
-              thumbColor: theme.colorScheme.primary,
-              overlayColor: Colors.grey.shade200.withOpacity(0.2),
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-            ),
-            child: Slider(
-              value: (_pAreaMinSqft ?? _pGlobalAreaMinSqft).clamp(
-                _pGlobalAreaMinSqft,
-                _pGlobalAreaMaxSqft,
+            data: sliderTheme,
+            child: RangeSlider(
+              values: RangeValues(
+                (_pAreaMinSqft ?? _pGlobalAreaMinSqft).clamp(_pGlobalAreaMinSqft, _pGlobalAreaMaxSqft),
+                (_pAreaMaxSqft ?? _pGlobalAreaMaxSqft).clamp(_pGlobalAreaMinSqft, _pGlobalAreaMaxSqft),
               ),
               min: _pGlobalAreaMinSqft,
               max: _pGlobalAreaMaxSqft,
-              onChanged: (v) => setSheetState(() => _pAreaMinSqft = v),
+              onChanged: (v) => setSheetState(() {
+                _pAreaMinSqft = v.start;
+                _pAreaMaxSqft = v.end;
+              }),
             ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Max - Size',
-            style: TextStyle(
-              color: Colors.grey.shade800,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${(_pAreaMaxSqft ?? _pGlobalAreaMaxSqft).toStringAsFixed(0)} (sq. ft.)',
-            style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: theme.colorScheme.primary.withOpacity(0.6),
-              inactiveTrackColor: Colors.grey.shade200,
-              thumbColor: theme.colorScheme.primary,
-              overlayColor: Colors.grey.shade200.withOpacity(0.2),
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-            ),
-            child: Slider(
-              value: (_pAreaMaxSqft ?? _pGlobalAreaMaxSqft).clamp(
-                _pGlobalAreaMinSqft,
-                _pGlobalAreaMaxSqft,
-              ),
-              min: _pGlobalAreaMinSqft,
-              max: _pGlobalAreaMaxSqft,
-              onChanged: (v) => setSheetState(() => _pAreaMaxSqft = v),
-            ),
-          ),
-          const SizedBox(height: 24),
         ],
       ),
     );
@@ -568,15 +535,47 @@ class _DevelopersPageState extends State<DevelopersPage>
         ProjectService.syncProjects(forceRefresh: true),
       ]);
 
-      final developers = results[0] as List<Developer>;
-      final projects = results[1] as List<Project>;
+      final List<Developer> developers = results[0] as List<Developer>;
+      final List<Project> projects = results[1] as List<Project>;
 
-      print('Developers fetched: ${developers.length}');
-      print('Projects fetched: ${projects.length}');
+      List<Developer> filteredDevelopers = developers;
+      List<Project> filteredProjects = projects;
+
+      final isDeveloper = (widget.designation?.toLowerCase() ?? '').trim() == 'property developer';
+
+      if (isDeveloper) {
+        if (widget.developerId != null) {
+          filteredDevelopers = developers.where((d) => d.id == widget.developerId).toList();
+          final dev = filteredDevelopers.isNotEmpty ? filteredDevelopers.first : null;
+          if (dev != null) {
+            final projectIds = dev.projectsList.map((p) => p.project).toSet();
+            filteredProjects = projects.where((p) => projectIds.contains(p.id)).toList();
+          } else {
+            filteredProjects = [];
+          }
+        } else {
+          // If it's a developer but no developerId provided/found yet
+          filteredDevelopers = [];
+          filteredProjects = [];
+        }
+      } else if (widget.developerId != null) {
+        // Handle case where developerId is passed for other reasons (not common here)
+        filteredDevelopers = developers.where((d) => d.id == widget.developerId).toList();
+        final dev = filteredDevelopers.isNotEmpty ? filteredDevelopers.first : null;
+        if (dev != null) {
+          final projectIds = dev.projectsList.map((p) => p.project).toSet();
+          filteredProjects = projects.where((p) => projectIds.contains(p.id)).toList();
+        } else {
+          filteredProjects = [];
+        }
+      }
+
+      print('Developers fetched: ${filteredDevelopers.length}');
+      print('Projects fetched: ${filteredProjects.length}');
 
       setState(() {
-        _developers = developers;
-        _projects = projects;
+        _developers = filteredDevelopers;
+        _projects = filteredProjects;
         _isLoading = false;
       });
 
@@ -779,9 +778,10 @@ class _DevelopersPageState extends State<DevelopersPage>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: isDark ? Colors.grey[900] : const Color(0xFFF2F2F7),
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.4),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) {
         return StatefulBuilder(
@@ -789,13 +789,13 @@ class _DevelopersPageState extends State<DevelopersPage>
             Widget body;
             if (currentFilterType == 'Developer') {
               if (currentCategory == 'Company') {
-                body = _buildCompanyFilter(theme, setSheetState);
+                body = _buildCompanyFilter(theme, isDark, setSheetState);
               } else if (currentCategory == 'Specializations') {
-                body = _buildSpecializationsFilter(theme, setSheetState);
+                body = _buildSpecializationsFilter(theme, isDark, setSheetState);
               } else if (currentCategory == 'Certifications') {
-                body = _buildCertificationsFilter(theme, setSheetState);
+                body = _buildCertificationsFilter(theme, isDark, setSheetState);
               } else {
-                body = _buildYearTotalFilter(theme, setSheetState);
+                body = _buildYearTotalFilter(theme, isDark, setSheetState);
               }
             } else {
               if (currentCategory == 'Price/Size') {
@@ -818,12 +818,7 @@ class _DevelopersPageState extends State<DevelopersPage>
                 body = StatusFilter(
                   isDark: isDark,
                   selectedStatuses: _pStatuses,
-                  options: const [
-                    'Active',
-                    'Under Construction',
-                    'Completed',
-                    'Planning'
-                  ],
+                  options: const ['Active', 'Under Construction', 'Completed', 'Planning'],
                   setSheetState: setSheetState,
                 );
               } else {
@@ -836,25 +831,76 @@ class _DevelopersPageState extends State<DevelopersPage>
                     ..sort()),
                   selectedAmenities: _pAmenities,
                   query: _pAmenitiesQuery,
-                  onQueryChanged: (v) =>
-                      setSheetState(() => _pAmenitiesQuery = v),
+                  onQueryChanged: (v) => setSheetState(() => _pAmenitiesQuery = v),
                   setSheetState: setSheetState,
                 );
               }
             }
 
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.85,
+            final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+            final sidebarBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF7F5F0);
+
+            const devLabels = {
+              'Company': 'Company',
+              'Specializations': 'Specializ.',
+              'Certifications': 'Certific.',
+              'Year/Total': 'Year/Total',
+            };
+            const projLabels = {
+              'Price/Size': 'Price/Size',
+              'Location': 'Location',
+              'Bedrooms': 'Bedrooms',
+              'Status': 'Status',
+              'Amenities': 'Amenities',
+            };
+            final labelMap = currentFilterType == 'Developer' ? devLabels : projLabels;
+            final catList = categories[currentFilterType]!;
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.88,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              ),
               child: Column(
                 children: [
+                  // ── Handle bar ──
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                    padding: const EdgeInsets.only(top: 12, bottom: 4),
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+
+                  // ── Header ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 16, 12),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('$currentFilterType Filters',
-                            style: const TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold)),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: kAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                          child: const Icon(Icons.tune_rounded, color: kAccent, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('$currentFilterType Filters',
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+                              Text(
+                                _hasActiveFilters() ? 'Filters applied' : 'No filters applied',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _hasActiveFilters() ? kAccent : Colors.grey.shade500,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         TextButton(
                           onPressed: () {
                             setState(() {
@@ -879,103 +925,143 @@ class _DevelopersPageState extends State<DevelopersPage>
                             });
                             setSheetState(() {});
                           },
-                          child: const Text('Clear All',
-                              style: TextStyle(color: Colors.red)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red.shade400,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          child: const Text('Clear All', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),
                   ),
+
+                  const Divider(height: 1, thickness: 0.5),
+
+                  // ── Sidebar + Content ──
                   Expanded(
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Sidebar
                         Container(
-                          width: 130,
-                          color: isDark ? Colors.grey[850] : Colors.white,
+                          width: 148,
+                          decoration: BoxDecoration(
+                            color: sidebarBg,
+                            border: Border(right: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 1)),
+                          ),
                           child: ListView(
-                            children: categories[currentFilterType]!.map((k) {
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            children: catList.map((k) {
                               final bool selected = k == currentCategory;
-                              return Material(
-                                color: selected
-                                    ? (isDark
-                                        ? kAccent.withOpacity(0.3)
-                                        : kAccent.withOpacity(0.1))
-                                    : Colors.transparent,
-                                child: InkWell(
-                                  onTap: () =>
-                                      setSheetState(() => currentCategory = k),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 20, vertical: 16),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                          left: BorderSide(
-                                              color: selected
-                                                  ? kAccent
-                                                  : Colors.transparent,
-                                              width: 3)),
-                                    ),
-                                    child: Text(k,
-                                        style: TextStyle(
-                                            fontWeight: selected
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                            color: selected ? kAccent : null)),
+                              final String label = labelMap[k] ?? k;
+                              return GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => setSheetState(() => currentCategory = k),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 160),
+                                  margin: const EdgeInsets.fromLTRB(8, 2, 8, 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: selected ? (isDark ? kAccent.withOpacity(0.22) : const Color(0xFFF0EDE5)) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      AnimatedContainer(
+                                        duration: const Duration(milliseconds: 160),
+                                        width: 3, height: 18,
+                                        margin: const EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          color: selected ? kAccent : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          label,
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                            color: selected ? kAccent : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               );
                             }).toList(),
                           ),
                         ),
-                        Expanded(child: body),
+
+                        // Content
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                                child: Text(
+                                  currentCategory,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ),
+                              Expanded(child: body),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
+
+                  // ── Bottom Bar ──
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[850] : Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, -5))
-                      ],
+                      color: bgColor,
+                      border: Border(top: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 1)),
                     ),
                     child: Row(
                       children: [
                         Expanded(
+                          flex: 2,
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context),
                             style: OutlinedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                              foregroundColor: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                              side: BorderSide(color: isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
-                            child: const Text('Close'),
+                            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
+                          flex: 3,
                           child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {});
-                              Navigator.pop(context);
-                            },
+                            onPressed: () { setState(() {}); Navigator.pop(context); },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: kAccent,
                               foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                              elevation: 2,
+                              shadowColor: kAccent.withOpacity(0.4),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
-                            child: const Text('Apply Filters'),
+                            child: const Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                           ),
                         ),
                       ],
                     ),
-                  )
+                  ),
                 ],
               ),
             );
@@ -985,176 +1071,313 @@ class _DevelopersPageState extends State<DevelopersPage>
     );
   }
 
-  Widget _buildCompanyFilter(ThemeData theme, void Function(void Function()) setSheetState) {
+  Widget _buildCompanyFilter(ThemeData theme, bool isDark, void Function(void Function()) setSheetState) {
+    const kAccent = Color(0xFF675D40);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Company Size', style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w600)),
+          Text('Company Size', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: _companySizes.map((size) {
               final selected = _selectedCompanySizes.contains(size);
-              return FilterChip(
-                label: Text(size),
-                selected: selected,
-                onSelected: (sel) {
-                  setState(() {
-                    sel ? _selectedCompanySizes.add(size) : _selectedCompanySizes.remove(size);
-                  });
+              return GestureDetector(
+                onTap: () {
+                  setState(() => selected ? _selectedCompanySizes.remove(size) : _selectedCompanySizes.add(size));
                   setSheetState(() {});
                 },
-                selectedColor: theme.colorScheme.primary.withOpacity(0.2),
-                checkmarkColor: theme.colorScheme.primary,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: selected ? kAccent.withOpacity(isDark ? 0.25 : 0.1) : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: selected ? kAccent.withOpacity(0.5) : Colors.transparent, width: 1.5),
+                  ),
+                  child: Text(size, style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? kAccent : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                  )),
+                ),
               );
             }).toList(),
           ),
           const SizedBox(height: 16),
-          CheckboxListTile(
-            title: const Text('Verified Only'),
-            value: _verifiedOnly,
-            onChanged: (v) {
-              setState(() => _verifiedOnly = v ?? false);
-              setSheetState(() {});
-            },
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
-          CheckboxListTile(
-            title: const Text('Active Only'),
-            value: _activeOnly,
-            onChanged: (v) {
-              setState(() => _activeOnly = v ?? false);
-              setSheetState(() {});
-            },
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
+          ...([
+            ('Verified Only', _verifiedOnly, (bool v) { setState(() => _verifiedOnly = v); setSheetState(() {}); }),
+            ('Active Only', _activeOnly,   (bool v) { setState(() => _activeOnly = v);   setSheetState(() {}); }),
+          ].map((item) {
+            final label = item.$1;
+            final isChecked = item.$2;
+            final onChanged = item.$3;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(!isChecked),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+                decoration: BoxDecoration(
+                  color: isChecked ? kAccent.withOpacity(isDark ? 0.2 : 0.07) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 20, height: 20,
+                    decoration: BoxDecoration(
+                      color: isChecked ? kAccent : Colors.transparent,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: isChecked ? kAccent : (isDark ? Colors.grey.shade600 : Colors.grey.shade300), width: 1.5),
+                    ),
+                    child: isChecked ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(child: Text(label, style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: isChecked ? FontWeight.w600 : FontWeight.w400,
+                    color: isChecked ? (isDark ? Colors.white : const Color(0xFF3D3420)) : (isDark ? Colors.grey.shade200 : Colors.grey.shade800),
+                  ))),
+                  if (isChecked) Icon(Icons.check_circle_rounded, size: 15, color: kAccent.withOpacity(0.5)),
+                ]),
+              ),
+            );
+          })),
         ],
       ),
     );
   }
 
-  Widget _buildSpecializationsFilter(ThemeData theme, void Function(void Function()) setSheetState) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
+  Widget _buildSpecializationsFilter(ThemeData theme, bool isDark, void Function(void Function()) setSheetState) {
+    const kAccent = Color(0xFF675D40);
+    final filtered = _allSpecializations
+        .where((s) => _devSpecQuery.isEmpty ? true : s.toLowerCase().contains(_devSpecQuery))
+        .toList();
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+        child: Container(
+          height: 40,
+          decoration: BoxDecoration(
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: TextField(
             onChanged: (v) => setSheetState(() => _devSpecQuery = v.trim().toLowerCase()),
+            style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
             decoration: InputDecoration(
-              hintText: 'Search specializations',
-              prefixIcon: const Icon(Icons.search, size: 18),
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              hintText: 'Search specializations...',
+              hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              prefixIcon: Icon(Icons.search_rounded, size: 18, color: Colors.grey.shade400),
+              filled: true, fillColor: Colors.transparent,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _allSpecializations
-                .where((s) => _devSpecQuery.isEmpty ? true : s.toLowerCase().contains(_devSpecQuery))
-                .map((spec) {
+        ),
+      ),
+      Expanded(child: filtered.isEmpty
+        ? Center(child: Text('No results found', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)))
+        : ListView.builder(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+            itemCount: filtered.length,
+            itemBuilder: (_, i) {
+              final spec = filtered[i];
               final selected = _selectedSpecializations.contains(spec);
-              return FilterChip(
-                label: Text(spec),
-                selected: selected,
-                onSelected: (sel) {
-                  setState(() {
-                    sel ? _selectedSpecializations.add(spec) : _selectedSpecializations.remove(spec);
-                  });
-                  setSheetState(() {});
-                },
-                selectedColor: theme.colorScheme.primary.withOpacity(0.2),
-                checkmarkColor: theme.colorScheme.primary,
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () { setState(() => selected ? _selectedSpecializations.remove(spec) : _selectedSpecializations.add(spec)); setSheetState(() {}); },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(bottom: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: selected ? kAccent.withOpacity(isDark ? 0.2 : 0.07) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 20, height: 20,
+                      decoration: BoxDecoration(
+                        color: selected ? kAccent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(color: selected ? kAccent : (isDark ? Colors.grey.shade600 : Colors.grey.shade300), width: 1.5),
+                      ),
+                      child: selected ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(child: Text(spec, style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      color: selected ? (isDark ? Colors.white : const Color(0xFF3D3420)) : (isDark ? Colors.grey.shade200 : Colors.grey.shade800),
+                    ))),
+                    if (selected) Icon(Icons.check_circle_rounded, size: 15, color: kAccent.withOpacity(0.5)),
+                  ]),
+                ),
               );
-            }).toList(),
+            },
           ),
-        ],
       ),
-    );
+    ]);
   }
 
-  Widget _buildCertificationsFilter(ThemeData theme, void Function(void Function()) setSheetState) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
+  Widget _buildCertificationsFilter(ThemeData theme, bool isDark, void Function(void Function()) setSheetState) {
+    const kAccent = Color(0xFF675D40);
+    final filtered = _allCertifications
+        .where((c) => _devCertQuery.isEmpty ? true : c.toLowerCase().contains(_devCertQuery))
+        .toList();
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+        child: Container(
+          height: 40,
+          decoration: BoxDecoration(
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: TextField(
             onChanged: (v) => setSheetState(() => _devCertQuery = v.trim().toLowerCase()),
+            style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
             decoration: InputDecoration(
-              hintText: 'Search certifications',
-              prefixIcon: const Icon(Icons.search, size: 18),
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              hintText: 'Search certifications...',
+              hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              prefixIcon: Icon(Icons.search_rounded, size: 18, color: Colors.grey.shade400),
+              filled: true, fillColor: Colors.transparent,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _allCertifications
-                .where((c) => _devCertQuery.isEmpty ? true : c.toLowerCase().contains(_devCertQuery))
-                .map((cert) {
-              final selected = _selectedCertifications.contains(cert);
-              return FilterChip(
-                label: Text(cert),
-                selected: selected,
-                onSelected: (sel) {
-                  setState(() {
-                    sel ? _selectedCertifications.add(cert) : _selectedCertifications.remove(cert);
-                  });
-                  setSheetState(() {});
-                },
-                selectedColor: theme.colorScheme.primary.withOpacity(0.2),
-                checkmarkColor: theme.colorScheme.primary,
-              );
-            }).toList(),
-          ),
-        ],
+        ),
       ),
-    );
+      Expanded(child: filtered.isEmpty
+        ? Center(child: Text('No certifications found', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)))
+        : ListView.builder(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+            itemCount: filtered.length,
+            itemBuilder: (_, i) {
+              final cert = filtered[i];
+              final selected = _selectedCertifications.contains(cert);
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () { setState(() => selected ? _selectedCertifications.remove(cert) : _selectedCertifications.add(cert)); setSheetState(() {}); },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(bottom: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: selected ? kAccent.withOpacity(isDark ? 0.2 : 0.07) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 20, height: 20,
+                      decoration: BoxDecoration(
+                        color: selected ? kAccent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(color: selected ? kAccent : (isDark ? Colors.grey.shade600 : Colors.grey.shade300), width: 1.5),
+                      ),
+                      child: selected ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(child: Text(cert, style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      color: selected ? (isDark ? Colors.white : const Color(0xFF3D3420)) : (isDark ? Colors.grey.shade200 : Colors.grey.shade800),
+                    ))),
+                    if (selected) Icon(Icons.check_circle_rounded, size: 15, color: kAccent.withOpacity(0.5)),
+                  ]),
+                ),
+              );
+            },
+          ),
+      ),
+    ]);
   }
 
-  Widget _buildYearTotalFilter(ThemeData theme, void Function(void Function()) setSheetState) {
+  Widget _buildYearTotalFilter(ThemeData theme, bool isDark, void Function(void Function()) setSheetState) {
+    const kAccent = Color(0xFF675D40);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Min Year: ${_yearMin ?? _globalYearMin}'),
-              Text('Max Year: ${_yearMax ?? _globalYearMax}'),
-            ],
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Year Established', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildYearBadge('From', (_yearMin ?? _globalYearMin).toString(), kAccent, isDark),
+            Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.grey.shade400),
+            _buildYearBadge('To', (_yearMax ?? _globalYearMax).toString(), kAccent, isDark),
+          ],
+        ),
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: kAccent.withOpacity(0.7),
+            inactiveTrackColor: Colors.grey.shade200,
+            thumbColor: kAccent,
+            overlayColor: kAccent.withOpacity(0.12),
+            trackHeight: 4,
           ),
-          RangeSlider(
+          child: RangeSlider(
             values: RangeValues((_yearMin ?? _globalYearMin).toDouble(), (_yearMax ?? _globalYearMax).toDouble()),
             min: _globalYearMin.toDouble(),
             max: _globalYearMax.toDouble(),
-            onChanged: (values) {
-              setSheetState(() {
-                _yearMin = values.start.round();
-                _yearMax = values.end.round();
-              });
-            },
+            onChanged: (values) => setSheetState(() {
+              _yearMin = values.start.round();
+              _yearMax = values.end.round();
+            }),
           ),
-          const SizedBox(height: 24),
-          Text('Min Projects: ${_minTotalProjects ?? 0}'),
-          Slider(
+        ),
+        const SizedBox(height: 24),
+        Text('Minimum Projects', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(color: kAccent.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
+          child: Row(children: [
+            Icon(Icons.business_center_rounded, size: 16, color: kAccent),
+            const SizedBox(width: 8),
+            Text('${_minTotalProjects ?? 0} projects minimum',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kAccent)),
+          ]),
+        ),
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: kAccent.withOpacity(0.7),
+            inactiveTrackColor: Colors.grey.shade200,
+            thumbColor: kAccent,
+            overlayColor: kAccent.withOpacity(0.12),
+            trackHeight: 4,
+          ),
+          child: Slider(
             value: (_minTotalProjects ?? 0).toDouble(),
             min: 0,
             max: _globalMaxTotalProjects.toDouble(),
             onChanged: (v) => setSheetState(() => _minTotalProjects = v.round()),
           ),
-        ],
-      ),
+        ),
+      ]),
     );
+  }
+
+  Widget _buildYearBadge(String label, String value, Color accent, bool isDark) {
+    return Column(children: [
+      Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+      const SizedBox(height: 4),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(color: accent.withOpacity(isDark ? 0.2 : 0.1), borderRadius: BorderRadius.circular(8)),
+        child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: accent)),
+      ),
+    ]);
   }
 
   void _shareDeveloper(Developer developer) {
@@ -1292,76 +1515,168 @@ Download HomeSol App to connect with developers and explore projects!
 
   Widget _buildSearchAndFilterCard(ThemeData theme, bool isDark) {
     const kAccent = Color(0xFF675D40);
+    final bool hasFilters = _hasActiveFilters();
+    final isProjectTab = _tabController.index == 0;
+    final displayCount = isProjectTab
+        ? _filteredProjects.length
+        : _filteredDevelopers.length;
+    final totalCount = isProjectTab ? _projects.length : _developers.length;
+
     return Container(
-      padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 20),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.of(context).padding.top + 16,
+        20,
+        16,
+      ),
       decoration: BoxDecoration(
         color: isDark ? Colors.grey[850] : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Header ──
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(
-                  _tabController.index == 0 ? 'Projects' : 'Developers',
-                  style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isProjectTab ? 'Projects' : 'Developers',
+                      style: TextStyle(
+                        color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _isLoading
+                          ? 'Loading...'
+                          : '$displayCount of $totalCount shown',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              if (_tabController.index == 0) _buildTagAllProjectsButton(theme),
+              if (isProjectTab) _buildTagAllProjectsButton(theme),
+              const SizedBox(width: 8),
+              _buildHeaderIconBtn(
+                icon: Icons.refresh_rounded,
+                onTap: _fetchData,
+                isDark: isDark,
+              ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
+          // ── Search + Filter ──
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: InputDecoration(
-                    hintText: _tabController.index == 0 ? 'Search projects...' : 'Search developers...',
-                    prefixIcon: Icon(Icons.search, color: Colors.grey.shade500),
-                    filled: true,
-                    fillColor: isDark ? Colors.grey[800] : Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[800] : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
+                    decoration: InputDecoration(
+                      hintText: isProjectTab ? 'Search projects...' : 'Search developers...',
+                      hintStyle: TextStyle(fontSize: 13.5, color: Colors.grey.shade400, fontWeight: FontWeight.w400),
+                      prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? GestureDetector(
+                              onTap: () => setState(() { _searchQuery = ''; _searchController.clear(); }),
+                              child: Icon(Icons.close_rounded, color: Colors.grey.shade400, size: 18),
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.transparent,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
+              // Filter button with active badge
               GestureDetector(
                 onTap: () => _showFiltersSheet(context),
                 child: Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: kAccent,
-                    borderRadius: BorderRadius.circular(12),
+                    color: hasFilters ? kAccent : (isDark ? Colors.grey[800] : Colors.white),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: hasFilters
+                            ? kAccent.withOpacity(0.35)
+                            : Colors.black.withOpacity(0.06),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.tune, color: Colors.white),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(
+                        Icons.tune_rounded,
+                        color: hasFilters ? Colors.white : (isDark ? Colors.grey.shade300 : Colors.grey.shade600),
+                        size: 22,
+                      ),
+                      if (hasFilters)
+                        Positioned(
+                          top: -5,
+                          right: -5,
+                          child: Container(
+                            width: 14,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade500,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
+          // ── Tab Bar ──
           Container(
             height: 44,
             decoration: BoxDecoration(
-              color: theme.colorScheme.onSurface.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(24),
+              color: isDark ? Colors.grey.shade800.withOpacity(0.6) : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(14),
             ),
             child: TabBar(
               controller: _tabController,
@@ -1370,19 +1685,27 @@ Download HomeSol App to connect with developers and explore projects!
               indicatorSize: TabBarIndicatorSize.tab,
               indicator: BoxDecoration(
                 color: kAccent,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: kAccent.withOpacity(0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  )
+                ],
               ),
               labelColor: Colors.white,
-              unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.7),
-              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              unselectedLabelColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+              padding: const EdgeInsets.all(4),
               tabs: [
                 Tab(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: const [
-                      Icon(Icons.apartment_outlined, size: 18),
-                      SizedBox(width: 8),
+                      Icon(Icons.apartment_rounded, size: 16),
+                      SizedBox(width: 6),
                       Text('Projects'),
                     ],
                   ),
@@ -1392,8 +1715,8 @@ Download HomeSol App to connect with developers and explore projects!
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: const [
-                      Icon(Icons.groups_2_outlined, size: 18),
-                      SizedBox(width: 8),
+                      Icon(Icons.groups_2_rounded, size: 16),
+                      SizedBox(width: 6),
                       Text('Developers'),
                     ],
                   ),
@@ -1406,10 +1729,32 @@ Download HomeSol App to connect with developers and explore projects!
     );
   }
 
+  Widget _buildHeaderIconBtn({required IconData icon, required VoidCallback onTap, required bool isDark}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey.shade800 : Colors.white,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.07),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 19, color: isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+      ),
+    );
+  }
+
   Widget _buildDevelopersTab(ThemeData theme, bool isDark) {
     if (_isLoading) {
       return ListView.builder(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         itemCount: 3, // Display a few skeleton cards
         itemBuilder: (context, index) => const _DeveloperCardSkeleton(),
       );
@@ -1465,7 +1810,7 @@ Download HomeSol App to connect with developers and explore projects!
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
       itemCount: _filteredDevelopers.length,
       itemBuilder: (context, index) {
         final developer = _filteredDevelopers[index];
@@ -1479,21 +1824,22 @@ Download HomeSol App to connect with developers and explore projects!
               developer.developerName,
             );
             Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => DeveloperDetailPage(
-                  developer: developer,
-                  projects: developerProjects,
-                ),
-              ),
+             MaterialPageRoute(
+               builder: (context) => DeveloperDetailPage(
+                 developer: developer,
+                 projects: developerProjects,
+                 designation: widget.designation,
+               ),
+             ),
             );
-          },
-          child: _DeveloperCard(
+            },
+            child: _DeveloperCard(
             developer: developer,
             totalProjects: projectStats['total'] ?? 0,
             activeProjects: projectStats['active'] ?? 0,
             onShare: () => _shareDeveloper(developer),
-          ),
-        );
+            designation: widget.designation,
+            ),        );
       },
     );
   }
@@ -1669,7 +2015,7 @@ Download HomeSol App to connect with developers and explore projects!
     return RefreshIndicator(
       onRefresh: _fetchData,
       child: ListView.builder(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         itemCount: filteredProjects.length,
         itemBuilder: (context, index) {
           final project = filteredProjects[index];
@@ -1709,6 +2055,7 @@ Download HomeSol App to connect with developers and explore projects!
           return _ProjectCard(
             project: project,
             developer: dev,
+            designation: widget.designation,
           );
         },
       ),
@@ -1722,19 +2069,30 @@ class _DeveloperCard extends StatelessWidget {
   final int totalProjects;
   final int activeProjects;
   final VoidCallback onShare;
+  final String? designation;
 
   const _DeveloperCard({
     required this.developer,
     required this.totalProjects,
     required this.activeProjects,
     required this.onShare,
+    this.designation,
   });
 
   @override
   Widget build(BuildContext context) {
     const kAccent = Color(0xFF675D40);
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeveloperDetailPage(developer: developer, projects: []))),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DeveloperDetailPage(
+            developer: developer,
+            projects: [],
+            designation: designation,
+          ),
+        ),
+      ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         padding: const EdgeInsets.all(16),
@@ -1754,10 +2112,13 @@ class _DeveloperCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundImage: NetworkImage(buildImageUrl(developer.logoUrl)),
-                  backgroundColor: Colors.grey[200],
+                ClipOval(
+                  child: CachedImage(
+                    imageUrl: buildImageUrl(developer.logoUrl),
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1883,15 +2244,15 @@ class _DeveloperCardSkeleton extends StatelessWidget {
 class _ProjectCard extends StatelessWidget {
   final Project project;
   final Developer? developer;
+  final String? designation;
 
-  const _ProjectCard({required this.project, this.developer});
+  const _ProjectCard({required this.project, this.developer, this.designation});
 
   @override
   Widget build(BuildContext context) {
     const kAccent = Color(0xFF675D40);
     return GestureDetector(
-      onTap: () => showDialog(context: context, builder: (context) => PropertyDetailPopup(project: project, developer: developer)),
-      child: Container(
+      onTap: () => showDialog(context: context, builder: (context) => PropertyDetailPopup(project: project, developer: developer, designation: designation)),      child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1912,11 +2273,10 @@ class _ProjectCard extends StatelessWidget {
               width: double.infinity,
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                child: Image.network(
-                  buildImageUrl(project.galleryImages.first.images),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, _, __) => Container(color: Colors.grey[200]),
-                ),
+              child: CachedImage(
+                imageUrl: buildImageUrl(project.galleryImages.first.images),
+                fit: BoxFit.cover,
+              ),
               ),
             ),
             Padding(

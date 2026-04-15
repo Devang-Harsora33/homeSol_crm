@@ -7,11 +7,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'models/sales_team.dart';
+import 'models/profile.dart';
 import 'pages/developers_page.dart';
 import 'pages/home_page.dart';
 import 'pages/crm_page.dart';
 import 'pages/more_page.dart';
 import 'pages/attendance/attendance_history_page.dart';
+import 'pages/sourcing/sourcing_list_page.dart';
 import 'components/curved_navigation_bar.dart';
 import 'services/analytics_service.dart';
 import 'services/api_service.dart';
@@ -21,8 +23,10 @@ import 'services/shift_service.dart';
 import 'pages/loader_video_screen.dart';
 import 'models/project.dart';
 import 'models/developer.dart';
+import 'models/app_asset.dart';
 import 'pages/auth/login_page.dart'; // Import LoginPage
 import 'components/auth_wrapper.dart'; // Import AuthWrapper
+import 'services/apis/assets/asset_service.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -40,7 +44,10 @@ class _MainNavigationState extends State<MainNavigation> {
   // Data state for the whole app
   List<Project> _projects = [];
   List<Developer> _developers = [];
+  List<AppAsset> _appAssets = [];
   String? _employeeId;
+  String? _designation;
+  String? _developerId;
   
   // Minimal data needed for initializing HomePage
   String _initialAttendanceStatus = 'OUT';
@@ -71,25 +78,57 @@ class _MainNavigationState extends State<MainNavigation> {
     super.dispose();
   }
 
-  // _buildPages now uses the initial state variables to construct HomePage
   List<Widget> _buildPages() {
-    return [
+    final List<Widget> pages = [
       HomePage(
         onNavigateToTab: setCurrentIndex,
         projects: _projects,
         developers: _developers,
+        appAssets: _appAssets,
         onRefresh: _refreshData,
         employeeId: _employeeId,
+        designation: _designation,
+        developerId: _developerId,
         initialAttendanceStatus: _initialAttendanceStatus,
         initialLastPunchTime: _initialLastPunchTime,
         userShift: _userShift,
-        isLoadingData: _isLoadingData, // Pass the new loading state
+        isLoadingData: _isLoadingData,
       ),
-      const CRMPage(),
-      const DevelopersPage(),
-      AttendanceHistoryPage(),
-      MorePage(onNavigateToTab: setCurrentIndex),
     ];
+
+    final dest = (_designation ?? '').trim().toLowerCase();
+
+    if (dest == 'property developer') {
+      // Show leads (CRM) and sourcing for this developer
+      pages.add(CRMPage(developerId: _developerId));
+      pages.add(SourcingListPage(developerId: _developerId, showAddButton: false));
+      pages.add(DevelopersPage(
+        developerId: _developerId,
+        designation: _designation,
+      ));
+    } else {
+      if (dest == 'sourcing') {
+        pages.add(SourcingListPage(showAddButton: true));
+      } else if (dest == 'sales and sourcing' || dest == 'sales & sourcing') {
+        pages.add(const CRMPage());
+        pages.add(SourcingListPage(showAddButton: true));
+      } else {
+        // Default / Sales Representative
+        pages.add(const CRMPage());
+      }
+      pages.add(const DevelopersPage());
+    }
+
+    if (dest != 'property developer') {
+      pages.add(AttendanceHistoryPage());
+    }
+
+    pages.add(MorePage(
+      onNavigateToTab: setCurrentIndex,
+      designation: _designation, // Pass designation to MorePage
+    ));
+
+    return pages;
   }
 
   // Handler for when the user clicks the "Skip" button on the loader
@@ -111,13 +150,36 @@ class _MainNavigationState extends State<MainNavigation> {
     
     final stopwatch = Stopwatch()..start();
     try {
-      // Fetch all data in parallel
+      // Fetch all data in parallel with catchError to handle network failures
       final results = await Future.wait([
-        ProjectService.syncProjects(forceRefresh: true),
-        DeveloperService.syncDevelopers(forceRefresh: true),
-        UserService.syncUserProfile(forceRefresh: true),
-        ShiftService.getShiftTypes(),
-        ApiService.fetchSalesTeams(forceRefresh: true), // Fetch sales teams
+        ProjectService.syncProjects(forceRefresh: true).catchError((e) {
+          print('Error during project sync: $e');
+          return ProjectService.fetchProjects(); // Fallback to local DB
+        }),
+        DeveloperService.syncDevelopers(forceRefresh: true).catchError((e) {
+          print('Error during developer sync: $e');
+          return DeveloperService.fetchDevelopers(); // Fallback to local DB
+        }),
+        UserService.syncUserProfile(forceRefresh: true).catchError((e) {
+          print('Error during user profile sync: $e');
+          return UserService.fetchUserProfile(); // Fallback to local DB
+        }),
+        ShiftService.getShiftTypes().catchError((e) {
+          print('Error during shift types fetch: $e');
+          return <dynamic>[]; // ShiftService.getShiftTypes already handles internal cache
+        }),
+        ApiService.syncSalesTeams(forceRefresh: true).catchError((e) {
+          print('Error during sales team sync: $e');
+          return ApiService.fetchSalesTeams(); // Fallback to local DB
+        }),
+        AuthService.getMyProfile().catchError((e) {
+          print('Error fetching full profile: $e');
+          return null;
+        }),
+        AssetService.fetchAppAssets(forceRefresh: true).catchError((e) {
+          print('Error during app assets sync: $e');
+          return AssetService.fetchAppAssets(); // Fallback to local DB
+        }),
       ]);
 
       // Process results into local variables
@@ -126,11 +188,28 @@ class _MainNavigationState extends State<MainNavigation> {
       final profile = results[2] as dynamic;
       final shifts = results[3] as List<dynamic>;
       final salesTeams = results[4] as List<SalesTeam>;
+      final fullProfile = results.length > 5 ? results[5] as Profile? : null;
+      final assets = results.length > 6 ? results[6] as List<AppAsset> : <AppAsset>[];
 
       List<Project> filteredProjects = [];
       String? employeeId = profile?.name;
+      String? designation = (fullProfile?.designation ?? '').trim();
+      String? developerId;
 
-      if (employeeId != null) {
+      if (designation.toLowerCase() == 'property developer' && fullProfile != null) {
+        for (final dev in developers) {
+          if (dev.username == fullProfile.userId) {
+            developerId = dev.id;
+            for (final devProj in dev.projectsList) {
+              try {
+                final p = projects.firstWhere((element) => element.id == devProj.project);
+                filteredProjects.add(p);
+              } catch (_) {}
+            }
+            break;
+          }
+        }
+      } else if (employeeId != null) {
         for (var team in salesTeams) {
           for (var member in team.members) {
             if (member.employee == employeeId) {
@@ -160,31 +239,44 @@ class _MainNavigationState extends State<MainNavigation> {
 
       String attendanceStatus = 'OUT';
       DateTime? lastPunchTime;
-      if (employeeId != null) {
-        final cookie = await AuthService.getCookie();
-        final filters = jsonEncode([
-          ['employee', '=', employeeId]
-        ]);
-        final logUrl = Uri.parse(
-            '${AuthService.baseUrl}/api/resource/Employee Checkin?filters=$filters&order_by=time desc&limit=1');
-        final logRes = await http.get(logUrl, headers: {'Cookie': cookie ?? ''});
+      if (employeeId != null && designation.toLowerCase() != 'property developer') {
+        try {
+          final cookie = await AuthService.getCookie();
+          final filters = jsonEncode([
+            ['employee', '=', employeeId]
+          ]);
+          final logUrl = Uri.parse(
+              '${AuthService.baseUrl}/api/resource/Employee Checkin?filters=$filters&order_by=time desc&limit=1');
+          final logRes = await http.get(logUrl, headers: {'Cookie': cookie ?? ''}).timeout(const Duration(seconds: 5));
 
-        if (logRes.statusCode == 200) {
-          final logData = jsonDecode(logRes.body);
-          if (logData['data'] != null && logData['data'].isNotEmpty) {
-            final lastLog = logData['data'][0];
-            attendanceStatus = lastLog['log_type'] ?? 'OUT';
-            lastPunchTime =
-                lastLog['time'] != null ? DateTime.parse(lastLog['time']) : null;
+          if (logRes.statusCode == 200) {
+            final logData = jsonDecode(logRes.body);
+            if (logData['data'] != null && logData['data'].isNotEmpty) {
+              final lastLog = logData['data'][0];
+              attendanceStatus = lastLog['log_type'] ?? 'OUT';
+              lastPunchTime =
+                  lastLog['time'] != null ? DateTime.parse(lastLog['time']) : null;
+            }
           }
+        } catch (e) {
+          print('Error fetching last attendance log: $e');
+          // Keep default OUT status if offline
         }
       }
 
       // Update the state for MainNavigation and rebuild pages with fetched data
       setState(() {
-        _projects = filteredProjects.isNotEmpty ? filteredProjects : projects;
-        _developers = developers;
+        if (designation.toLowerCase() == 'property developer') {
+           _projects = filteredProjects; // Could be empty, which is correct if no projects are assigned
+           _developers = developers.where((d) => d.id == developerId).toList();
+        } else {
+           _projects = filteredProjects.isNotEmpty ? filteredProjects : projects;
+           _developers = developers;
+        }
         _employeeId = employeeId;
+        _designation = designation;
+        _developerId = developerId;
+        _appAssets = assets;
         
         // Set the initial values for HomePage
         _userShift = userShift;
@@ -255,7 +347,26 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void setCurrentIndex(int index) {
     setState(() => _currentIndex = index);
-    final pageNames = ['home', 'crm', 'developers', 'attendance', 'more'];
+    
+    final dest = (_designation ?? '').trim().toLowerCase();
+
+    final List<String> pageNames = ['home'];
+    if (dest == 'property developer' && _developerId != null) {
+      pageNames.addAll(['crm', 'sourcing']);
+    } else if (dest == 'sourcing') {
+      pageNames.add('sourcing');
+    } else if (dest == 'sales and sourcing' || dest == 'sales & sourcing') {
+      pageNames.addAll(['crm', 'sourcing']);
+    } else {
+      pageNames.add('crm');
+    }
+    
+    pageNames.add('developers');
+    if (dest != 'property developer') {
+      pageNames.add('attendance');
+    }
+    pageNames.add('more');
+
     if (index < pageNames.length) {
       AnalyticsService.instance.logScreenView(pageNames[index]);
     }
@@ -288,13 +399,23 @@ class _MainNavigationState extends State<MainNavigation> {
     final selectedIconColor = isDark ? Colors.black : Colors.white;
     final unselectedIconColor = isDark ? Colors.black87 : Colors.white70;
 
-    const icons = [
-      Icons.home,
-      Icons.timeline,
-      Icons.apartment,
-      Icons.calendar_today,
-      Icons.more_horiz,
-    ];
+    final dest = (_designation ?? '').trim().toLowerCase();
+
+    final List<IconData> icons = [Icons.home];
+    if (dest == 'property developer' && _developerId != null) {
+      icons.addAll([Icons.timeline, Icons.source_outlined]);
+    } else if (dest == 'sourcing') {
+      icons.add(Icons.source_outlined);
+    } else if (dest == 'sales and sourcing' || dest == 'sales & sourcing') {
+      icons.addAll([Icons.timeline, Icons.source_outlined]);
+    } else {
+      icons.add(Icons.timeline);
+    }
+    icons.add(Icons.apartment);
+    if (dest != 'property developer') {
+      icons.add(Icons.calendar_today);
+    }
+    icons.add(Icons.more_horiz);
 
     final items = List<Widget>.generate(icons.length, (i) {
       final selected = i == _currentIndex;
@@ -302,6 +423,8 @@ class _MainNavigationState extends State<MainNavigation> {
     });
 
     return Scaffold(
+      extendBody: true, // <-- THIS IS THE MAGIC LINE! It lets the body go under the nav bar.
+      backgroundColor: Colors.transparent,
       body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: CurvedNavigationBar(
         index: _currentIndex,

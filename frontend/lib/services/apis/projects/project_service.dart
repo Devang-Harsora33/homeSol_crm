@@ -6,6 +6,8 @@ import 'package:Homesol/services/image_cache_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../connectivity_service.dart';
+
 class ProjectService {
   static String get baseUrl => AuthService.baseUrl;
   static List<Project>? _projectsCache;
@@ -51,6 +53,11 @@ class ProjectService {
 
   // Helper to fetch all project names from server for deletion comparison
   static Future<List<String>> fetchProjectNamesFromServer() async {
+    // Check if we are online before trying to fetch from API
+    if (!ConnectivityService.isOnline) {
+      return [];
+    }
+
     try {
       final headers = await _getHeaders();
       final response = await http.get(
@@ -76,6 +83,18 @@ class ProjectService {
 
   // Sync projects from API and store in local database
   static Future<List<Project>> syncProjects({bool forceRefresh = false}) async {
+    // Check if we are online before trying to fetch from API
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Loading projects from local database');
+      final ProjectDatabase projectDatabase = ProjectDatabase();
+      final List<Map<String, dynamic>> rawProjects =
+          await projectDatabase.getAllProjects();
+      return rawProjects.map((data) {
+        final projectJson = json.decode(data['data']);
+        return Project.fromJson(projectJson);
+      }).toList();
+    }
+
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     String lastSyncTimestamp =
         prefs.getString(_lastSyncTimestampKey) ?? "2000-01-01 00:00:00";
@@ -271,6 +290,26 @@ class ProjectService {
     } catch (e) {
       print('❌ General exception caught: $e');
       return null;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchProjectLocations() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_all_project_locations'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['message'] is List) {
+          return List<Map<String, dynamic>>.from(data['message']);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching project locations: $e');
+      return [];
     }
   }
 

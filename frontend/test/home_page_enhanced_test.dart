@@ -141,6 +141,7 @@ void main() {
         home: HomePage(
           projects: projects,
           developers: const [],
+          appAssets: const [],
           onRefresh: () async {},
           initialAttendanceStatus: 'OUT',
           employeeId: 'EMP001',
@@ -170,6 +171,7 @@ void main() {
         home: HomePage(
           projects: [createMockProject()],
           developers: const [],
+          appAssets: const [],
           onRefresh: () async {},
           initialAttendanceStatus: 'OUT',
           employeeId: 'EMP001',

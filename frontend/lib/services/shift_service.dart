@@ -10,20 +10,40 @@ import '../models/sales_team.dart';
 import '../models/user_profile.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:Homesol/services/databases/shift_database.dart';
+
+import 'connectivity_service.dart';
+
 class ShiftService {
   static Future<List<dynamic>> getShiftTypes() async {
-    final cookie = await AuthService.getCookie();
-    final response = await http.get(
-      Uri.parse(
-        '${AuthService.baseUrl}/api/method/homesol_app.api.get_shift_types',
-      ),
-      headers: {'Cookie': cookie ?? ''},
-    );
+    // Check if we are online before trying to fetch from API
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Loading shift types from local database');
+      return await ShiftDatabase().getShiftTypes();
+    }
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body)['message'];
-    } else {
-      throw Exception('Failed to load shift types');
+    try {
+      final cookie = await AuthService.getCookie();
+      final response = await http.get(
+        Uri.parse(
+          '${AuthService.baseUrl}/api/method/homesol_app.api.get_shift_types',
+        ),
+        headers: {'Cookie': cookie ?? ''},
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> shiftTypes = jsonDecode(response.body)['message'];
+        // Save to cache
+        await ShiftDatabase().saveShiftTypes(shiftTypes);
+        return shiftTypes;
+      } else {
+        print('Failed to load shift types from server: ${response.statusCode}');
+        // Fallback to cache
+        return await ShiftDatabase().getShiftTypes();
+      }
+    } catch (e) {
+      print('Error fetching shift types, falling back to cache: $e');
+      return await ShiftDatabase().getShiftTypes();
     }
   }
 

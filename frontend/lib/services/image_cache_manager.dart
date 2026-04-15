@@ -1,108 +1,79 @@
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'package:Homesol/services/connectivity_service.dart';
+import 'package:Homesol/services/auth_service.dart';
 
 class ImageCacheManager {
-  static const String _cacheDirectoryName = 'image_cache';
-
-  /// Get the cache directory for images
-  static Future<Directory> _getCacheDirectory() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final cacheDir = Directory('${appDir.path}/$_cacheDirectoryName');
-    
-    if (!await cacheDir.exists()) {
-      await cacheDir.create(recursive: true);
+  static String _buildFullUrl(String url) {
+    if (url.isEmpty) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
     }
-    
-    return cacheDir;
+    return '${AuthService.baseUrl}$url';
   }
 
-  /// Generate a safe filename from URL
-  static String _getFilenameFromUrl(String url) {
-    final hash = md5.convert(url.toString().codeUnits).toString();
-    final ext = url.contains('.') ? url.split('.').last.split('?').first : 'jpg';
-    return '$hash.$ext';
+  static String _getFileName(String url) {
+    // Use a hash of the full URL to ensure uniqueness and avoid invalid characters
+    final bytes = utf8.encode(url);
+    final digest = sha256.convert(bytes);
+    final extension = path.extension(Uri.parse(url).path);
+    return '${digest.toString()}$extension';
   }
 
-  /// Download and cache an image, returning the local path
   static Future<String?> downloadAndCacheImage(String imageUrl) async {
     if (imageUrl.isEmpty) return null;
+    
+    final fullUrl = _buildFullUrl(imageUrl);
 
     try {
-      final cacheDir = await _getCacheDirectory();
-      final filename = _getFilenameFromUrl(imageUrl);
-      final file = File('${cacheDir.path}/$filename');
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = _getFileName(fullUrl);
+      final cacheDir = Directory(path.join(directory.path, 'cached_images'));
+      if (!await cacheDir.exists()) {
+        await cacheDir.create(recursive: true);
+      }
+      
+      final localPath = path.join(cacheDir.path, fileName);
+      final file = File(localPath);
 
-      // Return cached file if it exists
       if (await file.exists()) {
-        print('Image already cached: ${file.path}');
-        return file.path;
+        return localPath;
       }
 
-      // Download the image
-      print('Downloading image from: $imageUrl');
-      final response = await http.get(Uri.parse(imageUrl)).timeout(
-        const Duration(seconds: 30),
-      );
+      if (!ConnectivityService.isOnline) return null;
 
+      final cookie = await AuthService.getCookie();
+      final headers = <String, String>{};
+      if (cookie != null && cookie.isNotEmpty) {
+        headers['Cookie'] = cookie;
+      }
+
+      final response = await http.get(Uri.parse(fullUrl), headers: headers).timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) {
         await file.writeAsBytes(response.bodyBytes);
-        print('Image cached at: ${file.path}');
-        return file.path;
+        return localPath;
       } else {
-        print('Failed to download image: ${response.statusCode}');
-        return null;
+        print('Failed to download image: ${response.statusCode} - $fullUrl');
       }
     } catch (e) {
-      print('Error caching image: $e');
-      return null;
+      print('Error downloading image $imageUrl: $e');
     }
+    return null;
   }
 
-  /// Download and cache multiple images, returning local paths
-  static Future<List<String>> downloadAndCacheMultipleImages(List<String> imageUrls) async {
-    final cachedPaths = <String>[];
-    
-    for (final url in imageUrls) {
-      if (url.isNotEmpty) {
-        final cachedPath = await downloadAndCacheImage(url);
-        if (cachedPath != null) {
-          cachedPaths.add(cachedPath);
-        }
-      }
-    }
-    
-    return cachedPaths;
-  }
-
-  /// Clear all cached images
-  static Future<void> clearCache() async {
+  static Future<String?> getCachedImagePath(String imageUrl) async {
+    if (imageUrl.isEmpty) return null;
+    final fullUrl = _buildFullUrl(imageUrl);
     try {
-      final cacheDir = await _getCacheDirectory();
-      if (await cacheDir.exists()) {
-        await cacheDir.delete(recursive: true);
-        print('Image cache cleared');
-      }
-    } catch (e) {
-      print('Error clearing cache: $e');
-    }
-  }
-
-  /// Get cached image file
-  static Future<File?> getCachedImage(String imageUrl) async {
-    try {
-      final cacheDir = await _getCacheDirectory();
-      final filename = _getFilenameFromUrl(imageUrl);
-      final file = File('${cacheDir.path}/$filename');
-      
-      if (await file.exists()) {
-        return file;
-      }
-      return null;
-    } catch (e) {
-      print('Error getting cached image: $e');
-      return null;
-    }
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = _getFileName(fullUrl);
+      final localPath = path.join(directory.path, 'cached_images', fileName);
+      if (await File(localPath).exists()) return localPath;
+    } catch (_) {}
+    return null;
   }
 }

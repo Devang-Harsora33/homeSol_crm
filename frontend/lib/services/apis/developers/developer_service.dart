@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 
 
+import '../../connectivity_service.dart';
+
 class DeveloperService {
   static String get baseUrl => AuthService.baseUrl;
   // Cache for developers
@@ -44,6 +46,11 @@ class DeveloperService {
 
   // Fetch all developer names from the server for deletion checking
   static Future<List<String>> fetchDeveloperNamesFromServer() async {
+    // Check if we are online before trying to fetch from API
+    if (!ConnectivityService.isOnline) {
+      return [];
+    }
+
     try {
       final headers = await _getHeaders();
       final response = await http.get(
@@ -69,6 +76,18 @@ class DeveloperService {
 
   // Sync developers from API and store in local database
   static Future<List<Developer>> syncDevelopers({bool forceRefresh = false}) async {
+    // Check if we are online before trying to fetch from API
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Loading developers from local database');
+      final DeveloperDatabase developerDatabase = DeveloperDatabase();
+      final List<Map<String, dynamic>> rawDevelopers =
+          await developerDatabase.getAllDevelopers();
+      return rawDevelopers.map((data) {
+        final developerJson = json.decode(data['data']);
+        return Developer.fromJson(developerJson);
+      }).toList();
+    }
+
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     String lastSyncTimestamp =
         prefs.getString(_lastSyncTimestampKey) ?? "2000-01-01 00:00:00";

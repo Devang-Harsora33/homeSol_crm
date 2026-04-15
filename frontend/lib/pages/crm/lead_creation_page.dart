@@ -272,6 +272,11 @@ class _LeadCreationPageState extends State<LeadCreationPage>
     // Also update _formData so that it's available for submission logic
     _formData['source'] = _selectedSource;
     _formData['custom_source_type'] = _selectedCustomSourceType;
+
+    // Clear campaign_name if custom_source_type is not Digital Marketing
+    if (_selectedCustomSourceType != 'Digital Marketing') {
+      _formData['campaign_name'] = null;
+    }
   }
 
   Future<void> _initializeCurrentUserAndDropdownData() async {
@@ -1159,6 +1164,9 @@ Widget _buildResidenceTypeButtons() {
                       _selectedSource = 'Channel Partner';
                       _updateCustomSourceTypeOptions();
                     }
+                    if (v != 'Digital Marketing') {
+                      _formData['campaign_name'] = null;
+                    }
                   });
                 },
                 validator: (v) => v == null ? 'Required' : null,
@@ -1204,12 +1212,13 @@ Widget _buildResidenceTypeButtons() {
                   },
                   validator: (v) => v == null ? 'Required' : null,
                 ),
-              _dropdown(
-                'campaign_name',
-                'Campaign Name',
-                _campaigns,
-                (v) => _formData['campaign_name'] = v,
-              ),
+              if (_formData['custom_source_type'] == 'Digital Marketing')
+                _dropdown(
+                  'campaign_name',
+                  'Campaign Name',
+                  _campaigns,
+                  (v) => _formData['campaign_name'] = v,
+                ),
             ]),
           ],
         );

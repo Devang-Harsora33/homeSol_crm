@@ -6,11 +6,13 @@ import '../components/developer_detail_popup.dart';
 class DeveloperDetailPage extends StatelessWidget {
   final Developer developer;
   final List<Project> projects;
+  final String? designation;
 
   const DeveloperDetailPage({
     super.key,
     required this.developer,
     required this.projects,
+    this.designation,
   });
 
   @override
@@ -18,7 +20,11 @@ class DeveloperDetailPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: DeveloperDetailPopup(developer: developer, projects: projects),
+        child: DeveloperDetailPopup(
+          developer: developer,
+          projects: projects,
+          designation: designation,
+        ),
       ),
     );
   }

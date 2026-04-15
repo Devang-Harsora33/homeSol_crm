@@ -10,12 +10,15 @@ import 'dashboard_page.dart';
 import 'leave_page.dart';
 import 'payroll/salary_slips_page.dart';
 import 'channel_partner/channel_partner_list_page.dart';
+import 'sourcing/sourcing_list_page.dart';
 import '../services/apis/leads/lead_service.dart'; // Import LeadService
+import '../services/apis/sourcing/sourcing_service.dart'; // Import SourcingService
 
 class MorePage extends StatelessWidget {
   final Function(int)? onNavigateToTab;
+  final String? designation;
 
-  const MorePage({super.key, this.onNavigateToTab});
+  const MorePage({super.key, this.onNavigateToTab, this.designation});
 
   @override
   Widget build(BuildContext context) {
@@ -26,258 +29,345 @@ class MorePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             _Header(theme: theme),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                children: [
-                  _MoreTile(
-                    icon: Icons.home_work_outlined,
-                    title: 'HomeSol Launch - Projects',
-                    onTap: () {
-                      if (navigateCallback != null) {
-                        // Set the search query for HomeSol
-                        dev_page.DevelopersPage.setSearchQuery('HomeSol');
-                        navigateCallback(
-                          2,
-                        ); // Navigate to developers tab (index 2)
-                      } else {
-                        // Fallback to push navigation if callback not provided
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const dev_page.DevelopersPage(
-                              initialSearchQuery: 'HomeSol',
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  _MoreTile(
-                    icon: Icons.group_add_outlined,
-                    title: 'Channel Partners',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ChannelPartnerListPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _MoreTile(
-                    icon: Icons.wallet,
-                    title: 'Payroll',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => SalarySlipsPage()),
-                      );
-                    },
-                  ),
-                  _MoreTile(
-                    icon: Icons.time_to_leave_outlined,
-                    title: 'Leave Management',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const LeaveScreen()),
-                      );
-                    },
-                  ),
-                  _MoreTile(
-                    icon: Icons.support_agent,
-                    title: 'Raise Ticket',
-                    // onTap: null,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const TicketsListPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _MoreTile(
-                    icon: Icons.bookmark_border,
-                    title: 'BookMarks',
-                    onTap: null,
-                    // onTap: () {
-                    //   Navigator.of(context).push(
-                    //     MaterialPageRoute(builder: (_) => const BookmarkPage()),
-                    //   );
-                    // },
-                  ),
-                  _MoreTile(
-                    icon: Icons.quiz_outlined,
-                    title: 'Dashboard',
-                    onTap: null,
-                    // onTap: () {
-                    //   Navigator.of(context).push(
-                    //     MaterialPageRoute(
-                    //       builder: (_) => const BrokerDashboardPage(),
-                    //     ),
-                    //   );
-                    // },
-                  ),
-                  _MoreTile(
-                    icon: Icons.public,
-                    title: 'HomeSol Networking',
-                    // trailing: const Icon(Icons.keyboard_arrow_down),
-                    onTap: null,
-                  ),
-                  _MoreTile(
-                    icon: Icons.call,
-                    title: 'Call Dashboard',
-                    onTap: null,
-                  ),
+              child: Builder(
+                builder: (context) {
+                  final dest = (designation ?? '').trim().toLowerCase();
+                  final isDeveloper = dest == 'property developer';
 
-                  // _MoreTile(
-                  //   icon: Icons.group_add_outlined,
-                  //   title: 'Refer Home Buying Clients',
-                  //   onTap: () {},
-                  // ),
-                  _MoreTile(
-                    icon: Icons.help_outline,
-                    title: 'Help & Support',
-                    onTap: null,
-                  ),
-                  _MoreTile(
-                    icon: Icons.newspaper,
-                    title: 'News & Article',
-                    onTap: null,
-                  ),
-                  const SizedBox(height: 16),
-                  _MoreTile(
-                    icon: Icons.cleaning_services,
-                    title: 'Clear Local Cache',
-                    onTap: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (BuildContext dialogContext) {
-                          return Dialog(
-                            backgroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 28,
+                  if (isDeveloper) {
+                    return ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                      children: [
+                        _MoreTile(
+                          icon: Icons.support_agent,
+                          title: 'Raise Ticket',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const TicketsListPage(),
                               ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Clear Local Cache',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'This will remove all locally synced data. You will need to re-sync from the server.',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      height: 1.5,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 28),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      TextButton(
-                                        onPressed: () => Navigator.of(
-                                          dialogContext,
-                                        ).pop(false),
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: Colors.black,
-                                        ),
-                                        child: const Text(
-                                          'Cancel',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      ElevatedButton(
-                                        onPressed: () => Navigator.of(
-                                          dialogContext,
-                                        ).pop(true),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.black,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 12,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                        child: const Text(
-                                          'Clear Data',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                            );
+                          },
+                        ),
+                        _MoreTile(
+                          icon: Icons.bookmark_border,
+                          title: 'BookMarks',
+                          onTap: null,
+                        ),
+                        _MoreTile(
+                          icon: Icons.public,
+                          title: 'HomeSol Networking',
+                          onTap: null,
+                        ),
+                        _MoreTile(
+                          icon: Icons.call,
+                          title: 'Call Dashboard',
+                          onTap: null,
+                        ),
+                        _MoreTile(
+                          icon: Icons.help_outline,
+                          title: 'Help & Support',
+                          onTap: null,
+                        ),
+                        _MoreTile(
+                          icon: Icons.newspaper,
+                          title: 'News & Article',
+                          onTap: null,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildClearCacheTile(context),
+                        const SizedBox(height: 16),
+                        _LogoutButton(theme: theme),
+                      ],
+                    );
+                  }
+
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                    children: [
+                      _MoreTile(
+                        icon: Icons.home_work_outlined,
+                        title: 'HomeSol Launch - Projects',
+                        onTap: () {
+                          if (navigateCallback != null) {
+                            // Set the search query for HomeSol
+                            dev_page.DevelopersPage.setSearchQuery('HomeSol');
+                            
+                            int devIndex = 2;
+                            final dest = (designation ?? '').trim().toLowerCase();
+                            if (dest == 'sales and sourcing' || dest == 'sales & sourcing') {
+                              devIndex = 3;
+                            }
+                            
+                            navigateCallback(
+                              devIndex,
+                            ); // Navigate to developers tab
+                          } else {
+                            // Fallback to push navigation if callback not provided
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const dev_page.DevelopersPage(
+                                  initialSearchQuery: 'HomeSol',
+                                ),
                               ),
+                            );
+                          }
+                        },
+                      ),
+                      _MoreTile(
+                        icon: Icons.group_add_outlined,
+                        title: 'Channel Partners',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ChannelPartnerListPage(),
                             ),
                           );
                         },
-                      );
+                      ),
+                      Builder(
+                        builder: (context) {
+                          final dest = (designation ?? '').trim().toLowerCase();
+                          if (dest == 'sales and sourcing' || dest == 'sales & sourcing' || dest == 'sourcing') {
+                            // Show nothing here as it's already in main tabs or we want to hide it
+                            return const SizedBox.shrink();
+                          } else if (dest != 'sales representative') {
+                            return _MoreTile(
+                              icon: Icons.source_outlined,
+                              title: 'Sourcing',
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => SourcingListPage(showAddButton: true),
+                                  ),
+                                );
+                              },
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                      _MoreTile(
+                        icon: Icons.wallet,
+                        title: 'Payroll',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => SalarySlipsPage()),
+                          );
+                        },
+                      ),
+                      _MoreTile(
+                        icon: Icons.time_to_leave_outlined,
+                        title: 'Leave Management',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const LeaveScreen()),
+                          );
+                        },
+                      ),
+                      _MoreTile(
+                        icon: Icons.support_agent,
+                        title: 'Raise Ticket',
+                        // onTap: null,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const TicketsListPage(),
+                            ),
+                          );
+                        },
+                      ),
+                      _MoreTile(
+                        icon: Icons.bookmark_border,
+                        title: 'BookMarks',
+                        onTap: null,
+                        // onTap: () {
+                        //   Navigator.of(context).push(
+                        //     MaterialPageRoute(builder: (_) => const BookmarkPage()),
+                        //   );
+                        // },
+                      ),
+                      _MoreTile(
+                        icon: Icons.quiz_outlined,
+                        title: 'Dashboard',
+                        onTap: null,
+                        // onTap: () {
+                        //   Navigator.of(context).push(
+                        //     MaterialPageRoute(
+                        //       builder: (_) => const BrokerDashboardPage(),
+                        //     ),
+                        //   );
+                        // },
+                      ),
+                      _MoreTile(
+                        icon: Icons.public,
+                        title: 'HomeSol Networking',
+                        // trailing: const Icon(Icons.keyboard_arrow_down),
+                        onTap: null,
+                      ),
+                      _MoreTile(
+                        icon: Icons.call,
+                        title: 'Call Dashboard',
+                        onTap: null,
+                      ),
 
-                      if (confirmed == true) {
-                        try {
-                          await LeadService.clearAllCaches();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Local cache cleared successfully! App restarting...',
-                                ),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                            // Trigger a full app restart to re-fetch all data
-                            Navigator.of(
-                              context,
-                            ).pushNamedAndRemoveUntil('/', (route) => false);
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to clear cache: $e'),
-                                duration: Duration(seconds: 3),
-                              ),
-                            );
-                          }
-                        }
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _LogoutButton(theme: theme),
-                ],
+                      // _MoreTile(
+                      //   icon: Icons.group_add_outlined,
+                      //   title: 'Refer Home Buying Clients',
+                      //   onTap: () {},
+                      // ),
+                      _MoreTile(
+                        icon: Icons.help_outline,
+                        title: 'Help & Support',
+                        onTap: null,
+                      ),
+                      _MoreTile(
+                        icon: Icons.newspaper,
+                        title: 'News & Article',
+                        onTap: null,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildClearCacheTile(context),
+                      const SizedBox(height: 16),
+                      _LogoutButton(theme: theme),
+                    ],
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildClearCacheTile(BuildContext context) {
+    return _MoreTile(
+      icon: Icons.cleaning_services,
+      title: 'Clear Local Cache',
+      onTap: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext dialogContext) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 28,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Clear Local Cache',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'This will remove all locally synced data. You will need to re-sync from the server.',
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.5,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(
+                            dialogContext,
+                          ).pop(false),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.black,
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: () => Navigator.of(
+                            dialogContext,
+                          ).pop(true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                8,
+                              ),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Clear Data',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+
+        if (confirmed == true) {
+          try {
+            await LeadService.clearAllCaches();
+            await SourcingService.clearAllCaches();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Local cache cleared successfully! App restarting...',
+                  ),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              // Trigger a full app restart to re-fetch all data
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/', (route) => false);
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to clear cache: $e'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          }
+        }
+      },
     );
   }
 }

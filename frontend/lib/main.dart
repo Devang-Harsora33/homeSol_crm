@@ -8,11 +8,14 @@ import 'firebase_options.dart';
 import 'services/analytics_service.dart';
 import 'main_navigation.dart';
 import 'services/theme_service.dart';
+import 'services/connectivity_service.dart';
 import 'theme.dart';
 import 'components/auth_wrapper.dart';
+import 'components/connectivity_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  ConnectivityService.initialize();
   await dotenv.load();
   // Allow self-signed/invalid certs for this specific host (temporary until proper cert is installed)
   HttpOverrides.global = _DevHttpOverrides();
@@ -45,6 +48,9 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: ThemeService.instance.themeMode,
+          builder: (context, child) {
+            return ConnectivityWrapper(child: child!);
+          },
           home: const AuthWrapper(child: MainNavigation()),
           navigatorObservers: [FirebaseAnalyticsObserver(analytics: analytics)],
         );

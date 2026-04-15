@@ -101,7 +101,7 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Channel Partners'),
+        title: const Text('Channel Partners', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
         backgroundColor: isDark ? Colors.grey[850] : Colors.white,
         elevation: 0,
@@ -365,13 +365,13 @@ class _ChannelPartnerCard extends StatelessWidget {
     );
   }
 
-  Widget _detailRow(BuildContext context, IconData icon, String text,
+  Widget _detailRow(BuildContext context, dynamic icon, String text,
       {Color color = Colors.black54}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 16, color: color.withOpacity(0.8)),
+        FaIcon(icon, size: 16, color: color.withOpacity(0.8)),
         const SizedBox(width: 8),
         Flexible(
           child: Text(

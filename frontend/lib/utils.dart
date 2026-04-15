@@ -11,3 +11,22 @@ String buildImageUrl(String? imagePath) {
   }
   return '${AuthService.baseUrl}$imagePath';
 }
+
+String stripHtml(String htmlString) {
+  if (htmlString.isEmpty) return htmlString;
+  
+  // Basic HTML tag removal
+  RegExp exp = RegExp(r"<[^>]*>", multiLine: true, caseSensitive: true);
+  String stripped = htmlString.replaceAll(exp, '');
+  
+  // Basic entity decoding (e.g., &amp; to &)
+  stripped = stripped
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&nbsp;', ' ');
+      
+  return stripped.trim();
+}

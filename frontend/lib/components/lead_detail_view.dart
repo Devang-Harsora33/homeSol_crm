@@ -9,6 +9,7 @@ import '../models/lead.dart';
 import '../models/project.dart';
 import '../models/developer.dart';
 import '../models/site_visit.dart';
+import '../models/activity_log.dart';
 import '../services/apis/leads/lead_service.dart';
 import '../components/property_detail_popup.dart';
 import '../pages/site_visit_detail_page.dart';
@@ -36,9 +37,11 @@ class _LeadDetailViewState extends State<LeadDetailView> {
   List<SiteVisit> _siteVisits = [];
   List<SiteVisit> _filteredSiteVisits = [];
   List<FollowUp> _followUps = []; // New list for follow-ups
+  List<ActivityLog> _activityLogs = []; // New list for activity logs
   bool _isLoading = true;
   bool _isSiteVisitsLoading = true;
   bool _isFollowUpsLoading = true; // New loading state for follow-ups
+  bool _isActivityLogsLoading = true; // New loading state for activity logs
   String _lastVisitDate = 'N/A'; // New state variable for last visit date
   String? _visitDoneDate; // Added for Visit Done Date
 
@@ -54,6 +57,7 @@ class _LeadDetailViewState extends State<LeadDetailView> {
       final developers = await DeveloperService.syncDevelopers();
       final siteVisits = await SiteVisitService.fetchMySiteVisits();
       final followUps = await LeadService.fetchTeamFollowups(widget.lead.name!); 
+      final activityLogs = await LeadService.fetchLeadActivityLogs(widget.lead.name!);
 
       if (mounted) {
         setState(() {
@@ -112,6 +116,9 @@ class _LeadDetailViewState extends State<LeadDetailView> {
 
           _followUps = followUps.where((followUp) => followUp.leadId == widget.lead.name).toList(); // Filter follow-ups
           _isFollowUpsLoading = false;
+
+          _activityLogs = activityLogs;
+          _isActivityLogsLoading = false;
         });
       }
     } catch (e) {
@@ -120,6 +127,7 @@ class _LeadDetailViewState extends State<LeadDetailView> {
           _isLoading = false;
           _isSiteVisitsLoading = false;
           _isFollowUpsLoading = false; // Set loading to false on error
+          _isActivityLogsLoading = false;
         });
       }
     }
@@ -737,7 +745,7 @@ Widget _buildFollowUpsCard() {
     );
   }
 
-  Widget _actionButton(IconData icon, String label, Color color, {VoidCallback? onPressed}) {
+  Widget _actionButton(dynamic icon, String label, Color color, {VoidCallback? onPressed}) {
     return Column(
       children: [
         GestureDetector(
@@ -749,7 +757,7 @@ Widget _buildFollowUpsCard() {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Center(child: FaIcon(icon, color: color, size: 22)),
           ),
         ),
         const SizedBox(height: 6),
@@ -887,6 +895,43 @@ Widget _buildFollowUpsCard() {
           _miniInfo("ID", widget.lead.name ?? ''), // The unique ID
           _miniInfo("Created", widget.lead.createdAt?.toString() ?? '-'),
           _miniInfo("Last Modified", widget.lead.modified?.toString() ?? '-'),
+          if (_isActivityLogsLoading)
+            const Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: SizedBox(height: 2, child: LinearProgressIndicator()),
+            )
+          else if (_activityLogs.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0),
+              child: Divider(height: 1, color: Colors.black12),
+            ),
+            Text("Activity Logs", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 12),
+            ..._activityLogs.map((log) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    width: 6, height: 6,
+                    decoration: const BoxDecoration(color: kAccent, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(log.message ?? '-', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black87)),
+                        const SizedBox(height: 2),
+                        Text("${log.user} • ${log.timestamp}", style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )).toList(),
+          ],
         ],
       ),
     );

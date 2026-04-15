@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
+import 'package:Homesol/services/apis/sourcing/sourcing_service.dart';
 import '../models/profile.dart';
 
 class AuthService {
@@ -14,6 +15,7 @@ class AuthService {
 
   static const String cookieKey = 'auth_cookie';
   static const String userKey = 'user_data';
+  static const String profileKey = 'profile_data';
 
   // For testing purposes
   static void setTestValues({String? baseUrl, String? cookie, Map<String, dynamic>? userData}) {
@@ -177,21 +179,38 @@ class AuthService {
 
   // 2.5. GET USER PROFILE
   static Future<Profile?> getMyProfile() async {
+    final prefs = await SharedPreferences.getInstance();
     try {
       final cookie = await getCookie();
-      if (cookie == null) return null;
+      if (cookie == null) throw Exception('No cookie found');
 
       final response = await http.get(
         Uri.parse('$baseUrl/api/method/homesol_app.api.get_my_profile'),
         headers: {'Cookie': cookie},
-      );
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        return Profile.fromJson(json['message']);
+        final profileData = json['message'];
+        
+        // Cache the profile data
+        await prefs.setString(profileKey, jsonEncode(profileData));
+        
+        return Profile.fromJson(profileData);
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
       }
-      return null;
-    } catch (_) {
+    } catch (e) {
+      print('AuthService: getMyProfile error: $e. Attempting to load from cache.');
+      // Try to load from cache on any error
+      final cachedStr = prefs.getString(profileKey);
+      if (cachedStr != null) {
+        try {
+          return Profile.fromJson(jsonDecode(cachedStr));
+        } catch (cacheErr) {
+          print('AuthService: Failed to parse cached profile: $cacheErr');
+        }
+      }
       return null;
     }
   }
@@ -242,6 +261,7 @@ class AuthService {
     // Clear all local caches on logout
     try {
       await LeadService.clearAllCaches();
+      await SourcingService.clearAllCaches();
     } catch (e) {
       print('AuthService: Error clearing caches on logout: $e');
     }

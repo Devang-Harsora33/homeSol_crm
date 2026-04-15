@@ -7,8 +7,13 @@ import 'lead_detail_view.dart';
 
 class LiveInventoryMatrix extends StatefulWidget {
   final String projectId;
+  final String? designation;
 
-  const LiveInventoryMatrix({super.key, required this.projectId});
+  const LiveInventoryMatrix({
+    super.key,
+    required this.projectId,
+    this.designation,
+  });
 
   @override
   State<LiveInventoryMatrix> createState() => _LiveInventoryMatrixState();
@@ -92,6 +97,7 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
       builder: (context) {
         return _UnitDetailsBottomSheet(
           unit: unit,
+          designation: widget.designation,
           onStatusUpdated: () {
             _refreshUnits();
           },
@@ -582,10 +588,12 @@ class _StatusCornerPainter extends CustomPainter {
 class _UnitDetailsBottomSheet extends StatefulWidget {
   final PropertyUnit unit;
   final VoidCallback onStatusUpdated;
+  final String? designation;
 
   const _UnitDetailsBottomSheet({
     required this.unit,
     required this.onStatusUpdated,
+    this.designation,
   });
 
   @override
@@ -963,7 +971,7 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
                           ],
                         ),
                       ),
-                      if (_currentStatus != 'Sold')
+                      if (_currentStatus != 'Sold' && !(widget.designation?.toLowerCase().contains('sourcing') ?? false))
                         OutlinedButton.icon(
                           onPressed: _showLeadSearchPicker,
                           icon: const Icon(Icons.swap_horiz, size: 14),
@@ -994,43 +1002,46 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
                     style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
                   ),
                   const Spacer(),
-                  TextButton.icon(
-                    onPressed: _showLeadSearchPicker,
-                    icon: const Icon(Icons.link),
-                    label: const Text('Link Lead'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF675D40),
+                  if (!(widget.designation?.toLowerCase().contains('sourcing') ?? false))
+                    TextButton.icon(
+                      onPressed: _showLeadSearchPicker,
+                      icon: const Icon(Icons.link),
+                      label: const Text('Link Lead'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF675D40),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
 
-          const Divider(height: 40),
-          const Text(
-            'Update Status',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 12),
-          if (_isUpdating)
-            const Center(child: CircularProgressIndicator())
-          else
-            DropdownButtonFormField<String>(
-              value: _currentStatus,
-              dropdownColor: Colors.white,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'Available', child: Text('Available')),
-                DropdownMenuItem(value: 'Hold', child: Text('Hold')),
-                DropdownMenuItem(value: 'Sold', child: Text('Sold')),
-              ],
-              onChanged: _updateStatus,
+          if (!(widget.designation?.toLowerCase().contains('sourcing') ?? false)) ...[
+            const Divider(height: 40),
+            const Text(
+              'Update Status',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
+            const SizedBox(height: 12),
+            if (_isUpdating)
+              const Center(child: CircularProgressIndicator())
+            else
+              DropdownButtonFormField<String>(
+                value: _currentStatus,
+                dropdownColor: Colors.white,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Available', child: Text('Available')),
+                  DropdownMenuItem(value: 'Hold', child: Text('Hold')),
+                  DropdownMenuItem(value: 'Sold', child: Text('Sold')),
+                ],
+                onChanged: _updateStatus,
+              ),
+          ],
           const SizedBox(height: 40),
         ],
       ),

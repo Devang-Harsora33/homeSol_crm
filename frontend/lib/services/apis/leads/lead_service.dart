@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:Homesol/models/activity_log.dart';
 import 'package:Homesol/models/follow_up.dart';
 import 'package:Homesol/models/lead.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +13,8 @@ import 'package:Homesol/services/databases/project_database.dart';
 import 'package:Homesol/services/databases/site_visit_database.dart';
 import 'package:Homesol/services/databases/sales_team_database.dart';
 import 'package:Homesol/services/databases/user_profile_database.dart';
+import 'package:Homesol/services/apis/sourcing/sourcing_service.dart'; // Add this
+import 'package:Homesol/services/connectivity_service.dart';
 import 'package:intl/intl.dart';
 
 class LeadService {
@@ -386,6 +389,7 @@ class LeadService {
 
   // Fetch all leads
   static Future<List<Lead>> fetchAllLeads() async {
+    if (!ConnectivityService.isOnline) return [];
     try {
       print('🔍 Fetching all leads from: $baseUrl/api/resource/Lead');
       final headers = await AuthService.getHeaders();
@@ -430,6 +434,9 @@ class LeadService {
 
   // Create a new lead
   static Future<Lead> createLead(Lead lead) async {
+    if (!ConnectivityService.isOnline) {
+      throw Exception('Offline: Cannot create lead without internet connection.');
+    }
     try {
       print('🔍 Creating lead: ${lead.toJson()}');
       final headers = {'Content-Type': 'application/json'};
@@ -476,6 +483,11 @@ class LeadService {
 
   // Update lead by ID (API and local DB)
   static Future<void> updateLead(String leadId, Map<String, dynamic> updates) async {
+    if (!ConnectivityService.isOnline) {
+      // For now, we only update API and then local DB. 
+      // Offline update would require a sync queue.
+      throw Exception('Offline: Cannot update lead without internet connection.');
+    }
     try {
       // Clean updates before sending to API
       final cleanedUpdates = Map<String, dynamic>.from(updates);
@@ -536,60 +548,50 @@ class LeadService {
   }
 
   static Future<List<Lead>> fetchMyLeads({bool forceRefresh = false}) async {
-    final now = DateTime.now();
-    if (!forceRefresh &&
-        _leadsCache != null &&
-        _leadsLastFetch != null &&
-        now.difference(_leadsLastFetch!).inMinutes < 5) { // 5-minute cache
-      print('Returning cached leads');
-      return _leadsCache!;
-    }
-
-    try {
-      final uri = Uri.parse(
-        '${AuthService.baseUrl}/api/method/homesol_app.api.get_team_leads',
-      );
-
-      print('🔍 [EMULATOR] Fetching hierarchy leads from: $uri');
-
-      final headers = await AuthService.getHeaders();
-      
-      final url = uri;
-      print('DEBUG: fetchMyLeads URL: $url');
-      print('DEBUG: fetchMyLeads Headers: $headers');
-      final response = await _httpClient.post(url, headers: headers)
-          .timeout(const Duration(seconds: 30));
-
-      print('✅ [EMULATOR] Leads response status: ${response.statusCode}');
-      
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        
-        if (responseData.containsKey('message') && responseData['message'] is List) {
-           final List<dynamic> jsonData = responseData['message'];
-           print('📊 [EMULATOR] Leads found: ${jsonData.length}');
-           final leads = jsonData.map((json) => Lead.fromJson(json)).toList();
-           _leadsCache = leads; // Store in cache
-           _leadsLastFetch = now; // Update last fetch time
-           return leads;
-        } else {
-           print('⚠️ [EMULATOR] "message" key missing or not a list.');
-           return [];
-        }
-
-      } else {
-        print(
-          '❌ [EMULATOR] Error fetching leads: ${response.statusCode} - ${response.body}',
-        );
-        return [];
+    final LeadDatabase leadDatabase = LeadDatabase();
+    
+    // 1. If not forcing refresh or offline, try to return from local DB
+    if (!forceRefresh || !ConnectivityService.isOnline) {
+      final List<Map<String, dynamic>> rawLeads = await leadDatabase.getAllLeads();
+      if (rawLeads.isNotEmpty) {
+        print('Returning leads from local database');
+        final leads = rawLeads.map((data) {
+          final leadJson = json.decode(data['data']);
+          return Lead.fromJson(leadJson);
+        }).toList();
+        _leadsCache = leads;
+        _leadsLastFetch = DateTime.now();
+        return leads;
       }
-    } catch (e) {
-      print('❌ [EMULATOR] Exception fetching leads: $e');
-      return [];
     }
+
+    // 2. If online and (forcing refresh or DB was empty), sync from API
+    if (ConnectivityService.isOnline) {
+      try {
+        await syncMyLeads();
+      } catch (e) {
+        print('Error during lead sync in fetchMyLeads: $e');
+      }
+    }
+    
+    // 3. Return the latest data from DB
+    final List<Map<String, dynamic>> refreshedData = await leadDatabase.getAllLeads();
+    final leads = refreshedData.map((data) {
+      final leadJson = json.decode(data['data']);
+      return Lead.fromJson(leadJson);
+    }).toList();
+    
+    _leadsCache = leads;
+    _leadsLastFetch = DateTime.now();
+    return leads;
   }
 
   static Future<void> syncMyLeads() async {
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Skipping syncMyLeads');
+      return;
+    }
+    
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     String lastSyncTimestamp =
         prefs.getString(_lastSyncTimestampKey) ?? "2000-01-01 00:00:00";
@@ -679,7 +681,52 @@ class LeadService {
 
 
 
+  static Future<List<Lead>> fetchLeadsByDeveloper(String developerId) async {
+    // 1. If offline, return filtered leads from local DB
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Loading developer leads from local database');
+      final List<Map<String, dynamic>> rawLeads = await LeadDatabase().getAllLeads();
+      return rawLeads.map((data) {
+        final leadJson = json.decode(data['data']);
+        return Lead.fromJson(leadJson);
+      }).where((lead) => 
+        // We might need to check multiple fields for developer ID depending on how it's stored in Lead
+        lead.customInterestedProject == developerId || // If developerId is actually a project ID
+        lead.projectId.contains(developerId)
+      ).toList();
+    }
+
+    try {
+      print('🔍 Fetching leads for developer: $developerId');
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse('$baseUrl/api/method/homesol_app.api.get_leads_by_developer?developer_id=$developerId');
+      
+      final response = await _httpClient.get(url, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> jsonData = responseData['message'] ?? [];
+        return jsonData.map((json) => Lead.fromJson(json)).toList();
+      } else {
+        throw Exception('Server error: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Error fetching developer leads: $e');
+      return [];
+    }
+  }
+
   static Future<Lead?> fetchLead(String id) async {
+    // 1. Try to return from local DB if offline
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Loading lead $id from local database');
+      final localData = await LeadDatabase().getLeadByName(id);
+      if (localData != null) {
+        return Lead.fromJson(localData);
+      }
+      return null;
+    }
+
     try {
       print('Fetching lead from: $baseUrl/api/resource/Lead/$id');
       final headers = await AuthService.getHeaders();
@@ -762,20 +809,38 @@ class LeadService {
   }
 
   static Future<List<FollowUp>> fetchMyFollowups({bool forceRefresh = false}) async {
-    try {
-      final cachedFollowups = await FollowUpDatabase.getAllFollowUps();
-      if (cachedFollowups.isNotEmpty && !forceRefresh) {
-        print('Returning cached my followups from database');
-        return cachedFollowups;
+    // 1. If not forcing refresh or offline, try to return from local DB
+    if (!forceRefresh || !ConnectivityService.isOnline) {
+      try {
+        final cachedFollowups = await FollowUpDatabase.getAllFollowUps();
+        if (cachedFollowups.isNotEmpty) {
+          print('Returning cached my followups from database');
+          return cachedFollowups;
+        }
+      } catch (e) {
+        print('Error loading from database: $e');
       }
-    } catch (e) {
-      print('Error loading from database: $e');
     }
 
-    return await syncMyFollowups(forceRefresh: forceRefresh);
+    // 2. If online and (forcing refresh or DB was empty), sync from API
+    if (ConnectivityService.isOnline) {
+      try {
+        await syncMyFollowups(forceRefresh: forceRefresh);
+      } catch (e) {
+        print('Error during followups sync in fetchMyFollowups: $e');
+      }
+    }
+
+    // 3. Return latest data from DB
+    return await FollowUpDatabase.getAllFollowUps();
   }
 
   static Future<List<FollowUp>> syncMyFollowups({bool forceRefresh = false}) async {
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Skipping syncMyFollowups');
+      return await FollowUpDatabase.getAllFollowUps();
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final lastSyncTimestamp = prefs.getString(_lastSyncFollowupsTimestampKey);
@@ -856,6 +921,16 @@ class LeadService {
   }
 
   static Future<FollowUp?> fetchFollowUp(String followUpName) async {
+    // 1. Try to return from local DB if offline
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Loading follow-up $followUpName from local database');
+      final localData = await FollowUpDatabase.getFollowUpByName(followUpName);
+      if (localData != null) {
+        return localData;
+      }
+      return null;
+    }
+
     try {
       print('Fetching follow-up $followUpName from: $baseUrl/api/resource/Lead FollowUps/$followUpName');
       final headers = await AuthService.getHeaders();
@@ -897,6 +972,7 @@ class LeadService {
   }
 
   static Future<bool> updateFollowUp(String followUpName, String status, String remarks, {String? nextFollowUp}) async {
+    if (!ConnectivityService.isOnline) return false;
     try {
       print('Updating follow-up $followUpName with status: $status, remarks: $remarks, nextFollowUp: $nextFollowUp');
       final headers = await AuthService.getHeaders();
@@ -937,6 +1013,9 @@ class LeadService {
   }
     
   static Future<Lead?> createLeadFromForm(Map<String, dynamic> formData) async {
+    if (!ConnectivityService.isOnline) {
+      throw Exception('Offline: Cannot create lead from form without internet connection.');
+    }
     try {
       final headers = await AuthService.getHeaders();
       final userData = await AuthService.getUserData();
@@ -990,6 +1069,7 @@ class LeadService {
   }
 
   static Future<List<String>> fetchFollowupNamesFromServer() async {
+    if (!ConnectivityService.isOnline) return [];
     try {
       final headers = await AuthService.getHeaders();
       final uri = Uri.parse(
@@ -1028,6 +1108,9 @@ class LeadService {
   }
 
   static Future<String?> createFollowup(Map<String, dynamic> body) async {
+    if (!ConnectivityService.isOnline) {
+      return 'Offline: Cannot create follow-up without internet connection.';
+    }
     try {
       final headers = await AuthService.getHeaders();
       final url = Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.crm.create_followup');
@@ -1064,6 +1147,30 @@ class LeadService {
     }
   }
 
+  static Future<List<ActivityLog>> fetchLeadActivityLogs(String leadId) async {
+    try {
+      final headers = await AuthService.getHeaders();
+      final url = Uri.parse('$baseUrl/api/method/homesol_app.api.crm.get_lead_activity_logs');
+      final response = await _httpClient.post(
+        url,
+        headers: headers,
+        body: jsonEncode({'lead_id': leadId}),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> jsonData = responseData['message'] ?? [];
+        return jsonData.map((json) => ActivityLog.fromJson(json)).toList();
+      } else {
+        print('Failed to fetch activity logs for lead $leadId: ${response.statusCode} - ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      print('Error fetching activity logs for lead $leadId: $e');
+      return [];
+    }
+  }
+
   static Future<void> clearAllCaches() async {
     print('Clearing all sync-related caches...');
 
@@ -1094,6 +1201,7 @@ class LeadService {
     await SiteVisitDatabase.deleteAllSiteVisits(); 
     await SalesTeamDatabase().deleteAllSalesTeams();
     await UserProfileDatabase().deleteAllUserProfiles();
+    await SourcingService.clearAllCaches(); // Add this
 
     print('All sync-related caches cleared successfully.');
   }

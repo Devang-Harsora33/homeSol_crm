@@ -55,3 +55,56 @@ def get_my_site_visits():
     )
     
     return visits
+
+@frappe.whitelist()
+def get_my_sources():
+    user = frappe.session.user
+    
+    sources = frappe.get_all(
+        "Sales Fields Service",
+        fields=[
+            # Standard Standard System Fields
+            "name",
+            "owner",
+            "creation",
+            "modified",
+            "modified_by",
+            "docstatus", # 0 for Draft, 1 for Submitted, 2 for Cancelled
+            "idx",
+            
+            # Core Visit Info
+            "sales_partner",
+            "contact_person_met",
+            "mobile_number",
+            "whatsapp_number",
+            "visit_status",
+            "visit_date",
+            "remark",
+            "address",
+            "location",
+            
+            # Work Type Checkboxes
+            "digital",
+            "reference",
+            "data_calling",
+            
+            # Business Mode Checkboxes
+            "retail",
+            "under_construction",
+            "rental",
+            "ready_to_move",
+            
+            # CP Requirement Checkboxes
+            "calling_support",
+            "digital_kit",
+            "standees",
+            "sms_blast",
+            "whatsapp_blast"
+        ],
+        filters={
+            "owner": user  # Only show records owned by the logged-in user
+        },
+        order_by="visit_date desc"
+    )
+    
+    return sources

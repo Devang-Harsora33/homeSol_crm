@@ -138,7 +138,7 @@ class TicketDetailPage extends StatelessWidget {
                         foregroundColor: Colors.red.shade700,
                       ),
                       onPressed: () => _handleDelete(context),
-                      icon: const Icon(FontAwesomeIcons.trash, size: 16),
+                      icon: const FaIcon(FontAwesomeIcons.trash, size: 16),
                       label: const Text("Cancel Ticket"),
                     ),
                   ),
@@ -202,7 +202,7 @@ class TicketDetailPage extends StatelessWidget {
 class _MetricTile extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
+  final dynamic icon;
 
   const _MetricTile({
     required this.label,
@@ -224,7 +224,7 @@ class _MetricTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 14, color: kGold),
+              FaIcon(icon, size: 14, color: kGold),
               const SizedBox(width: 8),
               Text(
                 label,

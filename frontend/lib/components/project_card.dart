@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:Homesol/components/cached_image.dart';
 import 'property_detail_popup.dart';
 import '../models/project.dart';
 import '../models/developer.dart';
@@ -96,10 +97,10 @@ class HomeProjectCard extends StatelessWidget {
           child: AspectRatio(
             aspectRatio: 16 / 10,
             child: project.galleryImages.isNotEmpty
-                ? Image.network(
-                    buildImageUrl(project.galleryImages.first.images),
+                ? CachedImage(
+                    imageUrl: buildImageUrl(project.galleryImages.first.images),
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
+                    errorWidget: _buildPlaceholderImage(),
                   )
                 : _buildPlaceholderImage(),
           ),

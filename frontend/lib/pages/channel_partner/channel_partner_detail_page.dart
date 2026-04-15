@@ -26,6 +26,8 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
   ChannelPartner? _partner;
   List<model_lead.Lead> _connectedLeads = [];
   Map<String, String> _projectNames = {};
+  Map<String, int> _projectLeadCounts = {};
+  Map<String, int> _projectSiteVisitCounts = {};
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -40,16 +42,36 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       final partner = await ChannelPartnerService.fetchChannelPartner(widget.partnerId);
       final leads = await LeadService.getLeadsByChannelPartner(widget.partnerId);
       final projects = await ProjectService.fetchProjects();
+      final siteVisits = await SiteVisitService.fetchSiteVisits();
       
       final projectMap = <String, String>{};
       for (var project in projects) {
         projectMap[project.id] = project.projectName;
       }
 
+      // Calculate Lead Counts per Project
+      final leadCounts = <String, int>{};
+      for (var lead in leads) {
+        final projectId = lead.customInterestedProject ?? 'No Project';
+        leadCounts[projectId] = (leadCounts[projectId] ?? 0) + 1;
+      }
+
+      // Calculate Site Visit Counts per Project for this Partner's leads
+      final siteVisitCounts = <String, int>{};
+      final leadIds = leads.map((l) => l.name).toSet();
+      for (var visit in siteVisits) {
+        if (leadIds.contains(visit.lead)) {
+          final projectId = visit.project;
+          siteVisitCounts[projectId] = (siteVisitCounts[projectId] ?? 0) + 1;
+        }
+      }
+
       setState(() {
         _partner = partner;
         _connectedLeads = leads;
         _projectNames = projectMap;
+        _projectLeadCounts = leadCounts;
+        _projectSiteVisitCounts = siteVisitCounts;
         _isLoading = false;
       });
     } catch (e) {
@@ -131,6 +153,8 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
               _infoRow(Icons.category_outlined, "Category", _partner!.category),
               _infoRow(Icons.public_outlined, "Territory", _partner!.territory),
             ]),
+            const SizedBox(height: 16),
+            _buildSectionCard("Project Breakdown", [_buildProjectBreakdown()]),
             const SizedBox(height: 16),
             _buildSectionCard("Connected Leads", [
               if (_connectedLeads.isEmpty)
@@ -283,8 +307,8 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
     );
   }
 
-  Widget _buildSectionCard(String title, List<Widget> children) {
-    if (children.isEmpty) {
+  Widget _buildSectionCard(String title, List<Widget> children, {Widget? trailing}) {
+    if (children.isEmpty && trailing == null) {
       return const SizedBox.shrink();
     }
     return Container(
@@ -297,12 +321,215 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              if (trailing != null) trailing,
+            ],
+          ),
           const SizedBox(height: 16),
           ...children,
         ],
       ),
     );
+  }
+
+  void _showContactPersonForm([ContactPerson? person]) {
+    final isEditing = person != null;
+    final fullNameController = TextEditingController(text: person?.fullName);
+    final roleController = TextEditingController(text: person?.roles ?? 'Sales');
+    final mobileController = TextEditingController(text: person?.mobile);
+    final emailController = TextEditingController(text: person?.email);
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(isEditing ? 'Edit Team Member' : 'Add Team Member', 
+          style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: fullNameController,
+                  decoration: _dialogInputDecoration('Full Name', Icons.person_outline),
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: ['Manager', 'Owner', 'Sales'].contains(roleController.text) ? roleController.text : 'Sales',
+                  decoration: _dialogInputDecoration('Role', Icons.badge_outlined),
+                  items: ['Manager', 'Owner', 'Sales'].map((role) {
+                    return DropdownMenuItem(value: role, child: Text(role));
+                  }).toList(),
+                  onChanged: (v) => roleController.text = v!,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: mobileController,
+                  decoration: _dialogInputDecoration('Mobile', Icons.phone_outlined),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: emailController,
+                  decoration: _dialogInputDecoration('Email', Icons.email_outlined),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return null;
+                    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                    if (!emailRegex.hasMatch(value)) return 'Enter a valid email';
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          if (isEditing)
+            TextButton(
+              onPressed: () => _deleteContactPerson(person),
+              child: const Text('Delete', style: TextStyle(color: Colors.red))
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context), 
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey))
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                _saveContactPerson(
+                  isEditing,
+                  person,
+                  fullNameController.text,
+                  roleController.text,
+                  mobileController.text,
+                  emailController.text,
+                );
+              }
+            },
+            child: const Text('Save', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteContactPerson(ContactPerson person) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to delete ${person.fullName}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    Navigator.pop(context); // Close the form dialog
+    
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final updatedPartner = ChannelPartner.fromJson(_partner!.toJson());
+      updatedPartner.contactPersons?.removeWhere((p) => p.name == person.name);
+
+      final success = await ChannelPartnerService.updateChannelPartner(updatedPartner.toJson());
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Team member deleted successfully')));
+        await _fetchPartnerDetails();
+      } else {
+        throw Exception('Failed to update Channel Partner');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  InputDecoration _dialogInputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, size: 20, color: kAccent),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    );
+  }
+
+  Future<void> _saveContactPerson(bool isEditing, ContactPerson? originalPerson, String fullName, String role, String mobile, String email) async {
+    Navigator.pop(context); // Close dialog
+    
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final updatedPartner = ChannelPartner.fromJson(_partner!.toJson());
+      updatedPartner.contactPersons ??= [];
+
+      if (isEditing) {
+        final index = updatedPartner.contactPersons!.indexWhere((p) => p.name == originalPerson!.name);
+        if (index != -1) {
+          updatedPartner.contactPersons![index] = ContactPerson(
+            name: originalPerson!.name,
+            fullName: fullName,
+            roles: role,
+            mobile: mobile,
+            email: email,
+            parent: _partner!.name,
+            parenttype: 'Channel Partner',
+            parentfield: 'contact_persons',
+            doctype: 'Contact Person',
+          );
+        }
+      } else {
+        updatedPartner.contactPersons!.add(ContactPerson(
+          fullName: fullName,
+          roles: role,
+          mobile: mobile,
+          email: email,
+          parent: _partner!.name,
+          parenttype: 'Channel Partner',
+          parentfield: 'contact_persons',
+          doctype: 'Contact Person',
+        ));
+      }
+
+      final success = await ChannelPartnerService.updateChannelPartner(updatedPartner.toJson());
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Team member saved successfully')));
+        await _fetchPartnerDetails();
+      } else {
+        throw Exception('Failed to update Channel Partner');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   Widget _infoRow(IconData icon, String label, String? value) {
@@ -341,9 +568,22 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(person.fullName ?? 'N/A',
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(person.fullName ?? 'N/A',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20, color: kAccent),
+                  onPressed: () => _showContactPersonForm(person),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
             if (person.roles != null && person.roles!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4.0),
@@ -372,7 +612,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
                   ),
                 if (person.mobile != null && person.mobile!.isNotEmpty)
                   IconButton(
-                    icon: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green),
+                    icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green),
                     onPressed: () async {
                       final url = 'https://wa.me/${person.mobile}';
                        if (await canLaunchUrl(Uri.parse(url))) {
@@ -511,7 +751,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
           if (icon is IconData)
             Icon(icon, size: 14, color: kAccent)
           else
-            FaIcon(icon as IconData, size: 14, color: kAccent),
+            FaIcon(icon, size: 14, color: kAccent),
           const SizedBox(width: 8),
           Text(
             label,
@@ -523,6 +763,75 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProjectBreakdown() {
+    // Collect all project IDs that have either leads or site visits
+    final allProjectIds = {..._projectLeadCounts.keys, ..._projectSiteVisitCounts.keys}.toList();
+    
+    // Remove null or empty IDs if any
+    allProjectIds.removeWhere((id) => id.isEmpty || id == 'null');
+
+    if (allProjectIds.isEmpty) {
+      return const Text("No projects associated with this partner's leads.", 
+        style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic));
+    }
+
+    return Column(
+      children: allProjectIds.map((projectId) {
+        final projectName = _projectNames[projectId] ?? projectId;
+        final leadCount = _projectLeadCounts[projectId] ?? 0;
+        final siteVisitCount = _projectSiteVisitCounts[projectId] ?? 0;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9F9F9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                projectName,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _smallStat(Icons.person_outline, "$leadCount Leads"),
+                  const SizedBox(width: 16),
+                  _smallStat(Icons.location_on_outlined, "$siteVisitCount Site Visits"),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _smallStat(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: kAccent),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12, 
+            color: Colors.grey.shade700,
+            fontWeight: FontWeight.w500
+          )
+        ),
+      ],
     );
   }
 }

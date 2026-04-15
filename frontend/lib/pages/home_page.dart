@@ -5,11 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
 import 'package:geolocator/geolocator.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../components/sidebar.dart';
 import '../components/property_cards_component.dart';
 import '../models/project.dart';
 import '../models/developer.dart';
+import '../models/app_asset.dart';
 import '../services/analytics_service.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -19,8 +21,11 @@ class HomePage extends StatefulWidget {
   final Function(int)? onNavigateToTab;
   final List<Project> projects;
   final List<Developer> developers;
+  final List<AppAsset> appAssets;
   final Future<void> Function() onRefresh;
   final String? employeeId;
+  final String? designation;
+  final String? developerId;
   final String initialAttendanceStatus;
   final DateTime? initialLastPunchTime;
   final Map<String, dynamic>? userShift;
@@ -31,8 +36,11 @@ class HomePage extends StatefulWidget {
     this.onNavigateToTab,
     required this.projects,
     required this.developers,
+    required this.appAssets,
     required this.onRefresh,
     this.employeeId,
+    this.designation,
+    this.developerId,
     required this.initialAttendanceStatus,
     this.initialLastPunchTime,
     this.userShift,
@@ -102,7 +110,8 @@ class _HomePageState extends State<HomePage> {
 
   // --- Start of new method to fetch initial attendance status ---
   Future<void> _fetchAndSetInitialAttendanceStatus() async {
-    if (widget.employeeId == null) return; // Ensure employeeId is available
+    if (widget.employeeId == null || 
+        (widget.designation?.toLowerCase() ?? '') == 'property developer') return; 
 
     try {
       final cookie = await AuthService.getCookie();
@@ -154,16 +163,9 @@ class _HomePageState extends State<HomePage> {
       }
 
     } catch (e) {
-      print("Error fetching initial attendance status: $e");
-      // Optionally show a snackbar or other error handling
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Failed to fetch attendance status: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      print("Silent Error: Fetching initial attendance status (likely offline): $e");
+      // Silently handle - the app will remain in the default 'OUT' status 
+      // and only show an error when the user explicitly tries to check in/out.
     }
   }
   // --- End of new method to fetch initial attendance status ---
@@ -593,6 +595,7 @@ class _HomePageState extends State<HomePage> {
       body: Stack(
         children: [
           SafeArea(
+            bottom: false,
             child: RefreshIndicator(
               onRefresh: widget.onRefresh,
               child: CustomScrollView(
@@ -603,7 +606,9 @@ class _HomePageState extends State<HomePage> {
                       onRefresh: widget.onRefresh,
                     ),
                   ),
-                  if (widget.employeeId != null)
+                  
+                  if (widget.employeeId != null && 
+                      (widget.designation?.toLowerCase() ?? '') != 'property developer')
                     SliverToBoxAdapter(
                       child: _AttendanceCard(
                         status: _attendanceStatus,
@@ -614,6 +619,13 @@ class _HomePageState extends State<HomePage> {
                         isCheckOutEnabled: _isCheckOutButtonEnabled,
                       ),
                     ),
+                    SliverToBoxAdapter(
+                    child: _BannerCarousel(
+                      banners: widget.appAssets
+                          .where((asset) => asset.assetCategory == 'Banner')
+                          .toList(),
+                    ),
+                  ),
                   const SliverToBoxAdapter(child: SizedBox(height: 1)),
                   SliverToBoxAdapter(
                     child: PropertyCardsComponent(
@@ -627,7 +639,12 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          Sidebar(isOpen: _isSidebarOpen, onClose: _closeSidebar),
+          Sidebar(
+            isOpen: _isSidebarOpen,
+            onClose: _closeSidebar,
+            developerId: widget.developerId,
+            designation: widget.designation,
+          ),
         ],
       ),
     );
@@ -652,23 +669,10 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
+              Image.asset(
+                'assets/logo/logo.png',
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(
-                  color: secondary,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Center(
-                  child: Text(
-                    'HS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
               ),
               const SizedBox(width: 12),
               Text(
@@ -818,6 +822,111 @@ class _AttendanceCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BannerCarousel extends StatefulWidget {
+  final List<AppAsset> banners;
+
+  const _BannerCarousel({required this.banners});
+
+  @override
+  State<_BannerCarousel> createState() => _BannerCarouselState();
+}
+
+class _BannerCarouselState extends State<_BannerCarousel> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.banners.isNotEmpty) {
+      _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+        if (_currentPage < widget.banners.length - 1) {
+          _currentPage++;
+        } else {
+          _currentPage = 0;
+        }
+        if (_pageController.hasClients) {
+          _pageController.animateToPage(
+            _currentPage,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeIn,
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.banners.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 180,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPage = index;
+              });
+            },
+            itemCount: widget.banners.length,
+            itemBuilder: (context, index) {
+              final banner = widget.banners[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16.0),
+                  child: CachedNetworkImage(
+                    imageUrl: banner.fullUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey.withOpacity(0.1),
+                      child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey.withOpacity(0.1),
+                      child: const Icon(Icons.error_outline),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: widget.banners.asMap().entries.map((entry) {
+            return Container(
+              width: 8.0,
+              height: 8.0,
+              margin: const EdgeInsets.symmetric(horizontal: 4.0),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Theme.of(context).colorScheme.primary.withOpacity(
+                      _currentPage == entry.key ? 0.9 : 0.2,
+                    ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
 }

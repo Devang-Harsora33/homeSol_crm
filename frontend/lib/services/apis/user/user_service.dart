@@ -5,6 +5,8 @@ import 'package:Homesol/services/databases/user_profile_database.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../connectivity_service.dart';
+
 class UserService {
   static String get baseUrl => AuthService.baseUrl;
   static const String _lastSyncTimestampKey = "last_sync_timestamp_user_profile";
@@ -18,6 +20,17 @@ class UserService {
 
   // Sync user profile from API and store in local database
   static Future<UserProfile?> syncUserProfile({bool forceRefresh = false}) async {
+    // Check if we are online before trying to fetch from API
+    if (!ConnectivityService.isOnline) {
+      print('Offline: Loading user profile from local database');
+      final UserProfileDatabase profileDb = UserProfileDatabase();
+      final cachedData = await profileDb.getUserProfile();
+      if (cachedData != null) {
+        return UserProfile.fromJson(cachedData);
+      }
+      return null;
+    }
+
     try {
       print(
         'Syncing user profile from: ${AuthService.baseUrl}/api/method/homesol_app.api.get_my_profile',

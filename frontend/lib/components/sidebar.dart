@@ -16,14 +16,23 @@ import 'package:Homesol/pages/attendance/attendance_history_page.dart';
 import 'package:Homesol/pages/broker_profile_page.dart';
 import 'package:Homesol/pages/developers_page.dart';
 import 'package:Homesol/pages/channel_partner/channel_partner_list_page.dart';
+import 'package:Homesol/pages/sourcing/sourcing_list_page.dart';
 import '../pages/auth/login_page.dart';
 import 'package:Homesol/pages/leave_page.dart';
 
 class Sidebar extends StatefulWidget {
   final VoidCallback onClose;
   final bool isOpen;
+  final String? developerId;
+  final String? designation;
 
-  const Sidebar({super.key, required this.onClose, required this.isOpen});
+  const Sidebar({
+    super.key,
+    required this.onClose,
+    required this.isOpen,
+    this.developerId,
+    this.designation,
+  });
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -44,7 +53,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 400), // Slightly faster for snappier feel
+      duration: const Duration(milliseconds: 400), 
       vsync: this,
     );
 
@@ -53,7 +62,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeOutQuart, // Smoother curve
+      curve: Curves.easeOutQuart,
     ));
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -115,14 +124,8 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     });
   }
 
-  // Improved Navigation Handler
   void _navigateToPage(BuildContext context, Widget page) {
-    // Closing sidebar first improves performance
     widget.onClose(); 
-    
-    // To keep the bottom bar, we usually shouldn't push a full MaterialPageRoute 
-    // unless rootNavigator is false. This attempts to push onto the inner navigator 
-    // if one exists (like inside a TabView).
     Navigator.of(context, rootNavigator: false).push(
       MaterialPageRoute(builder: (context) => page),
     );
@@ -143,7 +146,6 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
 
         return Stack(
           children: [
-            // Glassmorphic Backdrop
             if (widget.isOpen)
               Positioned.fill(
                 child: GestureDetector(
@@ -160,7 +162,6 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                 ),
               ),
 
-            // Sidebar Content
             Positioned(
               left: 0,
               top: 0,
@@ -194,62 +195,96 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                           children: [
                             if (_isLoggedIn) ...[
                               _buildSectionHeader('Management', isDark),
-                              _buildModernMenuItem(
-                                icon: FontAwesomeIcons.briefcase,
-                                title: 'CRM',
-                                subtitle: 'Leads & Clients',
-                                isDark: isDark,
-                                onTap: () => _navigateToPage(context, CRMPage()), // Assumed correct class name
-                              ),
+                              if (!(_profile?.designation?.toLowerCase().contains('sourcing') ?? false))
+                                _buildModernMenuItem(
+                                  icon: FontAwesomeIcons.briefcase,
+                                  title: 'CRM',
+                                  subtitle: 'Leads & Clients',
+                                  isDark: isDark,
+                                  onTap: () => _navigateToPage(
+                                    context,
+                                    CRMPage(
+                                      developerId: widget.developerId,
+                                    ),
+                                  ),
+                                ),
+                              if (_profile?.designation?.toLowerCase().contains('sourcing') ?? false)
+                                _buildModernMenuItem(
+                                  icon: FontAwesomeIcons.magnifyingGlassPlus,
+                                  title: 'Sourcing',
+                                  subtitle: 'Manage Sources',
+                                  isDark: isDark,
+                                  onTap: () => _navigateToPage(context, SourcingListPage(showAddButton: true)),
+                                ),
                               _buildModernMenuItem(
                                 icon: FontAwesomeIcons.building,
                                 title: 'Projects',
                                 subtitle: 'Explore Portfolio',
                                 isDark: isDark,
-                                onTap: () => _navigateToPage(context, DevelopersPage()),
+                                onTap: () => _navigateToPage(
+                                  context,
+                                  DevelopersPage(
+                                    developerId: widget.developerId,
+                                    designation: widget.designation,
+                                  ),
+                                ),
                               ),
                               _buildModernMenuItem(
                                 icon: FontAwesomeIcons.city,
                                 title: 'Developers',
                                 isDark: isDark,
-                                onTap: () => _navigateToPage(context, DevelopersPage()),
+                                onTap: () => _navigateToPage(
+                                  context,
+                                  DevelopersPage(
+                                    developerId: widget.developerId,
+                                    designation: widget.designation,
+                                  ),
+                                ),
                               ),
-                              _buildModernMenuItem(
-                                icon: FontAwesomeIcons.mapLocationDot,
-                                title: 'Site Visits',
-                                isDark: isDark,
-                                onTap: () => _navigateToPage(context, CRMPage()),
-                              ),
-                              _buildModernMenuItem(
-                                icon: FontAwesomeIcons.handshake,
-                                title: 'Channel Partners',
-                                isDark: isDark,
-                                onTap: () => _navigateToPage(context, ChannelPartnerListPage()),
-                              ),
+                              if (!(_profile?.designation?.toLowerCase().contains('sourcing') ?? false))
+                                _buildModernMenuItem(
+                                  icon: FontAwesomeIcons.mapLocationDot,
+                                  title: 'Site Visits',
+                                  isDark: isDark,
+                                  onTap: () => _navigateToPage(
+                                    context,
+                                    CRMPage(
+                                      developerId: widget.developerId,
+                                    ),
+                                  ),
+                                ),
+                              if (_profile?.designation?.toLowerCase() != 'property developer')
+                                _buildModernMenuItem(
+                                  icon: FontAwesomeIcons.handshake,
+                                  title: 'Channel Partners',
+                                  isDark: isDark,
+                                  onTap: () => _navigateToPage(context, const ChannelPartnerListPage()),
+                                ),
 
-                              _buildSectionHeader('HR & Payroll', isDark),
-                              _buildModernMenuItem(
-                                icon: FontAwesomeIcons.calendarCheck,
-                                title: 'Attendance',
-                                isDark: isDark,
-                                onTap: () => _navigateToPage(context, AttendanceHistoryPage()),
-                              ),
-                              _buildModernMenuItem(
-                                icon: FontAwesomeIcons.personWalkingArrowRight,
-                                title: 'Leave Application',
-                                isDark: isDark,
-                                onTap: () => _navigateToPage(context, LeaveScreen()),
-                              ),
-                              _buildModernMenuItem(
-                                icon: FontAwesomeIcons.fileInvoiceDollar,
-                                title: 'Salary Slips',
-                                isDark: isDark,
-                                onTap: () => _navigateToPage(context, SalarySlipsPage()),
-                              ),
+                              if (_profile?.designation?.toLowerCase() != 'property developer') ...[
+                                _buildSectionHeader('HR & Payroll', isDark),
+                                _buildModernMenuItem(
+                                  icon: FontAwesomeIcons.calendarCheck,
+                                  title: 'Attendance',
+                                  isDark: isDark,
+                                  onTap: () => _navigateToPage(context, AttendanceHistoryPage()),
+                                ),
+                                _buildModernMenuItem(
+                                  icon: FontAwesomeIcons.personWalkingArrowRight,
+                                  title: 'Leave Application',
+                                  isDark: isDark,
+                                  onTap: () => _navigateToPage(context, const LeaveScreen()),
+                                ),
+                                _buildModernMenuItem(
+                                  icon: FontAwesomeIcons.fileInvoiceDollar,
+                                  title: 'Salary Slips',
+                                  isDark: isDark,
+                                  onTap: () => _navigateToPage(context, SalarySlipsPage()),
+                                ),
+                              ],
                             ],
 
                             _buildSectionHeader('Preferences', isDark),
-                            // Modern Theme Toggle
                             AnimatedBuilder(
                               animation: ThemeService.instance,
                               builder: (context, _) {
@@ -293,12 +328,11 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                               icon: FontAwesomeIcons.headset,
                               title: 'Help & Support',
                               isDark: isDark,
-                              onTap: () => _navigateToPage(context, TicketsListPage()), // Assumed class name
+                              onTap: () => _navigateToPage(context, TicketsListPage()), 
                             ),
                             
                             const SizedBox(height: 20),
                             
-                            // Auth Action
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: _buildAuthButton(context, isDark, theme),
@@ -332,8 +366,6 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     );
   }
 
-  // --- NEW UI COMPONENTS ---
-
   Widget _buildModernHeader(bool isDark, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 60, 24, 24),
@@ -366,7 +398,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                         fontWeight: FontWeight.bold,
                       ),
                     )
-                  : Icon(FontAwesomeIcons.user, color: isDark ? Colors.white : theme.colorScheme.primary, size: 24),
+                  : FaIcon(FontAwesomeIcons.user, color: isDark ? Colors.white : theme.colorScheme.primary, size: 24),
             ),
           ),
           const SizedBox(width: 16),
@@ -399,7 +431,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
           ),
           IconButton(
             onPressed: widget.onClose,
-            icon: const Icon(FontAwesomeIcons.xmark, color: Colors.white, size: 24),
+            icon: const FaIcon(FontAwesomeIcons.xmark, color: Colors.white, size: 24),
           ),
         ],
       ),
@@ -422,7 +454,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildModernMenuItem({
-    required IconData icon,
+    required dynamic icon,
     required String title,
     String? subtitle,
     required bool isDark,
@@ -444,7 +476,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
               children: [
                 SizedBox(
                   width: 32,
-                  child: Icon(icon, color: color.withOpacity(0.7), size: 18),
+                  child: FaIcon(icon, color: color.withOpacity(0.7), size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -473,7 +505,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                   ),
                 ),
                 if (trailing != null) trailing 
-                else Icon(FontAwesomeIcons.chevronRight, size: 12, color: color.withOpacity(0.2)),
+                else FaIcon(FontAwesomeIcons.chevronRight, size: 12, color: color.withOpacity(0.2)),
               ],
             ),
           ),
@@ -500,7 +532,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: _isLoggedIn ? 0 : 4,
       ),
-      icon: Icon(_isLoggedIn ? FontAwesomeIcons.rightFromBracket : FontAwesomeIcons.rightToBracket, size: 18),
+      icon: FaIcon(_isLoggedIn ? FontAwesomeIcons.rightFromBracket : FontAwesomeIcons.rightToBracket, size: 18),
       label: Text(
         _isLoggedIn ? 'Log Out' : 'Sign In / Register',
         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
@@ -520,7 +552,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
-              Icon(FontAwesomeIcons.triangleExclamation, color: Colors.orange, size: 20),
+              FaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.orange, size: 20),
               const SizedBox(width: 10),
               Text('Logout', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
             ],

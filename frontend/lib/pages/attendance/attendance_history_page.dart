@@ -1,10 +1,12 @@
 import 'package:Homesol/models/follow_up.dart';
 import 'package:Homesol/models/lead.dart' as model_lead; // Alias Lead
 import 'package:Homesol/models/project.dart' as project_model;
+import 'package:Homesol/models/sourcing.dart'; // Add this
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/databases/lead_database.dart'; // Import LeadDatabase
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
+import 'package:Homesol/services/apis/sourcing/sourcing_service.dart'; // Add this
 import 'package:Homesol/services/apis/workforces/workforce.dart';
 import 'package:Homesol/services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +41,10 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
   Map<DateTime, List<FollowUp>> _followUpEvents = {};
   List<FollowUp> _selectedFollowUps = [];
 
+  List<Sourcing> _sourcingList = []; // Add this
+  Map<DateTime, List<Sourcing>> _sourcingEvents = {}; // Add this
+  List<Sourcing> _selectedSourcing = []; // Add this
+
   List<String> _teamMembers = [];
   Map<String, Color> _userColorMap = {};
   String? _currentUser;
@@ -60,6 +66,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
     await _fetchProjects();
     await _fetchLeads();
     await _fetchFollowUps();
+    await _fetchSourcing(); // Add this
     await _fetchTeamData();
 
     if (_selectedDay != null) {
@@ -71,6 +78,10 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
         _selectedFollowUps = _followUps.where((followUp) {
           final followUpDate = DateTime.tryParse(followUp.followUpDate ?? '');
           return followUpDate != null && isSameDay(followUpDate, _selectedDay!);
+        }).toList();
+        _selectedSourcing = _sourcingList.where((sourcing) { // Add this
+          final visitDate = DateTime.tryParse(sourcing.visitDate ?? '');
+          return visitDate != null && isSameDay(visitDate, _selectedDay!);
         }).toList();
       });
     }
@@ -141,12 +152,42 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
     }
   }
 
+  Future<void> _fetchSourcing() async {
+    try {
+      final sourcingList = await SourcingService.getMySources();
+      if (mounted) {
+        setState(() {
+          _sourcingList = sourcingList;
+          _sourcingEvents = {};
+          for (var sourcing in sourcingList) {
+            final visitDate = DateTime.tryParse(sourcing.visitDate ?? '');
+            if (visitDate != null) {
+              final date = DateTime.utc(
+                visitDate.year,
+                visitDate.month,
+                visitDate.day,
+              );
+              if (_sourcingEvents[date] == null) {
+                _sourcingEvents[date] = [];
+              }
+              _sourcingEvents[date]!.add(sourcing);
+            }
+          }
+          _updateTeamMembersAndColors();
+        });
+      }
+    } catch (e) {
+      print('Error fetching sourcing: $e');
+    }
+  }
+
   void _updateTeamMembersAndColors() {
     final siteVisitOwners = _siteVisits.map((v) => v.owner).toSet();
     final followUpOwners = _followUps
         .map((f) => f.leadName ?? 'Unknown')
         .toSet();
-    final allOwners = [...siteVisitOwners, ...followUpOwners].toSet().toList();
+    final sourcingOwners = _sourcingList.map((s) => s.owner ?? 'Unknown').toSet();
+    final allOwners = [...siteVisitOwners, ...followUpOwners, ...sourcingOwners].toSet().toList();
 
     final colors = [
       Colors.blue,
@@ -252,6 +293,10 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
     return _siteVisitEvents[DateTime.utc(day.year, day.month, day.day)] ?? [];
   }
 
+  List<Sourcing> _getSourcingForDay(DateTime day) {
+    return _sourcingEvents[DateTime.utc(day.year, day.month, day.day)] ?? [];
+  }
+
   String _getTeamMemberName(String ownerId) {
     if (ownerId == _currentUser) return 'Me';
     return ownerId.split('@').first;
@@ -265,7 +310,8 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attendance History'),
+        title: const Text('Attendance History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        centerTitle: true,
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshData),
         ],
@@ -304,6 +350,14 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
                     return followUpDate != null &&
                         isSameDay(followUpDate, selectedDay);
                   }).toList();
+
+                  _selectedSourcing = _sourcingList.where((sourcing) {
+                    final visitDate = DateTime.tryParse(
+                      sourcing.visitDate ?? '',
+                    );
+                    return visitDate != null &&
+                        isSameDay(visitDate, selectedDay);
+                  }).toList();
                 });
               },
               onPageChanged: (focusedDay) {
@@ -341,10 +395,11 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
                     markers.add(_buildDot(Colors.red)); // Red for Absent
                   }
 
-                  // --- B. Event Markers (Site Visits & Follow-ups) ---
+                  // --- B. Event Markers (Site Visits, Follow-ups & Sourcing) ---
                   // 1. Get raw events
                   final siteVisitsForDay = _getSiteVisitsForDay(day);
                   final followUpsForDay = _getFollowUpsForDay(day);
+                  final sourcingForDay = _getSourcingForDay(day);
 
                   // 2. Apply Filters
                   List<SiteVisit> filteredVisits = siteVisitsForDay;
@@ -367,6 +422,16 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
                         .toList();
                   }
 
+                  List<Sourcing> filteredSourcing = sourcingForDay;
+                  if (_selectedFilterCategory != null &&
+                      _selectedFilterCategory != 'Sourcing SFS') {
+                    filteredSourcing = [];
+                  } else if (_selectedFilterUser != null) {
+                    filteredSourcing = filteredSourcing
+                        .where((s) => s.owner == _selectedFilterUser)
+                        .toList();
+                  }
+
                   // 3. Combine Owners
                   final siteVisitOwners = filteredVisits
                       .map((v) => v.owner)
@@ -374,9 +439,13 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
                   final followUpOwners = filteredFollowUps
                       .map((f) => f.leadName ?? 'Unknown')
                       .toSet();
+                  final sourcingOwners = filteredSourcing
+                      .map((s) => s.owner ?? 'Unknown')
+                      .toSet();
                   final allOwners = [
                     ...siteVisitOwners,
                     ...followUpOwners,
+                    ...sourcingOwners,
                   ].toSet().toList();
 
                   // 4. Add Event Dots
@@ -426,8 +495,12 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
         .map((f) => f.leadName ?? 'Unknown')
         .toSet()
         .toList();
+    final sourcingOwners = _sourcingList
+        .map((s) => s.owner ?? 'Unknown')
+        .toSet()
+        .toList();
 
-    if (siteVisitOwners.isEmpty && followUpOwners.isEmpty)
+    if (siteVisitOwners.isEmpty && followUpOwners.isEmpty && sourcingOwners.isEmpty)
       return const SizedBox.shrink();
 
     return Container(
@@ -448,7 +521,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
                   _selectedFilterCategory == 'Site Visits',
             ),
 
-          if (siteVisitOwners.isNotEmpty && followUpOwners.isNotEmpty)
+          if (siteVisitOwners.isNotEmpty && (followUpOwners.isNotEmpty || sourcingOwners.isNotEmpty))
             const SizedBox(height: 12),
 
           // 2. Follow-ups Filter Row
@@ -461,6 +534,21 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
               isCategoryActive:
                   _selectedFilterCategory == null ||
                   _selectedFilterCategory == 'Follow-ups',
+            ),
+
+          if (followUpOwners.isNotEmpty && sourcingOwners.isNotEmpty)
+            const SizedBox(height: 12),
+
+          // 3. Sourcing Filter Row
+          if (sourcingOwners.isNotEmpty)
+            _buildLegendCategory(
+              title: "Sourcing SFS",
+              icon: Icons.search_rounded,
+              iconColor: Colors.orangeAccent,
+              owners: sourcingOwners,
+              isCategoryActive:
+                  _selectedFilterCategory == null ||
+                  _selectedFilterCategory == 'Sourcing SFS',
             ),
         ],
       ),
@@ -687,11 +775,28 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
       }
     }
 
+    // Filter Sourcing
+    List<Sourcing> filteredSourcing = _selectedSourcing;
+    bool showSourcingSection = true;
+
+    if (_selectedFilterCategory != null &&
+        _selectedFilterCategory != 'Sourcing SFS') {
+      showSourcingSection = false; // Hidden if another category is selected
+    } else {
+      // If 'Sourcing SFS' is active or 'All' is active
+      if (_selectedFilterUser != null) {
+        filteredSourcing = filteredSourcing
+            .where((s) => s.owner == _selectedFilterUser)
+            .toList();
+      }
+    }
+
     final hasAttendance = attendanceEvents.isNotEmpty && showAttendance;
     final hasSiteVisits = filteredVisits.isNotEmpty && showSiteVisitsSection;
     final hasFollowUps = filteredFollowUps.isNotEmpty && showFollowUpsSection;
+    final hasSourcing = filteredSourcing.isNotEmpty && showSourcingSection;
 
-    if (!hasAttendance && !hasSiteVisits && !hasFollowUps) {
+    if (!hasAttendance && !hasSiteVisits && !hasFollowUps && !hasSourcing) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -708,7 +813,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 24.0),
+      padding: const EdgeInsets.only(bottom: 100.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -791,6 +896,35 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) =>
                   _buildFollowUpCard(filteredFollowUps[index]),
+            ),
+          ],
+
+          // --- Sourcing SFS Section ---
+          if (hasSourcing) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.search_rounded,
+                    size: 18,
+                    color: Colors.grey[700],
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    "Sourcing SFS",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filteredSourcing.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) =>
+                  _buildSourcingCard(filteredSourcing[index]),
             ),
           ],
         ],
@@ -1124,6 +1258,154 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
                                 ),
                                 child: Text(
                                   followUp.remarks!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.grey[700],
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSourcingCard(Sourcing sourcing) {
+    final ownerName = _getTeamMemberName(sourcing.owner ?? 'N/A');
+    final ownerColor = _userColorMap[sourcing.owner] ?? Colors.grey;
+    final contactPerson = sourcing.contactPersonMet ?? 'N/A';
+    final cpName = sourcing.channelPartnerId ?? 'N/A';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16.0),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 6, color: ownerColor),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  contactPerson,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 17,
+                                    color: Color(0xFF2D3436),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.person_pin_circle_rounded,
+                                      size: 14,
+                                      color: Colors.grey[500],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        cpName,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            children: [
+                              CircleAvatar(
+                                radius: 16,
+                                backgroundColor: ownerColor.withOpacity(0.1),
+                                child: Text(
+                                  ownerName.isNotEmpty
+                                      ? ownerName.substring(0, 1).toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                    color: ownerColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                ownerName,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildStatusBadge(sourcing.visitStatus ?? 'N/A'),
+                          if (sourcing.remark != null &&
+                              sourcing.remark!.isNotEmpty) ...[
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  sourcing.remark!,
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontStyle: FontStyle.italic,
