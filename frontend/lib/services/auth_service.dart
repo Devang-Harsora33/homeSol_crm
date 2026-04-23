@@ -5,6 +5,17 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/apis/sourcing/sourcing_service.dart';
 import '../models/profile.dart';
+import 'databases/user_profile_database.dart';
+import 'databases/ticket_database.dart';
+import 'databases/sourcing_database.dart';
+import 'databases/site_visit_database.dart';
+import 'databases/project_database.dart';
+import 'databases/sales_team_database.dart';
+import 'databases/lead_database.dart';
+import 'databases/follow_up_database.dart';
+import 'databases/developer_database.dart';
+import 'databases/channel_partner_database.dart';
+import 'databases/asset_database.dart';
 
 class AuthService {
   static String? _testBaseUrl;
@@ -255,20 +266,42 @@ class AuthService {
 
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(cookieKey);
-    await prefs.remove(userKey);
     
-    // Clear all local caches on logout
+    // 1. Save user preferences that should persist across sessions
+    final theme = prefs.getString('theme_mode');
+    
+    // 2. Completely wipe all local storage (Auth data, API caches, etc.)
+    await prefs.clear();
+    
+    // 3. Restore persisted preferences
+    if (theme != null) {
+      await prefs.setString('theme_mode', theme);
+    }
+    
+    // 4. Clear all memory-level and local SQLite caches
     try {
       await LeadService.clearAllCaches();
       await SourcingService.clearAllCaches();
+
+      // Clear all SQLite local DBs
+      await UserProfileDatabase().deleteAllUserProfiles();
+      await TicketDatabase.deleteAllTickets();
+      await SourcingDatabase().deleteAllSourcing();
+      await SiteVisitDatabase.deleteAllSiteVisits();
+      await ProjectDatabase().deleteAllProjects();
+      await SalesTeamDatabase().deleteAllSalesTeams();
+      await LeadDatabase().deleteAllLeads();
+      await FollowUpDatabase.deleteAllFollowUps();
+      await DeveloperDatabase().deleteAllDevelopers();
+      await ChannelPartnerDatabase().deleteAllChannelPartners();
+      await AssetDatabase().deleteAllAssets();
     } catch (e) {
       print('AuthService: Error clearing caches on logout: $e');
     }
 
-    // Optional: Notify server to clear session
+    // 5. Notify the Frappe server to destroy the session remotely
     try {
-      await http.get(Uri.parse('$baseUrl/api/method/logout'));
+      await http.get(Uri.parse('$baseUrl/api/method/logout')).timeout(const Duration(seconds: 3));
     } catch (_) {}
   }
 

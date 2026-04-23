@@ -3,6 +3,7 @@ import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:screen_protector/screen_protector.dart';
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lead.dart';
@@ -12,12 +13,19 @@ import '../models/site_visit.dart';
 import '../models/activity_log.dart';
 import '../services/apis/leads/lead_service.dart';
 import '../components/property_detail_popup.dart';
+import '../models/property_unit.dart';
+import '../services/apis/projects/property_unit_service.dart';
+import 'live_inventory_matrix.dart';
 import '../pages/site_visit_detail_page.dart';
 import '../pages/create_site_visit_page.dart'; 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; 
+import 'package:share_plus/share_plus.dart';
 import '../pages/crm/lead_creation_page.dart'; 
 import '../pages/crm/follow_up_detail_page.dart';
 import '../models/follow_up.dart';
+import '../utils.dart';
+import 'project_share_bottom_sheet.dart';
+
 // ─── STYLING CONSTANTS ───
 const kAccent = Color(0xFF675D40);
 const kBackgroundColor = Color(0xFFF2F2F7);
@@ -32,12 +40,14 @@ class LeadDetailView extends StatefulWidget {
 }
 
 class _LeadDetailViewState extends State<LeadDetailView> {
+  late Lead _currentLead;
   List<Project> _projects = [];
   List<Developer> _developers = [];
   List<SiteVisit> _siteVisits = [];
   List<SiteVisit> _filteredSiteVisits = [];
   List<FollowUp> _followUps = []; // New list for follow-ups
   List<ActivityLog> _activityLogs = []; // New list for activity logs
+  List<PropertyUnit> _linkedUnits = [];
   bool _isLoading = true;
   bool _isSiteVisitsLoading = true;
   bool _isFollowUpsLoading = true; // New loading state for follow-ups
@@ -48,25 +58,38 @@ class _LeadDetailViewState extends State<LeadDetailView> {
   @override
   void initState() {
     super.initState();
+    ScreenProtector.preventScreenshotOn();
+    _currentLead = widget.lead;
     _fetchData();
+  }
+
+  @override
+  void dispose() {
+    ScreenProtector.preventScreenshotOff();
+    super.dispose();
   }
 
   Future<void> _fetchData() async {
     try {
+      final updatedLead = await LeadService.fetchLead(_currentLead.name!);
       final projects = await ProjectService.syncProjects();
       final developers = await DeveloperService.syncDevelopers();
       final siteVisits = await SiteVisitService.fetchMySiteVisits();
-      final followUps = await LeadService.fetchTeamFollowups(widget.lead.name!); 
-      final activityLogs = await LeadService.fetchLeadActivityLogs(widget.lead.name!);
+      final followUps = await LeadService.fetchTeamFollowups(_currentLead.name!); 
+      final activityLogs = await LeadService.fetchLeadActivityLogs(_currentLead.name!);
+      final linkedUnits = await PropertyUnitService.fetchPropertyUnitsForLead(_currentLead.name!);
 
       if (mounted) {
         setState(() {
+          if (updatedLead != null) {
+            _currentLead = updatedLead;
+          }
           _projects = projects;
           _developers = developers;
           _isLoading = false;
 
           _siteVisits = siteVisits;
-          _filteredSiteVisits = _siteVisits.where((visit) => visit.lead == widget.lead.name).toList();
+          _filteredSiteVisits = _siteVisits.where((visit) => visit.lead == _currentLead.name).toList();
           
           if (_filteredSiteVisits.isNotEmpty) {
             _filteredSiteVisits.sort((a, b) {
@@ -114,11 +137,12 @@ class _LeadDetailViewState extends State<LeadDetailView> {
           }
           _isSiteVisitsLoading = false;
 
-          _followUps = followUps.where((followUp) => followUp.leadId == widget.lead.name).toList(); // Filter follow-ups
+          _followUps = followUps.where((followUp) => followUp.leadId == _currentLead.name).toList(); // Filter follow-ups
           _isFollowUpsLoading = false;
 
           _activityLogs = activityLogs;
           _isActivityLogsLoading = false;
+          _linkedUnits = linkedUnits;
         });
       }
     } catch (e) {
@@ -137,7 +161,7 @@ class _LeadDetailViewState extends State<LeadDetailView> {
   Widget build(BuildContext context) {
     // Helper to safely access JSON data if your Lead model doesn't have getters yet.
     // Assuming your Lead model maps these fields. If not, you might need to update your Lead model.
-    // For this example, I will use widget.lead properties assuming they exist. 
+    // For this example, I will use _currentLead properties assuming they exist. 
     
     return Scaffold(
       backgroundColor: kBackgroundColor,
@@ -164,98 +188,50 @@ class _LeadDetailViewState extends State<LeadDetailView> {
               _buildQuickActions(),
               const SizedBox(height: 16),
               
-              // 1. Contact & Location
-              _buildSectionCard("Contact & Location", [
-                _infoRow(Icons.phone_android, "Mobile", widget.lead.customerPhone, isCopyable: true),
-                _infoRow(Icons.chat, "WhatsApp", widget.lead.whatsappNo ?? '-'),
-                if (widget.lead.phone != null && widget.lead.phone!.isNotEmpty)
-                _infoRow(Icons.email_outlined, "Email", widget.lead.emailId ?? '-', isCopyable: true),
-                _infoRow(Icons.email_outlined, "Channel Partner", widget.lead.customChannelPartner ?? '-', isCopyable: true),
-                _infoRow(Icons.print, "Fax", widget.lead.fax ?? '-'),
-                const Divider(height: 24),
-                // _infoRow(Icons.location_on_outlined, "Address", "${widget.lead.city}, ${widget.lead.state}, ${widget.lead.country}"),
-                _infoRow(Icons.numbers, "Postal Code", widget.lead.customPostalCode ?? '-'),
-                if (widget.lead.locationCoordinates != null && widget.lead.locationCoordinates!.isNotEmpty)
-                  _infoRow(Icons.map, "Location", "View on Map", isTappable: true, onTap: () => _launchMaps(widget.lead.locationCoordinates!)),
-              ]),
-              const SizedBox(height: 16),
-
-              // 2. Professional Info
-              _buildSectionCard("Professional Details", [
-                _infoRow(Icons.business, "Company", widget.lead.companyName ?? '-'),
-                _infoRow(Icons.badge_outlined, "Job Title", widget.lead.jobTitle ?? '-'),
-                _infoRow(Icons.work_outline, "Occupation", widget.lead.customOccupation ?? '-'),
-                _infoRow(Icons.language, "Website", widget.lead.website ?? '-'),
-                // const Divider(height: 24),
-                _infoRow(Icons.factory_outlined, "Industry", widget.lead.industry ?? '-'),
-                // _infoRow(Icons.people_outline, "Employees", widget.lead.noOfEmployees ?? '-'),
-                _infoRow(Icons.monetization_on_outlined, "Annual Revenue", _formatBudget(widget.lead.annualRevenue?.toInt() ?? 0)),
-                _infoRow(Icons.pie_chart_outline, "Market Segment", widget.lead.marketSegment ?? '-'),
-              ]),
-              const SizedBox(height: 16),
-
-              // 3. Requirements & Budget
-              _buildSectionCard("Requirements", [
-                _infoRow(Icons.home_work_outlined, "Configuration", widget.lead.customConfiguration ?? '-'),
-                _infoRow(Icons.currency_rupee, "Budget Range", "${_formatBudgetFromString(widget.lead.customBudgetMin)} - ${_formatBudgetFromString(widget.lead.customBudgetMax)}"),
-                _infoRow(Icons.category_outlined, "Purpose", widget.lead.customPurposeOfPurchase ?? '-'),
-                _infoRow(Icons.build_circle_outlined, "Prop Type", widget.lead.customLookingForPropertyType ?? '-'),
-                _infoRow(Icons.account_balance_outlined, "Financing", widget.lead.customFinancingDetails ?? '-'),
-                _infoRow(Icons.timer_outlined, "Expected Time", widget.lead.customExpectedTimeOfPurchase ?? '-'),
-                _infoRow(Icons.home_filled, "Current Residence", widget.lead.customCurrentResidenceType ?? '-'),
-              ]),
-              const SizedBox(height: 16),
-
-              // 4. Interested Project (if any)
-              if (widget.lead.projectId.isNotEmpty) ...[
+              // 1. Interested Project (if any)
+              if (_currentLead.projectId.isNotEmpty) ...[
                 GestureDetector(
                   onTap: () {
-                    final project = _projects.firstWhere((p) => p.id == widget.lead.projectId.first);
+                    final project = _projects.firstWhere((p) => p.id == _currentLead.projectId.first);
                     final developer = _developers.firstWhere((d) => d.id == project.developer);
                     showDialog(
                       context: context,
                       builder: (context) => PropertyDetailPopup(project: project, developer: developer),
                     );
                   },
-                  child: _buildProjectCard(widget.lead.projectId.first),
+                  child: _buildProjectCard(_currentLead.projectId.first),
                 ),
                 const SizedBox(height: 16),
               ],
 
-              // 5. Source & Marketing
-              _buildSectionCard("Source & Marketing", [
-                _infoRow(Icons.source, "Source", widget.lead.source ?? '-'),
-                _infoRow(Icons.campaign, "Campaign", widget.lead.campaignName ?? '-'),
-                _infoRow(Icons.request_page, "Request Type", widget.lead.requestType ?? '-'),
-                // const SizedBox(height: 12),
-                // Wrap(
-                //   spacing: 8,
-                //   runSpacing: 8,
-                //   children: [
-                //     if (widget.lead.isDigital == 1) _chip("Digital"),
-                //     if (widget.lead.isReference == 1) _chip("Reference"),
-                //     if (widget.lead.isDataCalling == 1) _chip("Data Calling"),
-                //     if (widget.lead.blogSubscriber == 1) _chip("Blog Sub"),
-                //   ],
-                // )
+              // 2. Linked Inventory Units
+              if (_linkedUnits.isNotEmpty) ...[
+                _buildLinkedUnitsPremiumSection(),
+                const SizedBox(height: 16),
+              ],
+
+              // 3. Requirements & Budget
+              _buildSectionCard("Requirements", [
+                _infoRow(Icons.home_work_outlined, "Configuration", _currentLead.customConfiguration ?? '-'),
+                _infoRow(Icons.currency_rupee, "Budget Range", "${_formatBudgetFromString(_currentLead.customBudgetMin)} - ${_formatBudgetFromString(_currentLead.customBudgetMax)}"),
+                _infoRow(Icons.category_outlined, "Purpose", _currentLead.customPurposeOfPurchase ?? '-'),
+                _infoRow(Icons.build_circle_outlined, "Prop Type", _currentLead.customLookingForPropertyType ?? '-'),
+                _infoRow(Icons.account_balance_outlined, "Financing", _currentLead.customFinancingDetails ?? '-'),
+                _infoRow(Icons.timer_outlined, "Expected Time", _currentLead.customExpectedTimeOfPurchase ?? '-'),
+                _infoRow(Icons.home_filled, "Current Residence", _currentLead.customCurrentResidenceType ?? '-'),
               ]),
               const SizedBox(height: 16),
 
-              // 6. Status & Qualification (Admin Fields)
+              // 4. Status & Qualification (Admin Fields)
               _buildSectionCard("Lead Status & Qualification", [
-                // _infoRow(Icons.flag, "Lead Status", widget.lead.customLatestVisitStatus  ?? 'New'),
-                _infoRow(Icons.flag, "Lead Status", widget.lead.customLeadStatus ?? widget.lead.status ?? 'New'),
-                _infoRow(Icons.stacked_bar_chart, "Lead Status", widget.lead.customStages ?? 'N/A'),
-                _infoRow(Icons.source, "Source", widget.lead.source ??  'N/A'),
-                // _infoRow(Icons.verified_user_outlined, "Qualification", widget.lead.qualificationStatus ?? '-'),
-                _infoRow(Icons.calendar_today, "Qualified On", widget.lead.qualifiedOn?.toString() ?? '-'),
+                // _infoRow(Icons.flag, "Lead Status", _currentLead.customLatestVisitStatus  ?? 'New'),
+                _infoRow(Icons.flag, "Lead Status", _currentLead.customLeadStatus ?? _currentLead.status ?? 'New', isTappable: true, onTap: _editLeadStatus),
+                _infoRow(Icons.stacked_bar_chart, "Lead Stages", _currentLead.customStages ?? 'N/A', isTappable: true, onTap: _editLeadStages),
+                // _infoRow(Icons.verified_user_outlined, "Qualification", _currentLead.qualificationStatus ?? '-'),
+                _infoRow(Icons.calendar_today, "Qualified On", _currentLead.qualifiedOn?.toString() ?? '-'),
                 _infoRow(Icons.calendar_month, "Last Visit", _lastVisitDate),
                 if (_visitDoneDate != null)
                   _infoRow(Icons.event_available_rounded, "Visit Done Date", _visitDoneDate!),
-                const Divider(height: 24),
-                _infoRow(Icons.admin_panel_settings_outlined, "Attended By", widget.lead.customAttendedBy ?? '-'),
-                _infoRow(Icons.supervisor_account_outlined, "Sales Manager", widget.lead.customSalesManager ?? '-'),
-                _infoRow(Icons.person_outline, "Lead Owner", widget.lead.leadOwner ?? '-'),
                 const SizedBox(height: 12),
                 // const Text("Flags & Services:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 // const SizedBox(height: 8),
@@ -263,17 +239,68 @@ class _LeadDetailViewState extends State<LeadDetailView> {
                 //   spacing: 8,
                 //   runSpacing: 8,
                 //   children: [
-                //     if (widget.lead.isRetail == 1) _chip("Retail"),
-                //     if (widget.lead.isRental == 1) _chip("Rental"),
-                //     if (widget.lead.isReadyToMove == 1) _chip("Ready To Move"),
-                //     if (widget.lead.reqCallingSupport == 1) _chip("Call Support", color: Colors.blue.shade100),
-                //     if (widget.lead.reqDigitalKit == 1) _chip("Digital Kit", color: Colors.blue.shade100),
-                //     if (widget.lead.reqSmsBlast == 1) _chip("SMS Blast", color: Colors.blue.shade100),
-                //     if (widget.lead.reqWhatsappBlast == 1) _chip("WA Blast", color: Colors.blue.shade100),
+                //     if (_currentLead.isRetail == 1) _chip("Retail"),
+                //     if (_currentLead.isRental == 1) _chip("Rental"),
+                //     if (_currentLead.isReadyToMove == 1) _chip("Ready To Move"),
+                //     if (_currentLead.reqCallingSupport == 1) _chip("Call Support", color: Colors.blue.shade100),
+                //     if (_currentLead.reqDigitalKit == 1) _chip("Digital Kit", color: Colors.blue.shade100),
+                //     if (_currentLead.reqSmsBlast == 1) _chip("SMS Blast", color: Colors.blue.shade100),
+                //     if (_currentLead.reqWhatsappBlast == 1) _chip("WA Blast", color: Colors.blue.shade100),
                 //   ],
                 // )
               ]),
               const SizedBox(height: 16),
+
+               // 5. Source & Marketing
+              _buildSectionCard("Source & Marketing", [
+                _infoRow(Icons.source, "Source", _currentLead.source ?? '-'),
+                _infoRow(Icons.source, "Source Type", _currentLead.customSourceType ??  'N/A'),
+                _infoRow(Icons.campaign, "Campaign", _currentLead.campaignName ?? '-'),
+                _infoRow(Icons.request_page, "Request Type", _currentLead.requestType ?? '-'),
+                // const SizedBox(height: 12),
+                // Wrap(
+                //   spacing: 8,
+                //   runSpacing: 8,
+                //   children: [
+                //     if (_currentLead.isDigital == 1) _chip("Digital"),
+                //     if (_currentLead.isReference == 1) _chip("Reference"),
+                //     if (_currentLead.isDataCalling == 1) _chip("Data Calling"),
+                //     if (_currentLead.blogSubscriber == 1) _chip("Blog Sub"),
+                //   ],
+                // )
+              ]),
+              const SizedBox(height: 16),
+
+              // 6. Contact & Location
+              _buildSectionCard("Contact & Location", [
+                _infoRow(Icons.phone_android, "Mobile", _currentLead.customerPhone, isCopyable: true),
+                _infoRow(Icons.chat, "WhatsApp", _currentLead.whatsappNo ?? '-'),
+                if (_currentLead.phone != null && _currentLead.phone!.isNotEmpty)
+                _infoRow(Icons.email_outlined, "Email", _currentLead.emailId ?? '-', isCopyable: true),
+                _infoRow(Icons.email_outlined, "Channel Partner", _currentLead.customChannelPartner ?? '-', isCopyable: true),
+                _infoRow(Icons.print, "Fax", _currentLead.fax ?? '-'),
+                const Divider(height: 24),
+                // _infoRow(Icons.location_on_outlined, "Address", "${_currentLead.city}, ${_currentLead.state}, ${_currentLead.country}"),
+                _infoRow(Icons.numbers, "Postal Code", _currentLead.customPostalCode ?? '-'),
+                if (_currentLead.locationCoordinates != null && _currentLead.locationCoordinates!.isNotEmpty)
+                  _infoRow(Icons.map, "Location", "View on Map", isTappable: true, onTap: () => _launchMaps(_currentLead.locationCoordinates!)),
+              ]),
+              const SizedBox(height: 16),
+
+              // 7. Professional Info
+              _buildSectionCard("Professional Details", [
+                _infoRow(Icons.business, "Company", _currentLead.companyName ?? '-'),
+                _infoRow(Icons.badge_outlined, "Job Title", _currentLead.jobTitle ?? '-'),
+                _infoRow(Icons.work_outline, "Occupation", _currentLead.customOccupation ?? '-'),
+                _infoRow(Icons.language, "Website", _currentLead.website ?? '-'),
+                // const Divider(height: 24),
+                _infoRow(Icons.factory_outlined, "Industry", _currentLead.industry ?? '-'),
+                // _infoRow(Icons.people_outline, "Employees", _currentLead.noOfEmployees ?? '-'),
+                _infoRow(Icons.monetization_on_outlined, "Annual Revenue", _formatBudget(_currentLead.annualRevenue?.toInt() ?? 0)),
+                _infoRow(Icons.pie_chart_outline, "Market Segment", _currentLead.marketSegment ?? '-'),
+              ]),
+              const SizedBox(height: 16),
+
 
               // New Site Visits Card
               _buildSiteVisitsCard(),
@@ -484,6 +511,23 @@ class _LeadDetailViewState extends State<LeadDetailView> {
     }
   }
 
+  void _showShareProjectDialog(Project project) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 20, 
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: ProjectShareBottomSheet(project: project, lead: _currentLead),
+        );
+      },
+    );
+  }
+
   // ─── UI COMPONENTS ───
 
   Widget _buildSiteVisitsCard() {
@@ -667,49 +711,122 @@ Widget _buildFollowUpsCard() {
   ]);
 }
   Widget _buildHeaderCard() {
-    String fullName = "${widget.lead.salutation ?? ''} ${widget.lead.firstName} ${widget.lead.middleName ?? ''} ${widget.lead.lastName ?? ''}".trim();
+    String fullName = "${_currentLead.salutation ?? ''} ${_currentLead.firstName} ${_currentLead.middleName ?? ''} ${_currentLead.lastName ?? ''}".trim();
+    // remove double spaces
+    fullName = fullName.replaceAll(RegExp(r'\s+'), ' ');
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kCardBorderRadius),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
+        gradient: const LinearGradient(
+          colors: [Colors.white, Color(0xFFFAF9F6)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10)),
+        ],
       ),
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 34,
-            backgroundColor: kAccent.withOpacity(0.1),
-            child: Text(
-              (widget.lead.firstName?.isNotEmpty ?? false) ? widget.lead.firstName![0].toUpperCase() : 'L',
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAccent),
-            ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: kAccent.withOpacity(0.1), width: 1),
+                ),
+              ),
+              Container(
+                width: 78,
+                height: 78,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: kAccent.withOpacity(0.2), width: 2),
+                  boxShadow: [
+                    BoxShadow(color: kAccent.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)
+                  ]
+                ),
+                child: CircleAvatar(
+                  radius: 38,
+                  backgroundColor: kAccent.withOpacity(0.08),
+                  child: Text(
+                    (_currentLead.firstName?.isNotEmpty ?? false) ? _currentLead.firstName![0].toUpperCase() : 'L',
+                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: kAccent),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(fullName.isEmpty ? 'Lead' : fullName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-          const SizedBox(height: 4),
+          const SizedBox(height: 20),
+          Text(
+            fullName.isEmpty ? 'Lead' : fullName, 
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: Colors.black87), 
+            textAlign: TextAlign.center
+          ),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: kAccent.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: kAccent.withOpacity(0.2)),
                 ),
-                child: Text(widget.lead.customLeadStatus ?? 'New', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: kAccent)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                     Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: kAccent,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: kAccent.withOpacity(0.4),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    Text(
+                      _currentLead.customLeadStatus ?? 'New', 
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kAccent, letterSpacing: 0.5)
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8),
-              if (widget.lead.customLeadQuality != null)
-                Row(
-                  children: List.generate(5, (index) {
-                    int numberOfStars = (widget.lead.customLeadQuality! / 0.2).round();
-                    return Icon(
-                      index < numberOfStars ? Icons.star_rounded : Icons.star_outline_rounded,
-                      size: 16, color: Colors.amber,
-                    );
-                  }),
+              const SizedBox(width: 12),
+              if (_currentLead.customLeadQuality != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: List.generate(5, (index) {
+                      int numberOfStars = (_currentLead.customLeadQuality! / 0.2).round();
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 2.0),
+                        child: Icon(
+                          index < numberOfStars ? Icons.star_rounded : Icons.star_outline_rounded,
+                          size: 16, color: Colors.amber,
+                        ),
+                      );
+                    }),
+                  ),
                 )
             ],
           ),
@@ -719,29 +836,66 @@ Widget _buildFollowUpsCard() {
   }
 
   Widget _buildQuickActions() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _actionButton(FontAwesomeIcons.phone, "Call", Colors.green,
-            onPressed: () => _showNumberSelectionDialog(context, widget.lead, 'call')),
-        _actionButton(FontAwesomeIcons.whatsapp, "WhatsApp", const Color(0xFF25D366),
-            onPressed: () => _showNumberSelectionDialog(context, widget.lead, 'whatsapp')),
-        _actionButton(FontAwesomeIcons.envelope, "Email", Colors.blue),
-        _actionButton(FontAwesomeIcons.calendarCheck, "Visit", Colors.orange, onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => CreateSiteVisitScreen(
-              preselectedLeadId: widget.lead.name,
-              preselectedLeadDisplayName: widget.lead.leadName, // Pass the display name
-              preselectedProjectId: widget.lead.customInterestedProject,
-            )),
-          );
-          // Refresh data after returning from CreateSiteVisitScreen
-          if (result == true) {
-            _fetchData();
-          }
-        }),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _actionButton(FontAwesomeIcons.phone, "Call", Colors.green,
+                onPressed: () => _showNumberSelectionDialog(context, _currentLead, 'call')),
+            const SizedBox(width: 12),
+            _actionButton(FontAwesomeIcons.whatsapp, "WhatsApp", const Color(0xFF25D366),
+                onPressed: () => _showNumberSelectionDialog(context, _currentLead, 'whatsapp')),
+            const SizedBox(width: 12),
+            _actionButton(FontAwesomeIcons.envelope, "Email", Colors.blue, onPressed: () {
+              if (_currentLead.name != null) {
+                LeadService.recordButtonPress(_currentLead.name!, 'Email Button');
+              }
+              if (_currentLead.emailId != null && _currentLead.emailId!.isNotEmpty) {
+                _launchUrl('mailto:${_currentLead.emailId}');
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No email address available')));
+              }
+            }),
+            const SizedBox(width: 12),
+            _actionButton(FontAwesomeIcons.calendarCheck, "Visit", Colors.orange, onPressed: () async {
+              if (_currentLead.name != null) {
+                LeadService.recordButtonPress(_currentLead.name!, 'Site Visit Button');
+              }
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => CreateSiteVisitScreen(
+                  preselectedLeadId: _currentLead.name,
+                  preselectedLeadDisplayName: _currentLead.leadName, // Pass the display name
+                  preselectedProjectId: _currentLead.customInterestedProject,
+                )),
+              );
+              // Refresh data after returning from CreateSiteVisitScreen
+              if (result == true) {
+                _fetchData();
+              }
+            }),
+            const SizedBox(width: 12),
+            _actionButton(FontAwesomeIcons.clockRotateLeft, "Follow Up", const Color(0xFF1A1A1A), onPressed: () async {
+              if (_currentLead.name != null) {
+                LeadService.recordButtonPress(_currentLead.name!, 'Follow Up Button');
+              }
+              // Navigating to CreateSiteVisitScreen as a fallback for Follow Up creation logic
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => CreateSiteVisitScreen( 
+                  preselectedLeadId: _currentLead.name,
+                )),
+              );
+               if (result == true) {
+                _fetchData();
+              }
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -751,34 +905,82 @@ Widget _buildFollowUpsCard() {
         GestureDetector(
           onTap: onPressed,
           child: Container(
-            height: 48, width: 48,
+            height: 52, width: 52,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+              border: Border.all(color: Colors.grey.shade100, width: 1.5),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 6))
+              ],
             ),
             child: Center(child: FaIcon(icon, color: color, size: 22)),
           ),
         ),
-        const SizedBox(height: 6),
-        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.grey)),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87)),
       ],
     );
   }
 
-  Widget _buildSectionCard(String title, List<Widget> children) {
+  Widget _buildSectionCard(String title, List<Widget> children, {IconData? icon}) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(kCardBorderRadius),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade100, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 24,
+            spreadRadius: 0,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
+          Row(
+            children: [
+              if (icon != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: kAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: kAccent, size: 18),
+                ),
+                const SizedBox(width: 12),
+              ] else ...[
+                Container(
+                  width: 4, 
+                  height: 20, 
+                  decoration: BoxDecoration(
+                    color: kAccent, 
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: [
+                      BoxShadow(color: kAccent.withOpacity(0.4), blurRadius: 4, spreadRadius: 1)
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Text(
+                title, 
+                style: const TextStyle(
+                  fontSize: 18, 
+                  fontWeight: FontWeight.w800, 
+                  color: Colors.black87, 
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           ...children,
         ],
       ),
@@ -788,33 +990,71 @@ Widget _buildFollowUpsCard() {
   Widget _infoRow(IconData icon, String label, String value, {String? subText, bool isCopyable = false, bool isTappable = false, VoidCallback? onTap}) {
     if (value == '-' || value.isEmpty) return const SizedBox.shrink(); // Hide empty fields
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 16),
       child: InkWell(
         onTap: isTappable ? onTap : (isCopyable ? () {
           Clipboard.setData(ClipboardData(text: value));
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Copied!"), duration: Duration(milliseconds: 600)));
           HapticFeedback.lightImpact();
         } : null),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 20, color: Colors.grey.shade400),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-                  const SizedBox(height: 2),
-                  Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isTappable ? Colors.blue : null)),
-                  if (subText != null) 
-                    Text(subText, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4)),
-                ],
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: isTappable||isCopyable ? 12 : 4, vertical: 8),
+          decoration: (isTappable || isCopyable) ? BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade100),
+          ) : null,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      isTappable ? const Color(0xFFd6b864).withOpacity(0.15) : Colors.grey.shade100,
+                      isTappable ? const Color(0xFFd6b864).withOpacity(0.05) : Colors.grey.shade50,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 18, color: isTappable ? const Color(0xFFd6b864) : Colors.grey.shade600),
               ),
-            ),
-            if (isCopyable) Icon(Icons.copy, size: 14, color: Colors.grey.shade300),
-            if (isTappable) Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey.shade400),
-          ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
+                    const SizedBox(height: 4),
+                    Text(value, style: TextStyle(
+                      fontSize: 15, 
+                      fontWeight: FontWeight.w700, 
+                      color: isTappable ? const Color(0xFFd6b864) : Colors.black87,
+                    )),
+                    if (subText != null) 
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(subText, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4)),
+                      ),
+                  ],
+                ),
+              ),
+              if (isCopyable) 
+                Padding(
+                  padding: const EdgeInsets.only(top: 10.0),
+                  child: Icon(Icons.copy_rounded, size: 16, color: Colors.grey.shade400),
+                ),
+              if (isTappable) 
+                Padding(
+                  padding: const EdgeInsets.only(top: 10.0),
+                  child: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: const Color(0xFFd6b864)),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -871,6 +1111,16 @@ Widget _buildFollowUpsCard() {
                   ],
                 ),
               ),
+              if (project != null)
+                IconButton(
+                  icon: const Icon(Icons.share, color: kAccent),
+                  onPressed: () {
+                    if (_currentLead.name != null) {
+                      LeadService.recordButtonPress(_currentLead.name!, 'Share Button');
+                    }
+                    _showShareProjectDialog(project!);
+                  },
+                ),
               const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
             ],
           ),
@@ -892,9 +1142,12 @@ Widget _buildFollowUpsCard() {
         children: [
           Text("System Info", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          _miniInfo("ID", widget.lead.name ?? ''), // The unique ID
-          _miniInfo("Created", widget.lead.createdAt?.toString() ?? '-'),
-          _miniInfo("Last Modified", widget.lead.modified?.toString() ?? '-'),
+          _miniInfo("Attended By", _currentLead.customAttendedBy ?? '-'),
+          _miniInfo("Sales Manager", _currentLead.customSalesManager ?? '-'),
+          _miniInfo("Lead Owner", _currentLead.leadOwner ?? '-'),
+          _miniInfo("ID", _currentLead.name ?? ''), // The unique ID
+          _miniInfo("Created", _currentLead.createdAt?.toString() ?? '-'),
+          _miniInfo("Last Modified", _currentLead.modified?.toString() ?? '-'),
           if (_isActivityLogsLoading)
             const Padding(
               padding: EdgeInsets.only(top: 8.0),
@@ -959,7 +1212,7 @@ Widget _buildFollowUpsCard() {
       child: Row(
         children: [
           // Show delete button only if lead status is not 'Do Not Contact'
-          if (widget.lead.status != 'Do Not Contact')
+          if (_currentLead.status != 'Do Not Contact')
             Expanded(
               child: OutlinedButton(
                 onPressed: () => _showDeleteConfirmation(context),
@@ -972,14 +1225,14 @@ Widget _buildFollowUpsCard() {
                 child: const Text('Delete'),
               ),
             ),
-          if (widget.lead.status != 'Do Not Contact')
+          if (_currentLead.status != 'Do Not Contact')
             const SizedBox(width: 16),
           Expanded(
             child: ElevatedButton(
               onPressed: () async {
                 final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => LeadCreationPage(lead: widget.lead)),
+                  MaterialPageRoute(builder: (context) => LeadCreationPage(lead: _currentLead)),
                 );
                 if (result == true) {
                   _fetchData(); // Refresh lead details after editing
@@ -1000,6 +1253,417 @@ Widget _buildFollowUpsCard() {
   }
 
   // ─── UTILS ───
+  Widget _buildLinkedUnitsPremiumSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
+          child: Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: kAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(6),
+                child: const Icon(Icons.key, size: 16, color: kAccent),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Linked Inventory Units',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800, 
+                  fontSize: 16,
+                  color: Colors.black87,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        ..._linkedUnits.map((u) => _buildPremiumUnitCard(u)).toList(),
+      ],
+    );
+  }
+
+  Widget _buildPremiumUnitCard(PropertyUnit unit) {
+    Color statusBgColor;
+    Color statusTextColor;
+    if (unit.unitStatus == 'Sold') {
+      statusBgColor = const Color(0xFFFFF0F0);
+      statusTextColor = const Color(0xFFE53935);
+    } else if (unit.unitStatus == 'Hold') {
+      statusBgColor = const Color(0xFFFFF8E1);
+      statusTextColor = const Color(0xFFFF8F00);
+    } else {
+      statusBgColor = const Color(0xFFE8F5E9);
+      statusTextColor = const Color(0xFF43A047);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            spreadRadius: 0,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          highlightColor: kAccent.withOpacity(0.03),
+          splashColor: kAccent.withOpacity(0.06),
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.white,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              builder: (context) {
+                return UnitDetailsBottomSheet(
+                  unit: unit,
+                  onStatusUpdated: () {
+                    _fetchData(); 
+                  },
+                );
+              },
+            );
+          },
+          child: Stack(
+            children: [
+              // Subtle background decoration
+              Positioned(
+                right: -20,
+                top: -20,
+                child: Icon(
+                  Icons.apartment,
+                  size: 100,
+                  color: Colors.grey.shade50.withOpacity(0.5),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Glassmorphic / Gradient Icon
+                    Container(
+                      width: 55,
+                      height: 55,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFFF7F5F0), // Ultra light base
+                            kAccent.withOpacity(0.12),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: kAccent.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.meeting_room_rounded, color: kAccent, size: 26),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    
+                    // Main Unit Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Unit ',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                unit.flatNo,
+                                style: const TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.black87,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.layers_outlined, size: 12, color: Colors.grey.shade600),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Floor ${unit.floorNumber}',
+                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 11, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  unit.configuration,
+                                  style: TextStyle(color: Colors.grey.shade700, fontSize: 11, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Status and Action
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: statusBgColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: statusTextColor.withOpacity(0.15), width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: statusTextColor,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: statusTextColor.withOpacity(0.4),
+                                      blurRadius: 4,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                unit.unitStatus,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: statusTextColor,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.edit_outlined, size: 14, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _editLeadStatus() {
+    final statuses = ['Open', 'Prospect', 'Won', 'Lost'];
+    _showSelectionDialog('Edit Lead Status', statuses, _currentLead.customLeadStatus ?? 'Open', (newVal) async {
+      final updates = {
+        'custom_lead_status': newVal,
+        'custom_stages': null, // Reset stage
+        'status': newVal == 'Lost' ? 'Do Not Contact' : 'Lead',
+      };
+      await _saveLeadUpdate(updates);
+    });
+  }
+
+  void _editLeadStages() {
+    final currentStatus = _currentLead.customLeadStatus ?? _currentLead.status;
+    final stages = _getStagesForStatus(currentStatus);
+    if (stages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No stages available for current status.')));
+      return;
+    }
+    _showSelectionDialog('Edit Lead Stage', stages, _currentLead.customStages ?? '', (newVal) async {
+      await _saveLeadUpdate({'custom_stages': newVal});
+    });
+  }
+
+  List<String> _getStagesForStatus(String? status) {
+    switch (status) {
+      case 'Open':
+        return [
+          'Lead Generated',
+          'Interested',
+          'Detail Sent',
+          'Follow Up',
+          'Ringing',
+          'Site Visit Confirm (VC)',
+          'Site Visit Prospect (VP)',
+        ];
+      case 'Prospect':
+        return [
+          'Project Visited',
+          'Project Warm',
+          'Opportunity',
+          'Revisit Scheduled',
+        ];
+      case 'Won':
+        return ['Booking in Approval', 'Booking Done'];
+      case 'Lost':
+        return ['Not Interested'];
+      default:
+        return [];
+    }
+  }
+
+  void _showSelectionDialog(String title, List<String> options, String currentValue, Function(String) onSave) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                height: 4,
+                width: 40,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  children: [
+                    Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.grey),
+                      onPressed: () => Navigator.pop(context),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const ClampingScrollPhysics(),
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final opt = options[index];
+                    final isSelected = opt == currentValue;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                      title: Text(
+                        opt,
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected ? kAccent : Colors.black87,
+                          fontSize: 16,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle, color: kAccent)
+                          : const Icon(Icons.circle_outlined, color: Colors.black12),
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.pop(context);
+                        if (!isSelected) {
+                          onSave(opt);
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveLeadUpdate(Map<String, dynamic> updates) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: kAccent)),
+    );
+    try {
+      await LeadService.updateLead(_currentLead.name!, updates);
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lead updated successfully!')));
+        _fetchData(); // Refresh lead details
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update lead: $e')));
+      }
+    }
+  }
+
   String _formatBudget(num budget) {
     if (budget <= 0) return '-';
     if (budget >= 10000000) {
@@ -1089,7 +1753,7 @@ Widget _buildFollowUpsCard() {
 
   Future<void> _markLeadAsLost(BuildContext context) async {
     try {
-      final marked = await LeadService.markLeadAsLost(widget.lead.name!);
+      final marked = await LeadService.markLeadAsLost(_currentLead.name!);
       if (marked) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

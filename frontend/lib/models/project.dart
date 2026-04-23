@@ -101,6 +101,24 @@ class ProjectDocument {
   }
 }
 
+class ProjectBrochure {
+  final String brochureName;
+  final String file;
+  ProjectBrochure({required this.brochureName, required this.file});
+  factory ProjectBrochure.fromJson(Map<String, dynamic> json) {
+    return ProjectBrochure(
+      brochureName: json['brochure_name'] ?? '',
+      file: json['file'] ?? '',
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'brochure_name': brochureName,
+      'file': file,
+    };
+  }
+}
+
 class ProjectImage {
   final String images;
   ProjectImage({required this.images});
@@ -139,6 +157,7 @@ class Project {
   final String electricalContractor;
   final String reraLiasoning;
   final List<ProjectDocument> documents;
+  final List<ProjectBrochure> brochures;
   final List<Configuration> configurations;
   final List<ProjectImage> galleryImages;
   final List<ProjectAmenity> amenities;
@@ -177,6 +196,7 @@ class Project {
     required this.electricalContractor,
     required this.reraLiasoning,
     required this.documents,
+    this.brochures = const [],
     required this.configurations,
     required this.galleryImages,
     required this.amenities,
@@ -218,6 +238,10 @@ class Project {
       reraLiasoning: json['rera_liasoning'] ?? '',
       documents: (json['documents'] as List<dynamic>?)
               ?.map((e) => ProjectDocument.fromJson(e))
+              .toList() ??
+          [],
+      brochures: (json['brochure'] as List<dynamic>?)
+              ?.map((e) => ProjectBrochure.fromJson(e))
               .toList() ??
           [],
       configurations: (json['configurations'] as List<dynamic>?)

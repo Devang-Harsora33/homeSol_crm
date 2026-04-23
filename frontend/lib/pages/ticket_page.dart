@@ -54,7 +54,10 @@ class _TicketsListPageState extends State<TicketsListPage> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('My Tickets'),
+        title: const Text('My Tickets', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        centerTitle: true,
+        backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             tooltip: 'Refresh',
@@ -68,7 +71,7 @@ class _TicketsListPageState extends State<TicketsListPage> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -175,19 +178,22 @@ class _TicketsListPageState extends State<TicketsListPage> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
-        onPressed: () async {
-          // Navigate to the new ticket creation page
-          final result = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TicketCreationPage()));
-          // Reload list after returning from creation page if result is true (success)
-          if (result == true) {
-            await _load();
-            if (mounted) setState(() {});
-          }
-        },
-        child: const Icon(Icons.add),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 70.0),
+        child: FloatingActionButton(
+          heroTag: null,
+          backgroundColor: const Color(0xFF1A1A1A),
+          onPressed: () async {
+            // Navigate to the new ticket creation page
+            final result = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TicketCreationPage()));
+            // Reload list after returning from creation page if result is true (success)
+            if (result == true) {
+              await _load();
+              if (mounted) setState(() {});
+            }
+          },
+          child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+        ),
       ),
     );
   }
@@ -197,28 +203,39 @@ class _TicketsListPageState extends State<TicketsListPage> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      height: 48,
       decoration: BoxDecoration(
         color: isDark ? Colors.grey[850] : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: TextField(
         controller: _searchController,
         onChanged: (value) => setState(() => _searchQuery = value),
+        style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
         decoration: InputDecoration(
-          hintText: 'Search by description, category, etc.',
-          prefixIcon: Icon(Icons.search, color: Colors.grey.shade500),
+          hintText: 'Search tickets...',
+          hintStyle: TextStyle(fontSize: 13.5, color: Colors.grey.shade400, fontWeight: FontWeight.w400),
+          prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? GestureDetector(
+                  onTap: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                  child: Icon(Icons.close_rounded, color: Colors.grey.shade400, size: 18),
+                )
+              : null,
           filled: true,
-          fillColor: isDark ? Colors.grey[800] : Colors.grey[100],
+          fillColor: Colors.transparent,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -236,87 +253,117 @@ class _TicketCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
-      color: theme.cardColor,
-      elevation: 0,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () async {
-          final result = await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => TicketDetailPage(ticket: ticket),
-            ),
-          );
-          // Assuming you have a way to trigger a refresh
-        },
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: theme.dividerColor.withOpacity(0.6),
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.confirmation_number,
-                  color: theme.colorScheme.primary,
-                ),
+    final isDark = theme.brightness == Brightness.dark;
+    const kAccent = Color(0xFF675D40);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2), // small margin since parent uses separated
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 15,
+              offset: const Offset(0, 5))
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => TicketDetailPage(ticket: ticket),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            ticket.description,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: kAccent.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.support_agent_rounded,
+                    color: kAccent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              ticket.description,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
                             ),
                           ),
-                        ),
-                        _StatusPill(
-                          status: ticket.status.isEmpty ? 'open' : ticket.status,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Category: ${ticket.category}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.75),
+                          _StatusPill(
+                            status: ticket.status.isEmpty ? 'open' : ticket.status,
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Priority: ${ticket.priority}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.75),
-                      ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          _detailBadge(Icons.category_rounded, ticket.category),
+                          const SizedBox(width: 8),
+                          _detailBadge(Icons.flag_rounded, ticket.priority),
+                        ],
+                      )
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right),
-            ],
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _detailBadge(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey.shade600),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }
@@ -331,65 +378,48 @@ class _TicketCardSkeleton extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     Color? skeletonColor = isDark ? Colors.grey[800] : Colors.grey[300];
-    Color? highlightColor = isDark ? Colors.grey[700] : Colors.grey[200];
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? Colors.grey[850] : Colors.white,
-        border: Border.all(
-          color: theme.dividerColor.withOpacity(0.6),
-        ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: skeletonColor,
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 120,
-                      height: 16,
-                      color: skeletonColor,
-                    ),
+                    Container(width: 120, height: 16, color: skeletonColor),
                     const Spacer(),
-                    Container(
-                      width: 60,
-                      height: 16,
-                      color: skeletonColor,
-                    ),
+                    Container(width: 50, height: 20, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(20))),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 180,
-                  height: 14,
-                  color: skeletonColor,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 100,
-                  height: 14,
-                  color: skeletonColor,
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(width: 70, height: 20, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(8))),
+                    const SizedBox(width: 8),
+                    Container(width: 70, height: 20, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(8))),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Icon(Icons.chevron_right, color: skeletonColor),
         ],
       ),
     );

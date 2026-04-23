@@ -22,7 +22,10 @@ class WorkforceService {
 
   static Future<String?> _getEmployeeId() async {
     final profile = await AuthService.getMyProfile();
-    return profile?.employee;
+    if (profile == null) return null;
+    // In Frappe, 'name' is the primary identifier (e.g., EMP-00001)
+    // We prioritize 'name' but fallback to 'employee' if 'name' is somehow empty
+    return profile.name.isNotEmpty ? profile.name : profile.employee;
   }
 
   // --- ATTENDANCE ---
@@ -63,31 +66,47 @@ class WorkforceService {
     }
     try {
       final employeeId = await _getEmployeeId();
-      if (employeeId == null) return {'success': false, 'message': 'User profile not found'};
+      print('WorkforceService: markAttendance - employeeId: $employeeId, logType: $logType');
+      if (employeeId == null || employeeId.isEmpty) {
+        return {'success': false, 'message': 'User profile or Employee ID not found'};
+      }
 
       final headers = await _getHeaders();
+      final body = jsonEncode({
+        'employee': employeeId,
+        'log_type': logType,
+        'latitude': latitude,
+        'longitude': longitude,
+        'device_id': deviceId,
+        'device_type': deviceType,
+        if (remark != null) 'remark': remark,
+      });
+      
+      print('WorkforceService: markAttendance - Request body: $body');
+
       final response = await http.post(
         Uri.parse('$baseUrl/api/method/homesol_app.api.mark_attendance'),
         headers: headers,
-        body: jsonEncode({
-          'employee': employeeId,
-          'log_type': logType,
-          'latitude': latitude,
-          'longitude': longitude,
-          'device_id': deviceId,
-          'device_type': deviceType,
-          if (remark != null) 'remark': remark,
-        }),
+        body: body,
       ).timeout(const Duration(seconds: 20));
+
+      print('WorkforceService: markAttendance - Response status: ${response.statusCode}');
+      print('WorkforceService: markAttendance - Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         return {'success': true, 'message': responseData['message'] ?? 'Attendance marked successfully'};
       } else {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        return {'success': false, 'message': responseData['message'] ?? 'Failed to mark attendance'};
+        Map<String, dynamic> responseData = {};
+        try {
+          responseData = json.decode(response.body);
+        } catch (e) {
+          print('WorkforceService: Error decoding error response: $e');
+        }
+        return {'success': false, 'message': responseData['message'] ?? 'Failed to mark attendance (Status: ${response.statusCode})'};
       }
     } catch (e) {
+      print('WorkforceService: markAttendance error: $e');
       return {'success': false, 'message': 'Error: $e'};
     }
   }

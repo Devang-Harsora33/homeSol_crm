@@ -6,9 +6,65 @@ import 'package:Homesol/services/connectivity_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:intl/intl.dart';
+
 class ChannelPartnerService {
   static String get baseUrl => AuthService.baseUrl;
   static const String _lastSyncTimestampKey = "last_sync_timestamp_channel_partners";
+
+  static Future<bool> recordButtonPress(String partnerId, String buttonName) async {
+    try {
+      final now = DateTime.now();
+      final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+      
+      final userData = await AuthService.getUserData();
+      final pressedBy = userData?['email'] ?? 'Unknown';
+
+      final newRecord = {
+        "date_and_time": formattedDate,
+        "button_pressed": buttonName,
+        "pressed_by": pressedBy,
+        "doctype": "Button Pressed Logs CP"
+      };
+
+      // Fetch existing partner data from local DB
+      final ChannelPartnerDatabase partnerDb = ChannelPartnerDatabase();
+      final localPartner = await partnerDb.getChannelPartnerByName(partnerId);
+      List<dynamic> existingRecords = [];
+      
+      if (localPartner != null) {
+        if (localPartner.containsKey('button_logs')) {
+          existingRecords = List.from(localPartner['button_logs'] ?? []);
+        }
+      }
+      
+      // Append the new record
+      existingRecords.add(newRecord);
+
+      final body = {
+        "button_logs": existingRecords
+      };
+
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/resource/Channel%20Partner/$partnerId'),
+        headers: headers,
+        body: json.encode(body)
+      ).timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        // Update local DB
+        final Map<String, dynamic> updatedData = Map.from(localPartner ?? {});
+        updatedData['button_logs'] = existingRecords;
+        await partnerDb.upsertChannelPartner(updatedData);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error recording button press for Channel Partner: $e');
+      return false;
+    }
+  }
 
   static Future<Map<String, String>> _getHeaders() async {
     final cookie = await AuthService.getCookie();
@@ -121,13 +177,24 @@ class ChannelPartnerService {
     return rawPartners.map((data) => ChannelPartner.fromJson(json.decode(data['data']))).toList();
   }
 
-  static Future<ChannelPartner> fetchChannelPartner(String partnerId) async {
-    // Check local first
+  static Future<ChannelPartner> fetchChannelPartner(String partnerId, {bool forceRefresh = false}) async {
+    // Check local first if not forcing refresh
     final ChannelPartnerDatabase partnerDb = ChannelPartnerDatabase();
-    final localPartner = await partnerDb.getChannelPartnerByName(partnerId);
-    if (localPartner != null) return ChannelPartner.fromJson(localPartner);
+    if (!forceRefresh) {
+      final localPartner = await partnerDb.getChannelPartnerByName(partnerId);
+      if (localPartner != null) return ChannelPartner.fromJson(localPartner);
+    }
 
-    if (!ConnectivityService.isOnline) throw Exception('Internet connection required.');
+    if (!ConnectivityService.isOnline) {
+      if (!forceRefresh) {
+        throw Exception('Internet connection required.');
+      } else {
+        // If forcing refresh but offline, try local as fallback
+        final localPartner = await partnerDb.getChannelPartnerByName(partnerId);
+        if (localPartner != null) return ChannelPartner.fromJson(localPartner);
+        throw Exception('Offline and no local data found.');
+      }
+    }
 
     try {
       final headers = await _getHeaders();
@@ -135,10 +202,11 @@ class ChannelPartnerService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         final partner = ChannelPartner.fromJson(data['data']);
+        // Store in local DB
         await partnerDb.upsertChannelPartner(data['data']);
         return partner;
       }
-      throw Exception('Failed to load channel partner');
+      throw Exception('Failed to load channel partner from server');
     } catch (e) {
       print('Error fetching channel partner: $e');
       throw e;
@@ -159,13 +227,35 @@ class ChannelPartnerService {
   }
 
   static Future<bool> updateChannelPartner(Map<String, dynamic> body) async {
-    if (!ConnectivityService.isOnline) return false;
+    if (!ConnectivityService.isOnline) {
+      print('❌ Update Channel Partner failed: No internet connection');
+      return false;
+    }
     try {
       final headers = await _getHeaders();
       final name = body['name'];
-      final response = await http.put(Uri.parse('$baseUrl/api/resource/Channel%20Partner/$name'), headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
+      final url = '$baseUrl/api/resource/Channel%20Partner/$name';
+      final jsonBody = jsonEncode(body);
+      
+      print('--- Update Channel Partner Request ---');
+      print('URL: $url');
+      print('Headers: $headers');
+      print('Body: $jsonBody');
+      
+      final response = await http.put(
+        Uri.parse(url), 
+        headers: headers, 
+        body: jsonBody
+      ).timeout(const Duration(seconds: 30));
+      
+      print('--- Update Channel Partner Response ---');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      
       return response.statusCode == 200;
-    } catch (_) {}
-    return false;
+    } catch (e) {
+      print('❌ Update Channel Partner error: $e');
+      return false;
+    }
   }
 }

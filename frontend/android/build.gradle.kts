@@ -31,4 +31,52 @@ subprojects {
             force("androidx.core:core:1.15.0")
         }
     }
+
+    // Suppress obsolete Java 8 warnings and other compiler noise
+    project.tasks.withType<JavaCompile>().configureEach {
+        options.compilerArgs.add("-Xlint:-options")
+        options.compilerArgs.add("-Xlint:-deprecation")
+    }
+
+    project.tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        kotlinOptions {
+            // Only set jvmTarget if it's not already finalized or if it's the main app
+            if (project.name == "app") {
+                jvmTarget = "17"
+            }
+        }
+    }
+
+    val applyNamespace = {
+        if (project.plugins.hasPlugin("com.android.library")) {
+            val android = project.extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)
+            if (android != null) {
+                if (android.namespace == null) {
+                    android.namespace = "com.homesol.plugins.${project.name.replace("-", ".")}"
+                }
+                // Force compileSdk to 36 to support newest symbols
+                android.compileSdk = 36
+            }
+            
+            // Fix for "Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported"
+            project.tasks.withType(com.android.build.gradle.tasks.ProcessLibraryManifest::class.java).configureEach {
+                doFirst {
+                    val manifestFile = mainManifest.get().asFile
+                    if (manifestFile.exists()) {
+                        val content = manifestFile.readText()
+                        if (content.contains("package=")) {
+                            val newContent = content.replace(Regex("package=\"[^\"]*\""), "")
+                            manifestFile.writeText(newContent)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (project.state.executed) {
+        applyNamespace()
+    } else {
+        project.afterEvaluate { applyNamespace() }
+    }
 }

@@ -7,6 +7,7 @@ class PropertyUnit {
   final String unitStatus;
   final String? clientName; // This will hold the lead name
   final String? modifiedBy;
+  final String? paymentMethod;
 
   PropertyUnit({
     required this.name,
@@ -17,6 +18,7 @@ class PropertyUnit {
     required this.unitStatus,
     this.clientName,
     this.modifiedBy,
+    this.paymentMethod,
   });
 
   factory PropertyUnit.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class PropertyUnit {
       unitStatus: json['unit_status'] ?? 'Available',
       clientName: json['client_name'],
       modifiedBy: json['modified_by'],
+      paymentMethod: json['payment_method'],
     );
   }
 
@@ -42,6 +45,7 @@ class PropertyUnit {
       'unit_status': unitStatus,
       'client_name': clientName,
       'modified_by': modifiedBy,
+      'payment_method': paymentMethod,
     };
   }
 }

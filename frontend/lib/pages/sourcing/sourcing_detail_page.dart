@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:screen_protector/screen_protector.dart';
 import 'package:Homesol/models/sourcing.dart';
 import 'package:Homesol/services/apis/sourcing/sourcing_service.dart';
 import 'package:Homesol/services/apis/channel_partners/channel_partner.dart';
@@ -31,8 +32,15 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
   @override
   void initState() {
     super.initState();
+    ScreenProtector.preventScreenshotOn();
     _sourcing = widget.sourcing;
     _refreshData();
+  }
+
+  @override
+  void dispose() {
+    ScreenProtector.preventScreenshotOff();
+    super.dispose();
   }
 
   Future<void> _refreshData() async {

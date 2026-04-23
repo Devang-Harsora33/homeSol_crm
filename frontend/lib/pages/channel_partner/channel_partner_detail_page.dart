@@ -3,11 +3,15 @@ import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:flutter/material.dart';
+import 'package:screen_protector/screen_protector.dart';
+import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../models/channel_partner.dart';
 import '../../models/lead.dart' as model_lead;
+import '../../models/project.dart';
 import '../../services/auth_service.dart';
+import '../../components/project_share_bottom_sheet.dart';
 
 const kAccent = Color(0xFF675D40);
 const kBackgroundColor = Color(0xFFF2F2F7);
@@ -25,6 +29,7 @@ class ChannelPartnerDetailPage extends StatefulWidget {
 class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
   ChannelPartner? _partner;
   List<model_lead.Lead> _connectedLeads = [];
+  List<Project> _projects = [];
   Map<String, String> _projectNames = {};
   Map<String, int> _projectLeadCounts = {};
   Map<String, int> _projectSiteVisitCounts = {};
@@ -34,46 +39,62 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
   @override
   void initState() {
     super.initState();
+    ScreenProtector.preventScreenshotOn();
     _fetchPartnerDetails();
   }
 
-  Future<void> _fetchPartnerDetails() async {
+  @override
+  void dispose() {
+    ScreenProtector.preventScreenshotOff();
+    super.dispose();
+  }
+
+  Future<void> _fetchPartnerDetails({bool forceRefreshPartner = false, bool refreshLeadsAndProjects = true}) async {
     try {
-      final partner = await ChannelPartnerService.fetchChannelPartner(widget.partnerId);
-      final leads = await LeadService.getLeadsByChannelPartner(widget.partnerId);
-      final projects = await ProjectService.fetchProjects();
-      final siteVisits = await SiteVisitService.fetchSiteVisits();
+      final partner = await ChannelPartnerService.fetchChannelPartner(widget.partnerId, forceRefresh: forceRefreshPartner);
       
-      final projectMap = <String, String>{};
-      for (var project in projects) {
-        projectMap[project.id] = project.projectName;
-      }
-
-      // Calculate Lead Counts per Project
-      final leadCounts = <String, int>{};
-      for (var lead in leads) {
-        final projectId = lead.customInterestedProject ?? 'No Project';
-        leadCounts[projectId] = (leadCounts[projectId] ?? 0) + 1;
-      }
-
-      // Calculate Site Visit Counts per Project for this Partner's leads
-      final siteVisitCounts = <String, int>{};
-      final leadIds = leads.map((l) => l.name).toSet();
-      for (var visit in siteVisits) {
-        if (leadIds.contains(visit.lead)) {
-          final projectId = visit.project;
-          siteVisitCounts[projectId] = (siteVisitCounts[projectId] ?? 0) + 1;
+      if (refreshLeadsAndProjects) {
+        final leads = await LeadService.getLeadsByChannelPartner(widget.partnerId);
+        final projects = await ProjectService.fetchProjects();
+        final siteVisits = await SiteVisitService.fetchSiteVisits();
+        
+        final projectMap = <String, String>{};
+        for (var project in projects) {
+          projectMap[project.id] = project.projectName;
         }
-      }
 
-      setState(() {
-        _partner = partner;
-        _connectedLeads = leads;
-        _projectNames = projectMap;
-        _projectLeadCounts = leadCounts;
-        _projectSiteVisitCounts = siteVisitCounts;
-        _isLoading = false;
-      });
+        // Calculate Lead Counts per Project
+        final leadCounts = <String, int>{};
+        for (var lead in leads) {
+          final projectId = lead.customInterestedProject ?? 'No Project';
+          leadCounts[projectId] = (leadCounts[projectId] ?? 0) + 1;
+        }
+
+        // Calculate Site Visit Counts per Project for this Partner's leads
+        final siteVisitCounts = <String, int>{};
+        final leadIds = leads.map((l) => l.name).toSet();
+        for (var visit in siteVisits) {
+          if (leadIds.contains(visit.lead)) {
+            final projectId = visit.project;
+            siteVisitCounts[projectId] = (siteVisitCounts[projectId] ?? 0) + 1;
+          }
+        }
+
+        setState(() {
+          _partner = partner;
+          _connectedLeads = leads;
+          _projects = projects;
+          _projectNames = projectMap;
+          _projectLeadCounts = leadCounts;
+          _projectSiteVisitCounts = siteVisitCounts;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _partner = partner;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
@@ -87,11 +108,11 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
     return Scaffold(
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        title: Text(_partner?.firmName ?? 'Channel Partner', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text('Partner Overview', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: -0.3)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: kBackgroundColor,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: Colors.black87,
       ),
       body: _buildBody(),
     );
@@ -102,7 +123,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       // Sync Leads and Site Visits as requested
       await LeadService.syncMyLeads();
       await SiteVisitService.fetchMySiteVisits(forceRefresh: true);
-      await _fetchPartnerDetails();
+      await _fetchPartnerDetails(forceRefreshPartner: true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error refreshing data: $e')),
@@ -112,7 +133,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: kAccent));
     }
 
     if (_errorMessage != null) {
@@ -120,11 +141,18 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Error: $_errorMessage'),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
+              child: Icon(Icons.error_outline_rounded, size: 48, color: Colors.red.shade300),
+            ),
+            const SizedBox(height: 16),
+            Text('Error: $_errorMessage', style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w500)),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _fetchPartnerDetails,
-              child: const Text('Retry'),
+              style: ElevatedButton.styleFrom(backgroundColor: kAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              child: const Text('Retry', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -132,101 +160,452 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
     }
 
     if (_partner == null) {
-      return const Center(child: Text('Partner not found.'));
+      return const Center(child: Text('Partner not found.', style: TextStyle(fontWeight: FontWeight.w500)));
     }
 
     return RefreshIndicator(
       onRefresh: _refreshData,
+      color: kAccent,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeaderCard(),
+            _buildHeroProfile(),
+            const SizedBox(height: 20),
+            _buildGridDetails(),
             const SizedBox(height: 16),
-            _buildSectionCard("Firm Details", [
-              _infoRow(Icons.business, "Firm Name", _partner!.firmName),
-              _infoRow(Icons.email_outlined, "Email", _partner!.email),
-              _infoRow(Icons.phone_android, "Mobile Number", _partner!.mobileNumber),
-              _infoRow(Icons.confirmation_number_outlined, "RERA Number", _partner!.reraNumber),
-              _infoRow(Icons.category_outlined, "Category", _partner!.category),
-              _infoRow(Icons.public_outlined, "Territory", _partner!.territory),
-            ]),
+            if (_partner!.fullAddress != null && _partner!.fullAddress!.isNotEmpty)
+              ...[
+                _buildAddressCard(),
+                const SizedBox(height: 16),
+              ],
+            _buildSectionCard("Project Breakdown", Icons.pie_chart_rounded, [_buildProjectBreakdown()]),
             const SizedBox(height: 16),
-            _buildSectionCard("Project Breakdown", [_buildProjectBreakdown()]),
-            const SizedBox(height: 16),
-            _buildSectionCard("Connected Leads", [
+            _buildSectionCard("Connected Leads", Icons.people_alt_rounded, [
               if (_connectedLeads.isEmpty)
                 const Padding(
-                  padding: EdgeInsets.only(top: 8.0),
-                  child: Text("No leads connected with this partner", style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic)),
+                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                  child: Center(child: Text("No leads connected with this partner", style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic))),
                 )
               else
                 ..._connectedLeads.map((lead) => _buildLeadCard(lead)).toList()
             ]),
             const SizedBox(height: 16),
-            _buildSectionCard("Address", [
-              _infoRow(Icons.location_on_outlined, "Full Address", _partner!.fullAddress),
+            _buildSectionCard(
+              "Team Members", 
+              Icons.groups_rounded, 
+              [
+                if (_partner!.contactPersons == null || _partner!.contactPersons!.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16.0),
+                    child: Center(child: Text("No team members added yet", style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic))),
+                  )
+                else
+                  ..._partner!.contactPersons!.map((p) => _buildContactPersonCard(p)).toList()
+              ],
+              trailing: GestureDetector(
+                onTap: () => _showContactPersonForm(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: kAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_rounded, color: kAccent, size: 16),
+                      SizedBox(width: 4),
+                      Text('Add', style: TextStyle(color: kAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildSectionCard("Documents", Icons.folder_open_rounded, [
+              if (_partner!.documents == null || _partner!.documents!.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                  child: Center(child: Text("No documents available", style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic))),
+                )
+              else
+                ..._partner!.documents!.map((d) => _buildDocumentCard(d)).toList()
             ]),
             const SizedBox(height: 16),
-            _buildSectionCard("Contact Persons",
-              _partner!.contactPersons?.map((p) => _buildContactPersonCard(p)).toList() ?? []
-            ),
-            const SizedBox(height: 16),
-             _buildSectionCard("Documents",
-              _partner!.documents?.map((d) => _buildDocumentCard(d)).toList() ?? []
-            ),
-            const SizedBox(height: 16),
-            _buildSectionCard("Flags", [_buildFlags()]),
+            _buildSectionCard("Flags & Requirements", Icons.turned_in_not_rounded, [_buildFlags()]),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLeadCard(model_lead.Lead lead) {
-    return Card(
-      color: const Color(0xFFF9F9F9),
-      surfaceTintColor: Colors.transparent,
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200, width: 1),
+  Widget _buildHeroProfile() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A), // Premium dark background
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 24, offset: const Offset(0, 10))],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: CircleAvatar(
+              radius: 46,
+              backgroundColor: Colors.white,
+              child: Text(
+                (_partner!.firmName?.isNotEmpty ?? false) ? _partner!.firmName![0].toUpperCase() : 'C',
+                style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: kAccent),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _partner!.firmName ?? 'N/A', 
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.5), 
+            textAlign: TextAlign.center
+          ),
+          const SizedBox(height: 8),
+          if (_partner!.email != null && _partner!.email!.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.email_rounded, color: Colors.white70, size: 14),
+                  const SizedBox(width: 6),
+                  Text(_partner!.email!, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _heroActionButton(FontAwesomeIcons.phone, "Call", Colors.blue, onPressed: () {
+                if (_partner!.name != null) ChannelPartnerService.recordButtonPress(_partner!.name!, 'Call Button');
+                if (_partner!.mobileNumber != null) _launchUrl('tel:${_partner!.mobileNumber}');
+              }),
+              _heroActionButton(FontAwesomeIcons.whatsapp, "WhatsApp", const Color(0xFF25D366), onPressed: () {
+                if (_partner!.name != null) ChannelPartnerService.recordButtonPress(_partner!.name!, 'WhatsApp Button');
+                if (_partner!.mobileNumber != null) _launchUrl('https://wa.me/${_partner!.mobileNumber}');
+              }),
+              _heroActionButton(Icons.share_rounded, "Share", Colors.amber.shade700, onPressed: () {
+                _showShareProjectPicker();
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _launchUrl(String url) async {
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url));
+    } else {
+      throw 'Could not launch $url';
+    }
+  }
+
+  Widget _heroActionButton(dynamic icon, String label, Color color, {required VoidCallback onPressed}) {
+    bool isFontAwesome = false;
+    try {
+      isFontAwesome = icon.fontFamily?.startsWith('FontAwesome') ?? false;
+    } catch (_) {
+      isFontAwesome = icon.toString().contains('FontAwesome');
+    }
+
+    return GestureDetector(
+      onTap: onPressed,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: isFontAwesome 
+              ? FaIcon(icon as dynamic, color: Colors.white, size: 18)
+              : Icon(icon as IconData, color: Colors.white, size: 20),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  void _showShareProjectPicker() {
+    // 1. Get relevant project IDs from the breakdown data
+    final relevantProjectIds = {..._projectLeadCounts.keys, ..._projectSiteVisitCounts.keys}.toList();
+    relevantProjectIds.removeWhere((id) => id.isEmpty || id == 'null');
+
+    // 2. Filter the projects list to only include these relevant projects
+    final relevantProjects = _projects.where((p) => relevantProjectIds.contains(p.id)).toList();
+
+    if (relevantProjects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No projects associated with this partner to share.')));
+      return;
+    }
+
+    // 3. If there is only one relevant project, bypass the picker and share it directly
+    if (relevantProjects.length == 1) {
+      _shareProject(relevantProjects.first);
+      return;
+    }
+
+    // 4. Otherwise, show the picker with only relevant projects
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    lead.customerName,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                _buildLeadStatusBadge(lead.customLeadStatus),
-              ],
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('Select Project to Share', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(Icons.business, size: 14, color: Colors.grey.shade600),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _projectNames[lead.customInterestedProject] ?? lead.customInterestedProject ?? 'No project specified',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
-                  ),
-                ),
-              ],
+            const Divider(),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: relevantProjects.length,
+                itemBuilder: (context, index) {
+                  final project = relevantProjects[index];
+                  return ListTile(
+                    leading: const Icon(Icons.business, color: kAccent),
+                    title: Text(project.projectName),
+                    subtitle: Text(project.locationName),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _shareProject(project);
+                    },
+                  );
+                },
+              ),
             ),
+            const SizedBox(height: 20),
+          ],
+        );
+      },
+    );
+  }
+
+  void _shareProject(Project project) {
+    if (_partner!.name != null) {
+      ChannelPartnerService.recordButtonPress(_partner!.name!, 'Share Button');
+    }
+
+    final tempLead = model_lead.Lead(
+      name: _partner!.name ?? '',
+      leadName: _partner!.firmName ?? 'N/A',
+      customerName: _partner!.firmName ?? 'N/A',
+      customerPhone: _partner!.mobileNumber ?? '',
+      whatsappNo: _partner!.mobileNumber ?? '',
+      projectId: [project.id],
+      brokerId: '',
+      status: 'Open',
+      budget: 0,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: ProjectShareBottomSheet(project: project, lead: tempLead),
+        );
+      },
+    );
+  }
+
+  Widget _buildGridDetails() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildDetailTile(Icons.phone_iphone_rounded, "Mobile", _partner!.mobileNumber)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildDetailTile(Icons.category_rounded, "Category", _partner!.category)),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _buildDetailTile(Icons.map_rounded, "Territory", _partner!.territory)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildDetailTile(Icons.verified_rounded, "RERA No.", _partner!.reraNumber)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailTile(IconData icon, String label, String? value) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: kAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                child: Icon(icon, size: 14, color: kAccent),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600), maxLines: 1)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value?.isNotEmpty == true ? value! : 'N/A', 
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddressCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.location_on_rounded, color: Colors.blue.shade600, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Registered Address', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                const SizedBox(height: 4),
+                Text(
+                  _partner!.fullAddress!,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(String title, IconData icon, List<Widget> children, {Widget? trailing}) {
+    if (children.isEmpty && trailing == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade100)),
+                    child: Icon(icon, size: 18, color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.black87, letterSpacing: -0.3)),
+                ],
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLeadCard(model_lead.Lead lead) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.blue.shade50,
+          child: Text(
+            lead.customerName.isNotEmpty ? lead.customerName[0].toUpperCase() : 'L',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+          ),
+        ),
+        title: Text(lead.customerName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Row(
+            children: [
+              Icon(Icons.business_rounded, size: 13, color: Colors.grey.shade500),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  _projectNames[lead.customInterestedProject] ?? lead.customInterestedProject ?? 'No project',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        trailing: _buildLeadStatusBadge(lead.customLeadStatus),
       ),
     );
   }
@@ -281,60 +660,6 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
     );
   }
 
-  Widget _buildHeaderCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kCardBorderRadius),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
-      ),
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 34,
-            backgroundColor: kAccent.withOpacity(0.1),
-            child: Text(
-              (_partner!.firmName?.isNotEmpty ?? false) ? _partner!.firmName![0].toUpperCase() : 'C',
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kAccent),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(_partner!.firmName ?? 'N/A', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionCard(String title, List<Widget> children, {Widget? trailing}) {
-    if (children.isEmpty && trailing == null) {
-      return const SizedBox.shrink();
-    }
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kCardBorderRadius),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              if (trailing != null) trailing,
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...children,
-        ],
-      ),
-    );
-  }
-
   void _showContactPersonForm([ContactPerson? person]) {
     final isEditing = person != null;
     final fullNameController = TextEditingController(text: person?.fullName);
@@ -345,83 +670,179 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(isEditing ? 'Edit Team Member' : 'Add Team Member', 
-          style: const TextStyle(fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: fullNameController,
-                  decoration: _dialogInputDecoration('Full Name', Icons.person_outline),
-                  validator: (v) => v!.isEmpty ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: ['Manager', 'Owner', 'Sales'].contains(roleController.text) ? roleController.text : 'Sales',
-                  decoration: _dialogInputDecoration('Role', Icons.badge_outlined),
-                  items: ['Manager', 'Owner', 'Sales'].map((role) {
-                    return DropdownMenuItem(value: role, child: Text(role));
-                  }).toList(),
-                  onChanged: (v) => roleController.text = v!,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: mobileController,
-                  decoration: _dialogInputDecoration('Mobile', Icons.phone_outlined),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: emailController,
-                  decoration: _dialogInputDecoration('Email', Icons.email_outlined),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return null;
-                    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                    if (!emailRegex.hasMatch(value)) return 'Enter a valid email';
-                    return null;
-                  },
-                ),
-              ],
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                   // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: kAccent.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          isEditing ? Icons.edit_rounded : Icons.person_add_rounded,
+                          color: kAccent,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isEditing ? 'Edit Team Member' : 'Add Team Member',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isEditing ? 'Update the details of this member' : 'Add a new member to the team',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Form Fields
+                  TextFormField(
+                    controller: fullNameController,
+                    decoration: _dialogInputDecoration('Full Name', Icons.person_outline),
+                    validator: (v) => v == null || v.isEmpty ? 'Name is required' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  DropdownButtonFormField<String>(
+                    value: ['Manager', 'Owner', 'Sales'].contains(roleController.text) ? roleController.text : 'Sales',
+                    decoration: _dialogInputDecoration('Role', Icons.badge_outlined),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
+                    items: ['Manager', 'Owner', 'Sales'].map((role) {
+                      return DropdownMenuItem(
+                        value: role, 
+                        child: Text(role, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      );
+                    }).toList(),
+                    onChanged: (v) => roleController.text = v!,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  TextFormField(
+                    controller: mobileController,
+                    decoration: _dialogInputDecoration('Mobile Number', Icons.phone_outlined),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  TextFormField(
+                    controller: emailController,
+                    decoration: _dialogInputDecoration('Email Address', Icons.email_outlined),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) return null;
+                      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                      if (!emailRegex.hasMatch(value)) return 'Enter a valid email';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 28),
+                  
+                  // Action Buttons
+                  Row(
+                    children: [
+                      if (isEditing) ...[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _deleteContactPerson(person),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              side: BorderSide(color: Colors.red.shade200),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ] else ...[
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text('Cancel', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kAccent,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () {
+                            if (formKey.currentState!.validate()) {
+                              _saveContactPerson(
+                                isEditing,
+                                person,
+                                fullNameController.text,
+                                roleController.text,
+                                mobileController.text,
+                                emailController.text,
+                              );
+                            }
+                          },
+                          child: Text(
+                            isEditing ? 'Save Changes' : 'Add Member', 
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        actions: [
-          if (isEditing)
-            TextButton(
-              onPressed: () => _deleteContactPerson(person),
-              child: const Text('Delete', style: TextStyle(color: Colors.red))
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(context), 
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey))
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kAccent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                _saveContactPerson(
-                  isEditing,
-                  person,
-                  fullNameController.text,
-                  roleController.text,
-                  mobileController.text,
-                  emailController.text,
-                );
-              }
-            },
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
@@ -429,14 +850,69 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
   Future<void> _deleteContactPerson(ContactPerson person) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirm Delete', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to delete ${person.fullName}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
-        ],
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.warning_rounded, color: Colors.red.shade400, size: 32),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Delete Team Member?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Are you sure you want to remove ${person.fullName} from your team? This action cannot be undone.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text('Cancel', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Delete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
 
@@ -471,9 +947,23 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
   InputDecoration _dialogInputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: Icon(icon, size: 20, color: kAccent),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      labelStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+      prefixIcon: Icon(icon, size: 22, color: Colors.grey.shade500),
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kAccent, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 
@@ -502,6 +992,9 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
             parentfield: 'contact_persons',
             doctype: 'Contact Person',
           );
+          print('Updating existing member: ${originalPerson!.name}');
+        } else {
+          print('❌ Could not find member index for: ${originalPerson!.name}');
         }
       } else {
         updatedPartner.contactPersons!.add(ContactPerson(
@@ -514,18 +1007,41 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
           parentfield: 'contact_persons',
           doctype: 'Contact Person',
         ));
+        print('Adding new member: $fullName');
       }
 
-      final success = await ChannelPartnerService.updateChannelPartner(updatedPartner.toJson());
+      // Create a minimal payload to avoid TimestampMismatchError (417)
+      // by only sending the fields that need to be updated.
+      final updateData = {
+        'name': _partner!.name,
+        'contact_persons': updatedPartner.contactPersons!.map((p) {
+          final json = p.toJson();
+          // Remove system-generated fields that can cause mismatch errors
+          json.remove('modified');
+          json.remove('creation');
+          json.remove('owner');
+          json.remove('modified_by');
+          return json;
+        }).toList(),
+      };
+
+      print('Sending minimal update data to service...');
+      print('Payload: ${jsonEncode(updateData)}');
+      
+      final success = await ChannelPartnerService.updateChannelPartner(updateData);
       if (success) {
+        print('✅ Channel Partner updated successfully');
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Team member saved successfully')));
-        await _fetchPartnerDetails();
+        // Optimized: Fetch only the updated partner data from server, skipping leads and projects
+        await _fetchPartnerDetails(forceRefreshPartner: true, refreshLeadsAndProjects: false);
       } else {
-        throw Exception('Failed to update Channel Partner');
+        print('❌ Channel Partner update failed in service');
+        throw Exception('Failed to update Channel Partner on server');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ Error in _saveContactPerson: $e');
+      print('StackTrace: $stackTrace');
       setState(() {
-        _errorMessage = e.toString();
         _isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -557,83 +1073,90 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
   }
 
   Widget _buildContactPersonCard(ContactPerson person) {
-    return Card(
-      color: const Color(0xFFF9F9F9),
-      surfaceTintColor: Colors.transparent,
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(person.fullName ?? 'N/A',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(person.fullName ?? 'N/A', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      if (person.roles != null && person.roles!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(person.roles!, style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                        ),
+                    ],
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 20, color: kAccent),
-                  onPressed: () => _showContactPersonForm(person),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                GestureDetector(
+                  onTap: () => _showContactPersonForm(person),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.grey.shade50, shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade200)),
+                    child: const Icon(Icons.edit_rounded, size: 16, color: Colors.black54),
+                  ),
                 ),
               ],
             ),
-            if (person.roles != null && person.roles!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4.0),
-                child: Text(person.roles!,
-                    style: const TextStyle(
-                        fontSize: 14, color: Colors.grey)),
-              ),
-            const Divider(height: 20),
-            if (person.mobile != null && person.mobile!.isNotEmpty)
-              _infoRow(Icons.phone, "Mobile", person.mobile),
-            if (person.email != null && person.email!.isNotEmpty)
-              _infoRow(Icons.email, "Email", person.email),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+          ),
+          Divider(height: 1, color: Colors.grey.shade200),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                if (person.mobile != null && person.mobile!.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.call, color: Colors.green),
-                    onPressed: () async {
-                      final url = 'tel:${person.mobile}';
-                      if (await canLaunchUrl(Uri.parse(url))) {
-                        await launchUrl(Uri.parse(url));
-                      }
-                    },
-                  ),
-                if (person.mobile != null && person.mobile!.isNotEmpty)
-                  IconButton(
-                    icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green),
-                    onPressed: () async {
-                      final url = 'https://wa.me/${person.mobile}';
-                       if (await canLaunchUrl(Uri.parse(url))) {
-                        await launchUrl(Uri.parse(url));
-                      }
-                    },
-                  ),
+                if (person.mobile != null && person.mobile!.isNotEmpty) ...[
+                  _actionButton(Icons.call_rounded, 'Call', Colors.green, () async {
+                    final url = 'tel:${person.mobile}';
+                    if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url));
+                  }),
+                  _actionButton(FontAwesomeIcons.whatsapp, 'WhatsApp', const Color(0xFF25D366), () async {
+                    final url = 'https://wa.me/${person.mobile}';
+                    if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url));
+                  }),
+                ],
                 if (person.email != null && person.email!.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.email, color: Colors.blue),
-                    onPressed: () async {
-                       final url = 'mailto:${person.email}';
-                       if (await canLaunchUrl(Uri.parse(url))) {
-                        await launchUrl(Uri.parse(url));
-                      }
-                    },
-                  ),
+                  _actionButton(Icons.email_rounded, 'Email', Colors.blue, () async {
+                    final url = 'mailto:${person.email}';
+                    if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url));
+                  }),
               ],
-            )
-          ],
-        ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton(dynamic icon, String label, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+            child: icon is IconData 
+                ? Icon(icon, size: 16, color: color)
+                : FaIcon(icon as FaIconData, size: 16, color: color),
+          ),
+          const SizedBox(height: 6),
+          Text(label, style: TextStyle(color: Colors.grey.shade700, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
@@ -642,29 +1165,50 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
     final isImage = ['.png', '.jpg', '.jpeg', '.gif', '.bmp']
         .any((ext) => doc.documentAttachment?.toLowerCase().endsWith(ext) ?? false);
 
-    return InkWell(
-      onTap: () async {
-        if (doc.documentAttachment != null && doc.documentAttachment!.isNotEmpty) {
-          final url = '${AuthService.baseUrl}${doc.documentAttachment}';
-          if (isImage) {
-            _openImageViewer(url);
-          } else {
-            if (await canLaunchUrl(Uri.parse(url))) {
-              await launchUrl(Uri.parse(url));
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isImage ? Colors.blue.shade50 : Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            isImage ? Icons.image_rounded : Icons.description_rounded,
+            color: isImage ? Colors.blue.shade600 : Colors.orange.shade600,
+          ),
+        ),
+        title: Text(doc.documentName ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        subtitle: Text(
+          doc.documentAttachment?.split('/').last ?? 'No attachment', 
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.grey.shade50, shape: BoxShape.circle),
+          child: const Icon(Icons.open_in_new_rounded, size: 16, color: Colors.black54),
+        ),
+        onTap: () async {
+          if (doc.documentAttachment != null && doc.documentAttachment!.isNotEmpty) {
+            final url = '${AuthService.baseUrl}${doc.documentAttachment}';
+            if (isImage) {
+              _openImageViewer(url);
+            } else {
+              if (await canLaunchUrl(Uri.parse(url))) {
+                await launchUrl(Uri.parse(url));
+              }
             }
           }
-        }
-      },
-      child: Card(
-        color: const Color(0xFFF9F9F9),
-      surfaceTintColor: Colors.transparent,
-        margin: const EdgeInsets.symmetric(vertical: 4.0),
-        child: ListTile(
-          title: Text(doc.documentName ?? 'N/A'),
-          subtitle: Text(doc.documentAttachment ?? 'No attachment'),
-          leading: isImage ? const Icon(Icons.image) : const Icon(Icons.description),
-          trailing: const Icon(Icons.open_in_new),
-        ),
+        },
       ),
     );
   }
@@ -767,15 +1311,14 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
   }
 
   Widget _buildProjectBreakdown() {
-    // Collect all project IDs that have either leads or site visits
     final allProjectIds = {..._projectLeadCounts.keys, ..._projectSiteVisitCounts.keys}.toList();
-    
-    // Remove null or empty IDs if any
     allProjectIds.removeWhere((id) => id.isEmpty || id == 'null');
 
     if (allProjectIds.isEmpty) {
-      return const Text("No projects associated with this partner's leads.", 
-        style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic));
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16.0),
+        child: Center(child: Text("No projects associated with this partner's leads", style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic))),
+      );
     }
 
     return Column(
@@ -785,53 +1328,58 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
         final siteVisitCount = _projectSiteVisitCounts[projectId] ?? 0;
 
         return Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFFF9F9F9),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 projectName,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.black87),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 children: [
-                  _smallStat(Icons.person_outline, "$leadCount Leads"),
-                  const SizedBox(width: 16),
-                  _smallStat(Icons.location_on_outlined, "$siteVisitCount Site Visits"),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_rounded, size: 16, color: Colors.blue.shade600),
+                          const SizedBox(width: 8),
+                          Text("$leadCount Leads", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Colors.blue.shade800)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(10)),
+                      child: Row(
+                        children: [
+                          Icon(Icons.location_on_rounded, size: 16, color: Colors.purple.shade600),
+                          const SizedBox(width: 8),
+                          Text("$siteVisitCount Visits", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Colors.purple.shade800)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
         );
       }).toList(),
-    );
-  }
-
-  Widget _smallStat(IconData icon, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: kAccent),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 12, 
-            color: Colors.grey.shade700,
-            fontWeight: FontWeight.w500
-          )
-        ),
-      ],
     );
   }
 }

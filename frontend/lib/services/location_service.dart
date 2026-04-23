@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocationService {
   static LocationService? _instance;
@@ -8,11 +9,25 @@ class LocationService {
 
   LocationService._();
 
+  static const String _disclosureAcceptedKey = 'background_location_disclosure_accepted';
+
   Position? _currentPosition;
   bool _isLocationEnabled = false;
 
   Position? get currentPosition => _currentPosition;
   bool get isLocationEnabled => _isLocationEnabled;
+
+  /// Check if prominent disclosure has been accepted
+  Future<bool> isDisclosureAccepted() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_disclosureAcceptedKey) ?? false;
+  }
+
+  /// Save prominent disclosure acceptance status
+  Future<void> setDisclosureAccepted(bool accepted) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_disclosureAcceptedKey, accepted);
+  }
 
   /// Request location permissions
   Future<bool> requestLocationPermission() async {

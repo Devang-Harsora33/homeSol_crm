@@ -95,7 +95,7 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return _UnitDetailsBottomSheet(
+        return UnitDetailsBottomSheet(
           unit: unit,
           designation: widget.designation,
           onStatusUpdated: () {
@@ -585,24 +585,26 @@ class _StatusCornerPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _UnitDetailsBottomSheet extends StatefulWidget {
+class UnitDetailsBottomSheet extends StatefulWidget {
   final PropertyUnit unit;
   final VoidCallback onStatusUpdated;
   final String? designation;
 
-  const _UnitDetailsBottomSheet({
+  const UnitDetailsBottomSheet({
     required this.unit,
     required this.onStatusUpdated,
     this.designation,
   });
 
   @override
-  State<_UnitDetailsBottomSheet> createState() => _UnitDetailsBottomSheetState();
+  State<UnitDetailsBottomSheet> createState() => UnitDetailsBottomSheetState();
 }
 
-class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
+class UnitDetailsBottomSheetState extends State<UnitDetailsBottomSheet> {
   late String _currentStatus;
+  String? _currentPaymentMethod;
   bool _isUpdating = false;
+  bool _isUpdatingPaymentMethod = false;
   Future<Lead?>? _linkedLeadFuture;
   
   List<Lead> _leadOptions = [];
@@ -613,6 +615,7 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
   void initState() {
     super.initState();
     _currentStatus = widget.unit.unitStatus;
+    _currentPaymentMethod = (widget.unit.paymentMethod?.isEmpty ?? true) ? null : widget.unit.paymentMethod;
     if (widget.unit.clientName != null && widget.unit.clientName!.isNotEmpty) {
       _linkedLeadFuture = LeadService.fetchLead(widget.unit.clientName!);
     }
@@ -662,6 +665,29 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
       });
 
       if (success) {
+        if (widget.unit.clientName != null && widget.unit.clientName!.isNotEmpty) {
+          try {
+            if (newStatus == 'Sold') {
+              await LeadService.updateLead(widget.unit.clientName!, {
+                'custom_lead_status': 'Won',
+                'status': 'Converted',
+              });
+            } else if (newStatus == 'Hold') {
+              await LeadService.updateLead(widget.unit.clientName!, {
+                'custom_lead_status': 'Prospect',
+                'status': 'Opportunity',
+              });
+            } else if (newStatus == 'Available') {
+              await LeadService.updateLead(widget.unit.clientName!, {
+                'custom_lead_status': 'Open',
+                'status': 'Open',
+              });
+            }
+          } catch (e) {
+            print('Error updating lead status: $e');
+          }
+        }
+
         widget.onStatusUpdated();
         Navigator.pop(context); // Close bottom sheet after successful update
         ScaffoldMessenger.of(context).showSnackBar(
@@ -670,6 +696,39 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to update status'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _updatePaymentMethod(String? newMethod) async {
+    if (newMethod == null || newMethod == _currentPaymentMethod) return;
+
+    setState(() {
+      _isUpdatingPaymentMethod = true;
+    });
+
+    final success = await PropertyUnitService.updatePropertyUnitPaymentMethod(
+      widget.unit.name,
+      newMethod,
+    );
+
+    if (mounted) {
+      setState(() {
+        _isUpdatingPaymentMethod = false;
+        if (success) {
+          _currentPaymentMethod = newMethod;
+        }
+      });
+
+      if (success) {
+        widget.onStatusUpdated();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment Method updated successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update Payment Method'), backgroundColor: Colors.red),
         );
       }
     }
@@ -693,6 +752,24 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
       if (success) {
         final newStatus = leadId.isEmpty ? 'Available' : 'Hold';
         success = await PropertyUnitService.updatePropertyUnitStatus(widget.unit.name, newStatus);
+        
+        if (success) {
+          try {
+            if (leadId.isEmpty && widget.unit.clientName != null && widget.unit.clientName!.isNotEmpty) {
+              await LeadService.updateLead(widget.unit.clientName!, {
+                'custom_lead_status': 'Open',
+                'status': 'Open',
+              });
+            } else if (leadId.isNotEmpty) {
+              await LeadService.updateLead(leadId, {
+                'custom_lead_status': 'Prospect',
+                'status': 'Opportunity',
+              });
+            }
+          } catch (e) {
+            print('Error updating lead status: $e');
+          }
+        }
       }
 
       if (mounted) {
@@ -971,7 +1048,9 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
                           ],
                         ),
                       ),
-                      if (_currentStatus != 'Sold' && !(widget.designation?.toLowerCase().contains('sourcing') ?? false))
+                      if (_currentStatus != 'Sold' && 
+                          widget.designation?.trim().toLowerCase() != 'sourcing' && 
+                          widget.designation?.trim().toLowerCase() != 'property developer')
                         OutlinedButton.icon(
                           onPressed: _showLeadSearchPicker,
                           icon: const Icon(Icons.swap_horiz, size: 14),
@@ -1002,7 +1081,8 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
                     style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
                   ),
                   const Spacer(),
-                  if (!(widget.designation?.toLowerCase().contains('sourcing') ?? false))
+                  if (widget.designation?.trim().toLowerCase() != 'sourcing' && 
+                      widget.designation?.trim().toLowerCase() != 'property developer')
                     TextButton.icon(
                       onPressed: _showLeadSearchPicker,
                       icon: const Icon(Icons.link),
@@ -1015,7 +1095,7 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
               ),
             ),
 
-          if (!(widget.designation?.toLowerCase().contains('sourcing') ?? false)) ...[
+          if (widget.designation?.toLowerCase() != 'sourcing' && widget.designation?.toLowerCase() != 'property developer') ...[
             const Divider(height: 40),
             const Text(
               'Update Status',
@@ -1040,6 +1120,33 @@ class _UnitDetailsBottomSheetState extends State<_UnitDetailsBottomSheet> {
                   DropdownMenuItem(value: 'Sold', child: Text('Sold')),
                 ],
                 onChanged: _updateStatus,
+              ),
+
+            const SizedBox(height: 24),
+            const Text(
+              'Payment Method',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            if (_isUpdatingPaymentMethod)
+              const Center(child: CircularProgressIndicator())
+            else
+              DropdownButtonFormField<String>(
+                value: _currentPaymentMethod,
+                dropdownColor: Colors.white,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.white,
+                  hintText: 'Select Payment Method',
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Full Payment', child: Text('Full Payment')),
+                  DropdownMenuItem(value: 'Home Loan', child: Text('Home Loan')),
+                  DropdownMenuItem(value: 'Installment', child: Text('Installment')),
+                ],
+                onChanged: _updatePaymentMethod,
               ),
           ],
           const SizedBox(height: 40),

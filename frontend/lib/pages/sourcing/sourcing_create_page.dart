@@ -42,8 +42,9 @@ final kInputDecoration = InputDecoration(
 
 class SourcingCreatePage extends StatefulWidget {
   final Sourcing? existingSourcing;
+  final ChannelPartner? initialChannelPartner;
 
-  const SourcingCreatePage({super.key, this.existingSourcing});
+  const SourcingCreatePage({super.key, this.existingSourcing, this.initialChannelPartner});
 
   @override
   State<SourcingCreatePage> createState() => _SourcingCreatePageState();
@@ -233,6 +234,14 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
         _smsBlast = s.smsBlast == 1;
         _whatsappBlast = s.whatsappBlast == 1;
       } else {
+        if (widget.initialChannelPartner != null) {
+          final matchedCP = partners.where((p) => p.name == widget.initialChannelPartner!.name).toList();
+          if (matchedCP.isNotEmpty) {
+            _onCPSelected(matchedCP.first);
+          } else {
+            _onCPSelected(widget.initialChannelPartner!);
+          }
+        }
         _fetchCurrentLocation();
       }
     } finally {

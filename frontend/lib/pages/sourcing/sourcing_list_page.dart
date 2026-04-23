@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:Homesol/models/sourcing.dart';
+import 'package:Homesol/models/channel_partner.dart';
 import 'package:Homesol/services/apis/sourcing/sourcing_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
+import 'package:Homesol/services/apis/channel_partners/channel_partner.dart';
+import 'package:Homesol/services/auth_service.dart';
 import 'sourcing_create_page.dart';
 import 'sourcing_detail_page.dart';
 import 'package:intl/intl.dart';
@@ -12,7 +15,16 @@ import 'dart:convert';
 class SourcingListPage extends StatefulWidget {
   final String? developerId;
   final bool showAddButton;
-  const SourcingListPage({super.key, this.developerId, this.showAddButton = true});
+  final String searchQuery;
+  final bool isStandaloneView;
+
+  const SourcingListPage({
+    super.key, 
+    this.developerId, 
+    this.showAddButton = true,
+    this.searchQuery = '',
+    this.isStandaloneView = true,
+  });
 
   @override
   State<SourcingListPage> createState() => _SourcingListPageState();
@@ -30,6 +42,8 @@ class _SourcingListPageState extends State<SourcingListPage> {
   final Set<String> _selectedVisitFilters = {};
   List<Sourcing> _allSources = [];
   Map<String, Map<String, double>> _projectLocations = {};
+  List<ChannelPartner> _channelPartners = [];
+  String? _currentUserDesignation;
 
   int _selectedDays = 15;
 
@@ -37,6 +51,18 @@ class _SourcingListPageState extends State<SourcingListPage> {
   void initState() {
     super.initState();
     _load();
+    _fetchProfile();
+  }
+
+  Future<void> _fetchProfile() async {
+    try {
+      final profile = await AuthService.getMyProfile();
+      if (mounted) {
+        setState(() {
+          _currentUserDesignation = profile?.designation;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -54,10 +80,12 @@ class _SourcingListPageState extends State<SourcingListPage> {
       final results = await Future.wait([
         sourcingFuture,
         ProjectService.fetchProjectLocations(),
+        ChannelPartnerService.fetchAllChannelPartners(forceRefresh: forceRefresh),
       ]);
       
       final sources = results[0] as List<Sourcing>;
       final projectLocs = results[1] as List<Map<String, dynamic>>;
+      final partners = results[2] as List<ChannelPartner>;
       
       final Map<String, Map<String, double>> locMap = {};
       for (var loc in projectLocs) {
@@ -72,6 +100,7 @@ class _SourcingListPageState extends State<SourcingListPage> {
       setState(() {
         _allSources = sources;
         _projectLocations = locMap;
+        _channelPartners = partners;
         _future = Future.value(sources);
       });
     } catch (e) {
@@ -88,6 +117,16 @@ class _SourcingListPageState extends State<SourcingListPage> {
         math.cos(lat1 * p) * math.cos(lat2 * p) *
         (1 - math.cos((lon2 - lon1) * p)) / 2;
     return 12742 * math.asin(math.sqrt(a)) * 1000; // Result in meters
+  }
+
+  String _getFirmName(String? partnerId) {
+    if (partnerId == null || partnerId.isEmpty) return 'No Sales Partner';
+    try {
+      final partner = _channelPartners.firstWhere((p) => p.name == partnerId);
+      return partner.firmName ?? partnerId;
+    } catch (_) {
+      return partnerId; // Fallback to ID if not found
+    }
   }
 
   String _getMeetingType(Sourcing source) {
@@ -125,10 +164,11 @@ class _SourcingListPageState extends State<SourcingListPage> {
   List<Sourcing> _filteredSources(List<Sourcing> sources) {
     final datedSources = _getDatedSources(sources);
     return datedSources.where((source) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          (source.name?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
-          (source.contactPersonMet?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
-          (source.mobileNumber?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
+      final effectiveSearch = widget.isStandaloneView ? _searchQuery : widget.searchQuery;
+      final matchesSearch = effectiveSearch.isEmpty ||
+          (source.name?.toLowerCase().contains(effectiveSearch.toLowerCase()) ?? false) ||
+          (source.contactPersonMet?.toLowerCase().contains(effectiveSearch.toLowerCase()) ?? false) ||
+          (source.mobileNumber?.toLowerCase().contains(effectiveSearch.toLowerCase()) ?? false);
       
       bool matchesStatus = _selectedVisitFilters.isEmpty;
       if (!matchesStatus) {
@@ -220,9 +260,10 @@ class _SourcingListPageState extends State<SourcingListPage> {
           );
         },
       ),
-      floatingActionButton: widget.showAddButton ? Padding(
+      floatingActionButton: (widget.showAddButton && _currentUserDesignation?.trim().toLowerCase() != 'property developer') ? Padding(
         padding: const EdgeInsets.only(bottom: 70.0),
         child: FloatingActionButton(
+          heroTag: null,
           onPressed: () async {
             final result = await Navigator.push(
               context,
@@ -246,107 +287,111 @@ class _SourcingListPageState extends State<SourcingListPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Inline Header ──
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              MediaQuery.of(context).padding.top + 16,
-              16,
-              0,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Sourcing',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                          height: 1.1,
+          if (widget.isStandaloneView)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                MediaQuery.of(context).padding.top + 16,
+                16,
+                0,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sourcing',
+                          style: TextStyle(
+                            color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                            height: 1.1,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$shown of $total entries',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _load(forceRefresh: true),
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey.shade800 : Colors.white,
-                      borderRadius: BorderRadius.circular(11),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.07),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$shown of $total entries',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.grey.shade500,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
-                    child: Icon(
-                      Icons.refresh_rounded,
-                      size: 19,
-                      color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                  ),
+                  GestureDetector(
+                    onTap: () => _load(forceRefresh: true),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey.shade800 : Colors.white,
+                        borderRadius: BorderRadius.circular(11),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.07),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.refresh_rounded,
+                        size: 19,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-
-          const SizedBox(height: 14),
+            
+          if (widget.isStandaloneView)
+            const SizedBox(height: 14),
 
           // ── Search Bar ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: isDark ? Colors.grey[800] : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: TextField(
-                controller: _searchController,
-                style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
-                decoration: InputDecoration(
-                  hintText: 'Search by name, mobile...',
-                  hintStyle: TextStyle(fontSize: 13.5, color: Colors.grey.shade400, fontWeight: FontWeight.w400),
-                  prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? GestureDetector(
-                          onTap: () => setState(() { _searchQuery = ''; _searchController.clear(); }),
-                          child: Icon(Icons.close_rounded, color: Colors.grey.shade400, size: 18),
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: Colors.transparent,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          if (widget.isStandaloneView)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey[800] : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                onChanged: (value) => setState(() => _searchQuery = value),
+                child: TextField(
+                  controller: _searchController,
+                  style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, mobile...',
+                    hintStyle: TextStyle(fontSize: 13.5, color: Colors.grey.shade400, fontWeight: FontWeight.w400),
+                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () => setState(() { _searchQuery = ''; _searchController.clear(); }),
+                            child: Icon(Icons.close_rounded, color: Colors.grey.shade400, size: 18),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.transparent,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onChanged: (value) => setState(() => _searchQuery = value),
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(height: 12),
+          if (widget.isStandaloneView)
+            const SizedBox(height: 12),
 
           // ── Time Range Selector ──
           Padding(
@@ -767,7 +812,7 @@ class _SourcingListPageState extends State<SourcingListPage> {
                           
                           // Main Info: Name & Phone
                           Text(
-                            source.contactPersonMet ?? 'No Contact Person',
+                            _getFirmName(source.salesPartner),
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
@@ -778,10 +823,21 @@ class _SourcingListPageState extends State<SourcingListPage> {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              Icon(Icons.call_outlined, size: 14, color: Colors.grey.shade500),
+                              Icon(Icons.person_outline, size: 14, color: Colors.grey.shade500),
                               const SizedBox(width: 6),
                               Text(
-                                source.mobileNumber ?? 'N/A',
+                                source.contactPersonMet ?? 'No Contact Person',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(Icons.email_outlined, size: 14, color: Colors.grey.shade500),
+                              const SizedBox(width: 6),
+                              Text(
+                                source.salesPartner ?? 'No Sales Partner',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey.shade600,
@@ -789,6 +845,8 @@ class _SourcingListPageState extends State<SourcingListPage> {
                                 ),
                               ),
                             ],
+                            
+                            
                           ),
                           const SizedBox(height: 16),
                           

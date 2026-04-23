@@ -35,6 +35,7 @@ class ChannelPartner {
     String? doctype;
     List<ContactPerson>? contactPersons;
     List<Document>? documents;
+    List<ButtonPressedLog>? buttonLogs;
 
     ChannelPartner({
         this.name,
@@ -67,6 +68,7 @@ class ChannelPartner {
         this.doctype,
         this.contactPersons,
         this.documents,
+        this.buttonLogs,
     });
 
     factory ChannelPartner.fromJson(Map<String, dynamic> json) => ChannelPartner(
@@ -100,6 +102,7 @@ class ChannelPartner {
         doctype: json["doctype"],
         contactPersons: json["contact_persons"] == null ? [] : List<ContactPerson>.from(json["contact_persons"].map((x) => ContactPerson.fromJson(x))),
         documents: json["documents"] == null ? [] : List<Document>.from(json["documents"].map((x) => Document.fromJson(x))),
+        buttonLogs: json["button_logs"] == null ? [] : List<ButtonPressedLog>.from(json["button_logs"].map((x) => ButtonPressedLog.fromJson(x))),
     );
 
     Map<String, dynamic> toJson() => {
@@ -133,6 +136,7 @@ class ChannelPartner {
         "doctype": doctype,
         "contact_persons": contactPersons == null ? [] : List<dynamic>.from(contactPersons!.map((x) => x.toJson())),
         "documents": documents == null ? [] : List<dynamic>.from(documents!.map((x) => x.toJson())),
+        "button_logs": buttonLogs == null ? [] : List<dynamic>.from(buttonLogs!.map((x) => x.toJson())),
     };
 }
 
@@ -265,6 +269,74 @@ class Document {
         "idx": idx,
         "document_name": documentName,
         "document_attachment": documentAttachment,
+        "parent": parent,
+        "parentfield": parentfield,
+        "parenttype": parenttype,
+        "doctype": doctype,
+    };
+}
+
+class ButtonPressedLog {
+    String? name;
+    String? owner;
+    DateTime? creation;
+    DateTime? modified;
+    String? modifiedBy;
+    int? docstatus;
+    int? idx;
+    String? dateAndTime;
+    String? buttonPressed;
+    String? pressedBy;
+    String? parent;
+    String? parentfield;
+    String? parenttype;
+    String? doctype;
+
+    ButtonPressedLog({
+        this.name,
+        this.owner,
+        this.creation,
+        this.modified,
+        this.modifiedBy,
+        this.docstatus,
+        this.idx,
+        this.dateAndTime,
+        this.buttonPressed,
+        this.pressedBy,
+        this.parent,
+        this.parentfield,
+        this.parenttype,
+        this.doctype,
+    });
+
+    factory ButtonPressedLog.fromJson(Map<String, dynamic> json) => ButtonPressedLog(
+        name: json["name"],
+        owner: json["owner"],
+        creation: json["creation"] == null ? null : DateTime.parse(json["creation"]),
+        modified: json["modified"] == null ? null : DateTime.parse(json["modified"]),
+        modifiedBy: json["modified_by"],
+        docstatus: json["docstatus"],
+        idx: json["idx"],
+        dateAndTime: json["date_and_time"],
+        buttonPressed: json["button_pressed"],
+        pressedBy: json["pressed_by"],
+        parent: json["parent"],
+        parentfield: json["parentfield"],
+        parenttype: json["parenttype"],
+        doctype: json["doctype"],
+    );
+
+    Map<String, dynamic> toJson() => {
+        "name": name,
+        "owner": owner,
+        "creation": creation?.toIso8601String(),
+        "modified": modified?.toIso8601String(),
+        "modified_by": modifiedBy,
+        "docstatus": docstatus,
+        "idx": idx,
+        "date_and_time": dateAndTime,
+        "button_pressed": buttonPressed,
+        "pressed_by": pressedBy,
         "parent": parent,
         "parentfield": parentfield,
         "parenttype": parenttype,

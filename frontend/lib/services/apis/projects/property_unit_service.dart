@@ -26,7 +26,25 @@ class PropertyUnitService {
     try {
       final headers = await _getHeaders();
       final filters = jsonEncode([["project", "=", projectId]]);
-      final fields = jsonEncode(["name", "floor_number", "flat_no", "configuration", "carpet_area", "unit_status", "client_name", "modified_by"]);
+      final fields = jsonEncode(["name", "floor_number", "flat_no", "configuration", "carpet_area", "unit_status", "client_name", "modified_by", "payment_method"]);
+      final url = Uri.parse('$baseUrl/api/resource/Property Unit?filters=$filters&fields=$fields&limit_page_length=500');
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> jsonData = responseData['data'] ?? [];
+        return jsonData.map((json) => PropertyUnit.fromJson(json)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<List<PropertyUnit>> fetchPropertyUnitsForLead(String leadId) async {
+    if (!ConnectivityService.isOnline) return [];
+    try {
+      final headers = await _getHeaders();
+      final filters = jsonEncode([["client_name", "=", leadId]]);
+      final fields = jsonEncode(["name", "floor_number", "flat_no", "configuration", "carpet_area", "unit_status", "client_name", "modified_by", "payment_method"]);
       final url = Uri.parse('$baseUrl/api/resource/Property Unit?filters=$filters&fields=$fields&limit_page_length=500');
       final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
 
@@ -45,6 +63,17 @@ class PropertyUnitService {
       final headers = await _getHeaders();
       final url = Uri.parse('$baseUrl/api/resource/Property Unit/$unitId');
       final response = await http.put(url, headers: headers, body: jsonEncode({'unit_status': status})).timeout(const Duration(seconds: 30));
+      return response.statusCode == 200;
+    } catch (_) {}
+    return false;
+  }
+
+  static Future<bool> updatePropertyUnitPaymentMethod(String unitId, String paymentMethod) async {
+    if (!ConnectivityService.isOnline) return false;
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse('$baseUrl/api/resource/Property Unit/$unitId');
+      final response = await http.put(url, headers: headers, body: jsonEncode({'payment_method': paymentMethod})).timeout(const Duration(seconds: 30));
       return response.statusCode == 200;
     } catch (_) {}
     return false;

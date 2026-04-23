@@ -48,6 +48,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
   List<String> _teamMembers = [];
   Map<String, Color> _userColorMap = {};
   String? _currentUser;
+  String? _designation;
 
   // ─── FILTER STATE VARIABLES ───
   String? _selectedFilterCategory; // 'Site Visits' or 'Follow-ups'
@@ -61,15 +62,45 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
   }
 
   Future<void> _refreshData() async {
+    await _fetchTeamData(); // Always fetch team/profile data first
+    
     await _fetchAttendanceForMonth(_focusedDay.month, _focusedDay.year);
-    await _fetchSiteVisits();
     await _fetchProjects();
-    await _fetchLeads();
-    await _fetchFollowUps();
-    await _fetchSourcing(); // Add this
-    await _fetchTeamData();
 
-    if (_selectedDay != null) {
+    final dest = _designation ?? '';
+    final isSourcingOnly = dest == 'sourcing';
+    final isSalesAndSourcing = dest == 'sales and sourcing' || dest == 'sales & sourcing';
+
+    if (isSourcingOnly) {
+      await _fetchSourcing();
+      if (mounted) {
+        setState(() {
+          _siteVisits = [];
+          _leads = [];
+          _followUps = [];
+          _siteVisitEvents = {};
+          _followUpEvents = {};
+        });
+      }
+    } else if (isSalesAndSourcing) {
+      await _fetchSiteVisits();
+      await _fetchLeads();
+      await _fetchFollowUps();
+      await _fetchSourcing();
+    } else {
+      // Default / Sales Representative
+      await _fetchSiteVisits();
+      await _fetchLeads();
+      await _fetchFollowUps();
+      if (mounted) {
+        setState(() {
+          _sourcingList = [];
+          _sourcingEvents = {};
+        });
+      }
+    }
+
+    if (_selectedDay != null && mounted) {
       setState(() {
         _selectedSiteVisits = _siteVisits.where((visit) {
           final visitDate = DateTime.tryParse(visit.visitDate);
@@ -89,9 +120,13 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
 
   Future<void> _fetchTeamData() async {
     final user = await AuthService.getUserData();
-    setState(() {
-      _currentUser = user?['email'];
-    });
+    final profile = await AuthService.getMyProfile();
+    if (mounted) {
+      setState(() {
+        _currentUser = user?['email'];
+        _designation = profile?.designation?.toLowerCase();
+      });
+    }
   }
 
   Future<void> _fetchSiteVisits() async {
@@ -318,162 +353,165 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
       ),
       body: RefreshIndicator(
         onRefresh: _refreshData,
-        child: Column(
-          children: [
-            TableCalendar<AttendanceRecord>(
-              firstDay: DateTime.utc(2020, 1, 1),
-              lastDay: DateTime.utc(2030, 12, 31),
-              focusedDay: _focusedDay,
-              calendarFormat: _calendarFormat,
-              eventLoader: _getEventsForDay,
-              headerStyle: const HeaderStyle(
-                formatButtonVisible: false,
-                titleCentered: true,
-              ),
-              selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-              onDaySelected: (selectedDay, focusedDay) {
-                setState(() {
-                  _selectedDay = selectedDay;
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              TableCalendar<AttendanceRecord>(
+                firstDay: DateTime.utc(2020, 1, 1),
+                lastDay: DateTime.utc(2030, 12, 31),
+                focusedDay: _focusedDay,
+                calendarFormat: _calendarFormat,
+                eventLoader: _getEventsForDay,
+                headerStyle: const HeaderStyle(
+                  formatButtonVisible: false,
+                  titleCentered: true,
+                ),
+                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                onDaySelected: (selectedDay, focusedDay) {
+                  setState(() {
+                    _selectedDay = selectedDay;
+                    _focusedDay = focusedDay;
+  
+                    // Filter data for the selected day
+                    _selectedSiteVisits = _siteVisits.where((visit) {
+                      final visitDate = DateTime.tryParse(visit.visitDate);
+                      return visitDate != null &&
+                          isSameDay(visitDate, selectedDay);
+                    }).toList();
+  
+                    _selectedFollowUps = _followUps.where((followUp) {
+                      final followUpDate = DateTime.tryParse(
+                        followUp.followUpDate ?? '',
+                      );
+                      return followUpDate != null &&
+                          isSameDay(followUpDate, selectedDay);
+                    }).toList();
+  
+                    _selectedSourcing = _sourcingList.where((sourcing) {
+                      final visitDate = DateTime.tryParse(
+                        sourcing.visitDate ?? '',
+                      );
+                      return visitDate != null &&
+                          isSameDay(visitDate, selectedDay);
+                    }).toList();
+                  });
+                },
+                onPageChanged: (focusedDay) {
                   _focusedDay = focusedDay;
-
-                  // Filter data for the selected day
-                  _selectedSiteVisits = _siteVisits.where((visit) {
-                    final visitDate = DateTime.tryParse(visit.visitDate);
-                    return visitDate != null &&
-                        isSameDay(visitDate, selectedDay);
-                  }).toList();
-
-                  _selectedFollowUps = _followUps.where((followUp) {
-                    final followUpDate = DateTime.tryParse(
-                      followUp.followUpDate ?? '',
+                  _fetchAttendanceForMonth(focusedDay.month, focusedDay.year);
+                },
+                calendarBuilders: CalendarBuilders(
+                  // 1. Remove Green Background from Default/Today builders
+                  defaultBuilder: (context, day, focusedDay) => null,
+  
+                  selectedBuilder: (context, day, focusedDay) {
+                    return _buildDayContainer(
+                      day,
+                      const Color(0xFF5C6BC0),
+                      Colors.white,
                     );
-                    return followUpDate != null &&
-                        isSameDay(followUpDate, selectedDay);
-                  }).toList();
-
-                  _selectedSourcing = _sourcingList.where((sourcing) {
-                    final visitDate = DateTime.tryParse(
-                      sourcing.visitDate ?? '',
+                  },
+  
+                  todayBuilder: (context, day, focusedDay) {
+                    return _buildDayContainer(
+                      day,
+                      Colors.blue.withOpacity(0.1),
+                      Colors.blue,
                     );
-                    return visitDate != null &&
-                        isSameDay(visitDate, selectedDay);
-                  }).toList();
-                });
-              },
-              onPageChanged: (focusedDay) {
-                _focusedDay = focusedDay;
-                _fetchAttendanceForMonth(focusedDay.month, focusedDay.year);
-              },
-              calendarBuilders: CalendarBuilders(
-                // 1. Remove Green Background from Default/Today builders
-                defaultBuilder: (context, day, focusedDay) => null,
-
-                selectedBuilder: (context, day, focusedDay) {
-                  return _buildDayContainer(
-                    day,
-                    const Color(0xFF5C6BC0),
-                    Colors.white,
-                  );
-                },
-
-                todayBuilder: (context, day, focusedDay) {
-                  return _buildDayContainer(
-                    day,
-                    Colors.blue.withOpacity(0.1),
-                    Colors.blue,
-                  );
-                },
-
-                // 2. Add Attendance Logic to Markers
-                markerBuilder: (context, day, events) {
-                  List<Widget> markers = [];
-
-                  // --- A. Attendance Marker (First Dot) ---
-                  if (_hasStatus(day, AttendanceStatus.present)) {
-                    markers.add(_buildDot(Colors.green)); // Green for Present
-                  } else if (_hasStatus(day, AttendanceStatus.absent)) {
-                    markers.add(_buildDot(Colors.red)); // Red for Absent
-                  }
-
-                  // --- B. Event Markers (Site Visits, Follow-ups & Sourcing) ---
-                  // 1. Get raw events
-                  final siteVisitsForDay = _getSiteVisitsForDay(day);
-                  final followUpsForDay = _getFollowUpsForDay(day);
-                  final sourcingForDay = _getSourcingForDay(day);
-
-                  // 2. Apply Filters
-                  List<SiteVisit> filteredVisits = siteVisitsForDay;
-                  if (_selectedFilterCategory != null &&
-                      _selectedFilterCategory != 'Site Visits') {
-                    filteredVisits = [];
-                  } else if (_selectedFilterUser != null) {
-                    filteredVisits = filteredVisits
-                        .where((v) => v.owner == _selectedFilterUser)
-                        .toList();
-                  }
-
-                  List<FollowUp> filteredFollowUps = followUpsForDay;
-                  if (_selectedFilterCategory != null &&
-                      _selectedFilterCategory != 'Follow-ups') {
-                    filteredFollowUps = [];
-                  } else if (_selectedFilterUser != null) {
-                    filteredFollowUps = filteredFollowUps
-                        .where((f) => f.leadName == _selectedFilterUser)
-                        .toList();
-                  }
-
-                  List<Sourcing> filteredSourcing = sourcingForDay;
-                  if (_selectedFilterCategory != null &&
-                      _selectedFilterCategory != 'Sourcing SFS') {
-                    filteredSourcing = [];
-                  } else if (_selectedFilterUser != null) {
-                    filteredSourcing = filteredSourcing
-                        .where((s) => s.owner == _selectedFilterUser)
-                        .toList();
-                  }
-
-                  // 3. Combine Owners
-                  final siteVisitOwners = filteredVisits
-                      .map((v) => v.owner)
-                      .toSet();
-                  final followUpOwners = filteredFollowUps
-                      .map((f) => f.leadName ?? 'Unknown')
-                      .toSet();
-                  final sourcingOwners = filteredSourcing
-                      .map((s) => s.owner ?? 'Unknown')
-                      .toSet();
-                  final allOwners = [
-                    ...siteVisitOwners,
-                    ...followUpOwners,
-                    ...sourcingOwners,
-                  ].toSet().toList();
-
-                  // 4. Add Event Dots
-                  for (var owner in allOwners) {
-                    markers.add(_buildDot(_userColorMap[owner] ?? Colors.grey));
-                  }
-
-                  if (markers.isEmpty) return null;
-
-                  return Positioned(
-                    bottom: 1,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: markers,
-                    ),
-                  );
-                },
+                  },
+  
+                  // 2. Add Attendance Logic to Markers
+                  markerBuilder: (context, day, events) {
+                    List<Widget> markers = [];
+  
+                    // --- A. Attendance Marker (First Dot) ---
+                    if (_hasStatus(day, AttendanceStatus.present)) {
+                      markers.add(_buildDot(Colors.green)); // Green for Present
+                    } else if (_hasStatus(day, AttendanceStatus.absent)) {
+                      markers.add(_buildDot(Colors.red)); // Red for Absent
+                    }
+  
+                    // --- B. Event Markers (Site Visits, Follow-ups & Sourcing) ---
+                    // 1. Get raw events
+                    final siteVisitsForDay = _getSiteVisitsForDay(day);
+                    final followUpsForDay = _getFollowUpsForDay(day);
+                    final sourcingForDay = _getSourcingForDay(day);
+  
+                    // 2. Apply Filters
+                    List<SiteVisit> filteredVisits = siteVisitsForDay;
+                    if (_selectedFilterCategory != null &&
+                        _selectedFilterCategory != 'Site Visits') {
+                      filteredVisits = [];
+                    } else if (_selectedFilterUser != null) {
+                      filteredVisits = filteredVisits
+                          .where((v) => v.owner == _selectedFilterUser)
+                          .toList();
+                    }
+  
+                    List<FollowUp> filteredFollowUps = followUpsForDay;
+                    if (_selectedFilterCategory != null &&
+                        _selectedFilterCategory != 'Follow-ups') {
+                      filteredFollowUps = [];
+                    } else if (_selectedFilterUser != null) {
+                      filteredFollowUps = filteredFollowUps
+                          .where((f) => f.leadName == _selectedFilterUser)
+                          .toList();
+                    }
+  
+                    List<Sourcing> filteredSourcing = sourcingForDay;
+                    if (_selectedFilterCategory != null &&
+                        _selectedFilterCategory != 'Sourcing SFS') {
+                      filteredSourcing = [];
+                    } else if (_selectedFilterUser != null) {
+                      filteredSourcing = filteredSourcing
+                          .where((s) => s.owner == _selectedFilterUser)
+                          .toList();
+                    }
+  
+                    // 3. Combine Owners
+                    final siteVisitOwners = filteredVisits
+                        .map((v) => v.owner)
+                        .toSet();
+                    final followUpOwners = filteredFollowUps
+                        .map((f) => f.leadName ?? 'Unknown')
+                        .toSet();
+                    final sourcingOwners = filteredSourcing
+                        .map((s) => s.owner ?? 'Unknown')
+                        .toSet();
+                    final allOwners = [
+                      ...siteVisitOwners,
+                      ...followUpOwners,
+                      ...sourcingOwners,
+                    ].toSet().toList();
+  
+                    // 4. Add Event Dots
+                    for (var owner in allOwners) {
+                      markers.add(_buildDot(_userColorMap[owner] ?? Colors.grey));
+                    }
+  
+                    if (markers.isEmpty) return null;
+  
+                    return Positioned(
+                      bottom: 1,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: markers,
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-
-            // Filter Legend
-            _buildLegend(),
-
-            const SizedBox(height: 8.0),
-
-            // Event List
-            Expanded(child: _buildEventList()),
-          ],
+  
+              // Filter Legend
+              _buildLegend(),
+  
+              const SizedBox(height: 8.0),
+  
+              // Event List
+              _buildEventList(),
+            ],
+          ),
         ),
       ),
     );
@@ -812,7 +850,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
       );
     }
 
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.only(bottom: 100.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

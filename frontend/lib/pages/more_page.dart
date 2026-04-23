@@ -10,9 +10,10 @@ import 'dashboard_page.dart';
 import 'leave_page.dart';
 import 'payroll/salary_slips_page.dart';
 import 'channel_partner/channel_partner_list_page.dart';
-import 'sourcing/sourcing_list_page.dart';
+import 'sourcing/sourcing_main_page.dart';
 import '../services/apis/leads/lead_service.dart'; // Import LeadService
 import '../services/apis/sourcing/sourcing_service.dart'; // Import SourcingService
+import 'auth/login_page.dart';
 
 class MorePage extends StatelessWidget {
   final Function(int)? onNavigateToTab;
@@ -143,7 +144,7 @@ class MorePage extends StatelessWidget {
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => SourcingListPage(showAddButton: true),
+                                    builder: (_) => const SourcingMainPage(),
                                   ),
                                 );
                               },
@@ -439,6 +440,15 @@ class _HeaderState extends State<_Header> {
     return filled / total;
   }
 
+  String _initialsFromName(String? name) {
+    if (name == null || name.trim().isEmpty) return 'P';
+    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.length > 1) {
+      return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
@@ -458,80 +468,107 @@ class _HeaderState extends State<_Header> {
     final progress = _completionPercent(_profile);
 
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            theme.colorScheme.onSurface.withOpacity(0.06),
-            theme.colorScheme.onSurface.withOpacity(0.03),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04), 
+            blurRadius: 24, 
+            offset: const Offset(0, 10),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
-                backgroundImage: provider,
-                child: provider == null
-                    ? Icon(Icons.person, color: theme.colorScheme.primary)
-                    : null,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: CircleAvatar(
+                  radius: 34,
+                  backgroundColor: const Color(0xFF675D40).withOpacity(0.1),
+                  backgroundImage: provider,
+                  child: provider == null
+                      ? Text(
+                          _initialsFromName(name),
+                          style: const TextStyle(
+                            color: Color(0xFF675D40),
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
+                        )
+                      : null,
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       _loading ? 'Loading…' : (name ?? 'Your Name'),
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      company ?? 'Company name',
+                      company ?? 'Homesol',
                       style: TextStyle(
-                        color: theme.colorScheme.onSurface.withOpacity(0.8),
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 10),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
+          const SizedBox(height: 24),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Profile Completion',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    '${(progress * 100).round()}%',
+                    style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 14, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
                 child: LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
-                  minHeight: 6,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '${(progress * 100).round()}% of profile is completed.',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  minHeight: 8,
+                  backgroundColor: Colors.grey.shade100,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF675D40)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
             child: ElevatedButton(
               onPressed: _loading
                   ? null
@@ -546,17 +583,15 @@ class _HeaderState extends State<_Header> {
                       );
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.secondary.withOpacity(0.8),
-                foregroundColor: theme.colorScheme.onSecondary,
+                backgroundColor: const Color(0xFF1A1A1A),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              child: const Text('Manage Profile'),
+              child: const Text('Manage Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
         ],
@@ -621,23 +656,68 @@ class _LogoutButton extends StatelessWidget {
 
   const _LogoutButton({required this.theme});
 
+  void _showLogoutDialog(BuildContext parentContext) {
+    final isDark = theme.brightness == Brightness.dark;
+
+    showDialog(
+      context: parentContext,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_rounded, color: Colors.orange, size: 24),
+              const SizedBox(width: 10),
+              Text('Sign Out', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to end your session?',
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white54 : Colors.grey)),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await AuthService.logout();
+                if (parentContext.mounted) {
+                  Navigator.of(parentContext).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    (route) => false
+                  );
+                }
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFF7E5E3),
+                foregroundColor: const Color(0xFFC62828), // Dark Red text
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
-      onPressed: () async {
-        await AuthService.logout();
-        if (context.mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-        }
-      },
+      onPressed: () => _showLogoutDialog(context),
       style: ElevatedButton.styleFrom(
-        backgroundColor: theme.colorScheme.errorContainer,
-        foregroundColor: theme.colorScheme.onErrorContainer,
-        minimumSize: const Size.fromHeight(48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: const Color(0xFFF7E5E3),
+        foregroundColor: const Color(0xFFC62828), // Dark Red
+        minimumSize: const Size.fromHeight(56),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0,
       ),
-      icon: const Icon(Icons.logout),
-      label: const Text('Logout'),
+      icon: const Icon(Icons.logout_rounded),
+      label: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
     );
   }
 }

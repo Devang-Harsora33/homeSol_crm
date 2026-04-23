@@ -35,6 +35,10 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+firebase.json
+firebase.config.json
+.google-services.json
+GoogleService-Info.plist
 
 # Symbolication related
 app.*.symbols

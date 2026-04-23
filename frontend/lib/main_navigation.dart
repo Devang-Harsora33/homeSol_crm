@@ -13,7 +13,7 @@ import 'pages/home_page.dart';
 import 'pages/crm_page.dart';
 import 'pages/more_page.dart';
 import 'pages/attendance/attendance_history_page.dart';
-import 'pages/sourcing/sourcing_list_page.dart';
+import 'pages/sourcing/sourcing_main_page.dart';
 import 'components/curved_navigation_bar.dart';
 import 'services/analytics_service.dart';
 import 'services/api_service.dart';
@@ -101,17 +101,17 @@ class _MainNavigationState extends State<MainNavigation> {
     if (dest == 'property developer') {
       // Show leads (CRM) and sourcing for this developer
       pages.add(CRMPage(developerId: _developerId));
-      pages.add(SourcingListPage(developerId: _developerId, showAddButton: false));
+      pages.add(SourcingMainPage(developerId: _developerId));
       pages.add(DevelopersPage(
         developerId: _developerId,
         designation: _designation,
       ));
     } else {
       if (dest == 'sourcing') {
-        pages.add(SourcingListPage(showAddButton: true));
+        pages.add(const SourcingMainPage());
       } else if (dest == 'sales and sourcing' || dest == 'sales & sourcing') {
         pages.add(const CRMPage());
-        pages.add(SourcingListPage(showAddButton: true));
+        pages.add(const SourcingMainPage());
       } else {
         // Default / Sales Representative
         pages.add(const CRMPage());

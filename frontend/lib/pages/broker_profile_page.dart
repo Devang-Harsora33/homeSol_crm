@@ -86,34 +86,44 @@ class _BrokerProfilePageState extends State<BrokerProfilePage> {
                 children: [
                   
                   // --- Personal Information ---
-                  _buildSectionContainer("Personal Information", [
-                    _DetailItem(icon: FontAwesomeIcons.cakeCandles, label: "Date of Birth", value: profile!.dateOfBirth),
-                    _DetailItem(icon: FontAwesomeIcons.person, label: "Gender", value: profile!.gender),
-                    _DetailItem(icon: FontAwesomeIcons.ring, label: "Marital Status", value: profile!.maritalStatus),
-                    _DetailItem(icon: FontAwesomeIcons.droplet, label: "Blood Group", value: profile!.bloodGroup),
+                  _buildGridSection("Personal Information", Icons.person_outline_rounded, [
+                    _buildGridRow(
+                      _buildGridTile(FontAwesomeIcons.cakeCandles, "Date of Birth", profile!.dateOfBirth),
+                      _buildGridTile(FontAwesomeIcons.person, "Gender", profile!.gender),
+                    ),
+                    _buildGridRow(
+                      _buildGridTile(FontAwesomeIcons.ring, "Marital Status", profile!.maritalStatus),
+                      _buildGridTile(FontAwesomeIcons.droplet, "Blood Group", profile!.bloodGroup),
+                    ),
                   ]),
 
                   const SizedBox(height: 16),
 
                   // --- Contact Details ---
-                  _buildSectionContainer("Contact Details", [
-                    _DetailItem(icon: FontAwesomeIcons.mobileScreen, label: "Mobile", value: profile!.cellNumber, isHighlight: true),
-                    _DetailItem(icon: FontAwesomeIcons.envelope, label: "Personal Email", value: profile!.personalEmail),
-                    _DetailItem(icon: FontAwesomeIcons.at, label: "Work Email", value: profile!.companyEmail),
-                    _DetailItem(icon: FontAwesomeIcons.mapPin, label: "Current Address", value: profile!.currentAddress),
-                    _DetailItem(icon: FontAwesomeIcons.house, label: "Permanent Address", value: profile!.permanentAddress),
+                  _buildGridSection("Contact Details", Icons.contact_phone_outlined, [
+                    _buildFullWidthTile(Icons.phone_iphone_rounded, "Mobile", profile!.cellNumber, iconColor: Colors.green.shade600),
+                    _buildFullWidthTile(Icons.email_outlined, "Personal Email", profile!.personalEmail, iconColor: Colors.blue.shade600),
+                    _buildFullWidthTile(Icons.work_outline_rounded, "Work Email", profile!.companyEmail, iconColor: Colors.orange.shade700),
+                    _buildFullWidthTile(Icons.location_on_outlined, "Current Address", profile!.currentAddress),
+                    _buildFullWidthTile(Icons.home_outlined, "Permanent Address", profile!.permanentAddress),
                   ]),
 
                   const SizedBox(height: 16),
 
                   // --- Employment Data ---
-                  _buildSectionContainer("Employment Data", [
-                    _DetailItem(icon: FontAwesomeIcons.building, label: "Company", value: profile!.company),
-                    _DetailItem(icon: FontAwesomeIcons.sitemap, label: "Department", value: profile!.department),
-                    _DetailItem(icon: FontAwesomeIcons.idBadge, label: "Designation", value: profile!.designation),
-                    _DetailItem(icon: FontAwesomeIcons.calendarCheck, label: "Joined", value: profile!.dateOfJoining),
-                    _DetailItem(icon: FontAwesomeIcons.userTie, label: "Reports To", value: profile!.reportsTo),
-                    _DetailItem(icon: FontAwesomeIcons.fileContract, label: "Type", value: profile!.employmentType),
+                  _buildGridSection("Employment Data", Icons.corporate_fare_rounded, [
+                    _buildGridRow(
+                      _buildGridTile(Icons.business_rounded, "Company", profile!.company),
+                      _buildGridTile(Icons.account_tree_outlined, "Department", profile!.department),
+                    ),
+                    _buildGridRow(
+                      _buildGridTile(Icons.badge_outlined, "Designation", profile!.designation),
+                      _buildGridTile(Icons.calendar_month_outlined, "Joined", profile!.dateOfJoining),
+                    ),
+                    _buildGridRow(
+                      _buildGridTile(Icons.assignment_ind_outlined, "Reports To", profile!.reportsTo),
+                      _buildGridTile(Icons.assignment_outlined, "Type", profile!.employmentType),
+                    ),
                   ]),
                   
                   const SizedBox(height: 32),
@@ -139,7 +149,7 @@ class _BrokerProfilePageState extends State<BrokerProfilePage> {
     return SliverAppBar(
       expandedHeight: 280,
       pinned: true,
-      backgroundColor: kPrimaryColor,
+      backgroundColor: const Color(0xFF1A1A1A),
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const FaIcon(FontAwesomeIcons.chevronLeft, size: 20, color: Colors.white),
@@ -149,7 +159,7 @@ class _BrokerProfilePageState extends State<BrokerProfilePage> {
           fit: StackFit.expand,
           children: [
             // Banner color or image
-            Container(color: kPrimaryColor.withOpacity(0.9)),
+            Container(color: const Color(0xFF1A1A1A)),
             // Profile Info Overlay
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -159,12 +169,22 @@ class _BrokerProfilePageState extends State<BrokerProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 60,
-                      backgroundColor: Colors.white,
+                      backgroundColor: Colors.white.withOpacity(0.2),
                       child: CircleAvatar(
-                        radius: 56,
-                        backgroundColor: Colors.grey.shade200,
+                        radius: 54,
+                        backgroundColor: Colors.white,
                         backgroundImage: provider,
-                        child: provider == null ? Icon(Icons.person, size: 60, color: kPrimaryColor) : null,
+                        child: provider == null 
+                            ? Text(
+                                _getInitials(profile.employeeName),
+                                style: const TextStyle(
+                                  color: Color(0xFF1A1A1A),
+                                  fontSize: 42,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -1,
+                                ),
+                              )
+                            : null,
                       ),
                     ),
                     Positioned(
@@ -202,6 +222,15 @@ class _BrokerProfilePageState extends State<BrokerProfilePage> {
     );
   }
 
+  String _getInitials(String name) {
+    if (name.trim().isEmpty) return 'P';
+    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.length > 1) {
+      return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
+
   Future<void> _pickAndUploadImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
@@ -236,86 +265,119 @@ class _BrokerProfilePageState extends State<BrokerProfilePage> {
     }
   }
 
-  Widget _buildSectionContainer(String title, List<Widget> children) {
-    // Filter out _DetailItems with null/empty values
-    final visibleChildren = children.where((c) {
-      if (c is _DetailItem) return c.value != null && c.value!.isNotEmpty;
-      return true;
-    }).toList();
-
-    if (visibleChildren.isEmpty) return const SizedBox.shrink();
+  Widget _buildGridSection(String title, IconData titleIcon, List<Widget> children) {
+    children = children.where((w) => w is! SizedBox && (w is! Padding || (w.child is! SizedBox))).toList();
+    if (children.isEmpty) return const SizedBox.shrink();
 
     return Container(
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 5))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              title,
-              style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold, fontSize: 16),
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade100)),
+                child: Icon(titleIcon, size: 18, color: Colors.grey.shade700),
+              ),
+              const SizedBox(width: 12),
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.black87, letterSpacing: -0.3)),
+            ],
           ),
-          ...visibleChildren,
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          ...children,
         ],
       ),
     );
   }
-}
 
-class _DetailItem extends StatelessWidget {
-  final dynamic icon;
-  final String label;
-  final String? value;
-  final bool isHighlight;
-
-  const _DetailItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.isHighlight = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (value == null || value!.isEmpty) return const SizedBox.shrink();
+  Widget _buildGridRow(Widget child1, [Widget? child2]) {
+    final isChild1Empty = child1 is SizedBox;
+    final isChild2Empty = child2 == null || child2 is SizedBox;
+    if (isChild1Empty && isChild2Empty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(width: 16),
+          Expanded(child: child1),
+          const SizedBox(width: 12),
+          if (!isChild2Empty) Expanded(child: child2!) else const Expanded(child: SizedBox.shrink()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridTile(dynamic icon, String label, String? value) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: const Color(0xFF675D40).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                child: icon is IconData ? Icon(icon, size: 14, color: const Color(0xFF675D40)) : FaIcon(icon, size: 14, color: const Color(0xFF675D40)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600), maxLines: 1)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFullWidthTile(dynamic icon, String label, String? value, {Color? iconColor}) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF675D40).withOpacity(0.08),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: FaIcon(icon, size: 18, color: const Color(0xFF675D40)),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: (iconColor ?? const Color(0xFF675D40)).withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            child: icon is IconData ? Icon(icon, size: 16, color: iconColor ?? const Color(0xFF675D40)) : FaIcon(icon, size: 16, color: iconColor ?? const Color(0xFF675D40)),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
                 Text(
-                  label,
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                ),
-                Text(
-                  value!,
-                  style: TextStyle(
-                    color: isHighlight ? const Color(0xFF675D40) : Colors.black87,
-                    fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                  value,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87),
                 ),
               ],
             ),

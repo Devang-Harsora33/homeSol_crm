@@ -1,5 +1,5 @@
 name: Homesol
-description: "Homesol is a platform for buying and selling properties."
+description: "HomeSol Nexus is a platform for buying and selling properties."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+6
+version: 1.0.0+12
 
 environment:
   sdk: ^3.8.1
@@ -60,6 +60,9 @@ dependencies:
   flutter_dotenv: ^6.0.0
   fl_chart: ^1.2.0
   connectivity_plus: ^7.1.1
+  path_provider: ^2.1.5
+  whatsapp_share2: ^2.1.1
+  screen_protector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

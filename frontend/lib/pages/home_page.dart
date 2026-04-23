@@ -472,6 +472,7 @@ class _HomePageState extends State<HomePage> {
                               ? () => Navigator.of(context).pop(remarkController.text)
                               : null,
                           style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF1A1A1A),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           ),

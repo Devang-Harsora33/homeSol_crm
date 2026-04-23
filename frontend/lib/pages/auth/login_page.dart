@@ -4,6 +4,8 @@ import '../../services/auth_service.dart';
 // import '../../services/api_service.dart';
 import '../../main_navigation.dart';
 import '../../components/auth_wrapper.dart';
+import '../../components/prominent_disclosure_dialog.dart';
+import '../../services/location_service.dart';
 
 // import 'register_page.dart';
 
@@ -29,6 +31,16 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  Future<void> _showDisclosureIfNeeded() async {
+    final isAccepted = await LocationService.instance.isDisclosureAccepted();
+    if (!isAccepted) {
+      if (mounted) {
+        final choice = await ProminentDisclosureScreen.show(context);
+        await LocationService.instance.setDisclosureAccepted(choice);
+      }
+    }
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -46,6 +58,11 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (result['success']) {
+        // Show prominent disclosure before proceeding
+        await _showDisclosureIfNeeded();
+
+        if (!mounted) return;
+
         // --- Optional: Firebase Token Registration Logic ---
         // try {
         //   final fcm = await NotificationService.instance.getToken();

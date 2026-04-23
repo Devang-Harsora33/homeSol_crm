@@ -16,7 +16,7 @@ import 'package:Homesol/pages/attendance/attendance_history_page.dart';
 import 'package:Homesol/pages/broker_profile_page.dart';
 import 'package:Homesol/pages/developers_page.dart';
 import 'package:Homesol/pages/channel_partner/channel_partner_list_page.dart';
-import 'package:Homesol/pages/sourcing/sourcing_list_page.dart';
+import 'package:Homesol/pages/sourcing/sourcing_main_page.dart';
 import '../pages/auth/login_page.dart';
 import 'package:Homesol/pages/leave_page.dart';
 
@@ -135,7 +135,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark ? _darkBg.withOpacity(0.95) : Colors.white.withOpacity(0.98);
+    final bgColor = isDark ? _darkBg : const Color(0xFFF5F5F7);
 
     return AnimatedBuilder(
       animation: _animationController,
@@ -214,7 +214,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                   title: 'Sourcing',
                                   subtitle: 'Manage Sources',
                                   isDark: isDark,
-                                  onTap: () => _navigateToPage(context, SourcingListPage(showAddButton: true)),
+                                  onTap: () => _navigateToPage(context, SourcingMainPage(developerId: widget.developerId)),
                                 ),
                               _buildModernMenuItem(
                                 icon: FontAwesomeIcons.building,
@@ -334,24 +334,27 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                             const SizedBox(height: 20),
                             
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: _buildAuthButton(context, isDark, theme),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: _buildAuthButton(context, isDark, theme),
+                              ),
                             ),
                         
 
                             const SizedBox(height: 30),
                             Center(
                               child: Text(
-                                'v1.0.0',
+                                'HOMESOL DIGITAL v1.0.0',
                                 style: TextStyle(
-                                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.3),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1.2
+                                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.25),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.5
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 30),
                           ],
                         ),
                       ),
@@ -367,16 +370,14 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildModernHeader(bool isDark, ThemeData theme) {
+    const kAccent = Color(0xFF675D40);
+    const matteBlack = Color(0xFF1A1A1A);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 60, 24, 24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark 
-            ? [theme.colorScheme.surface, theme.colorScheme.surface]
-            : [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
-        ),
+        color: isDark ? Colors.grey[900] : Colors.white,
+        borderRadius: const BorderRadius.only(topRight: Radius.circular(30)),
       ),
       child: Row(
         children: [
@@ -384,21 +385,21 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
             padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+              border: Border.all(color: kAccent.withOpacity(0.3), width: 2),
             ),
             child: CircleAvatar(
               radius: 28,
-              backgroundColor: isDark ? Colors.grey[800] : Colors.white,
+              backgroundColor: isDark ? Colors.grey[800] : kAccent.withOpacity(0.1),
               child: _isLoggedIn
                   ? Text(
                       _userProfile?.initials ?? 'DH',
                       style: TextStyle(
-                        color: isDark ? Colors.white : theme.colorScheme.primary,
+                        color: kAccent,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     )
-                  : FaIcon(FontAwesomeIcons.user, color: isDark ? Colors.white : theme.colorScheme.primary, size: 24),
+                  : const FaIcon(FontAwesomeIcons.user, color: kAccent, size: 24),
             ),
           ),
           const SizedBox(width: 16),
@@ -408,10 +409,11 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
               children: [
                 Text(
                   _isLoggedIn ? (_userProfile?.fullName ?? 'User') : 'Welcome Guest',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : matteBlack,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -420,8 +422,9 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                 Text(
                   _isLoggedIn ? (_userProfile?.email ?? 'devang@homesol.in') : 'Sign in to sync data',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: (isDark ? Colors.white : matteBlack).withOpacity(0.6),
                     fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -431,7 +434,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
           ),
           IconButton(
             onPressed: widget.onClose,
-            icon: const FaIcon(FontAwesomeIcons.xmark, color: Colors.white, size: 24),
+            icon: FaIcon(FontAwesomeIcons.xmark, color: isDark ? Colors.white : matteBlack, size: 24),
           ),
         ],
       ),
@@ -440,13 +443,13 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
 
   Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      padding: const EdgeInsets.fromLTRB(28, 24, 24, 12),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          color: (isDark ? Colors.white : Colors.black).withOpacity(0.4),
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.35),
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
           letterSpacing: 1.5,
         ),
       ),
@@ -461,24 +464,39 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     VoidCallback? onTap,
     Widget? trailing,
   }) {
-    final color = isDark ? Colors.white : const Color(0xFF2C3E50);
+    const matteBlack = Color(0xFF1A1A1A);
+    final color = isDark ? Colors.white : matteBlack;
     
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          if (!isDark) BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 8, offset: const Offset(0, 2))
+        ]
+      ),
       child: Material(
         color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                SizedBox(
-                  width: 32,
-                  child: FaIcon(icon, color: color.withOpacity(0.7), size: 18),
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[800] : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: FaIcon(icon, color: color.withOpacity(0.8), size: 16),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,16 +506,18 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                         style: TextStyle(
                           color: color,
                           fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
                         ),
                       ),
                       if (subtitle != null) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Text(
                           subtitle,
                           style: TextStyle(
                             color: color.withOpacity(0.5),
-                            fontSize: 11,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
@@ -515,6 +535,8 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildAuthButton(BuildContext context, bool isDark, ThemeData theme) {
+    const matteBlack = Color(0xFF1A1A1A);
+
     return ElevatedButton.icon(
       onPressed: () {
         if (_isLoggedIn) {
@@ -525,36 +547,36 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: _isLoggedIn 
-            ? (isDark ? Colors.red.withOpacity(0.1) : Colors.red.withOpacity(0.1))
-            : theme.colorScheme.primary,
-        foregroundColor: _isLoggedIn ? Colors.red : Colors.white,
+            ? (isDark ? Colors.red.shade900.withOpacity(0.3) : const Color(0xFFF7E5E3))
+            : matteBlack,
+        foregroundColor: _isLoggedIn ? const Color(0xFFC62828) : Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: _isLoggedIn ? 0 : 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0,
       ),
-      icon: FaIcon(_isLoggedIn ? FontAwesomeIcons.rightFromBracket : FontAwesomeIcons.rightToBracket, size: 18),
+      icon: FaIcon(_isLoggedIn ? FontAwesomeIcons.rightFromBracket : FontAwesomeIcons.rightToBracket, size: 16),
       label: Text(
-        _isLoggedIn ? 'Log Out' : 'Sign In / Register',
+        _isLoggedIn ? 'Sign Out' : 'Sign In',
         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
       ),
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    final theme = Theme.of(context);
+  void _showLogoutDialog(BuildContext parentContext) {
+    final theme = Theme.of(parentContext);
     final isDark = theme.brightness == Brightness.dark;
 
     showDialog(
-      context: context,
+      context: parentContext,
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
-              FaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.orange, size: 20),
+              const FaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.orange, size: 20),
               const SizedBox(width: 10),
-              Text('Logout', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+              Text('Sign Out', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
             ],
           ),
           content: Text(
@@ -570,17 +592,19 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
               onPressed: () async {
                 Navigator.of(context).pop();
                 await AuthService.logout();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const MainNavigation()),
+                if (parentContext.mounted) {
+                  Navigator.of(parentContext).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    (route) => false
                   );
                 }
               },
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: const Color(0xFFF7E5E3),
+                foregroundColor: const Color(0xFFC62828), // Dark Red text
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('Logout'),
+              child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         );

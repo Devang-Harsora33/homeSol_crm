@@ -12,23 +12,23 @@ const kBackgroundColor = Color(0xFFF2F2F7);
 
 const kInputDecoration = InputDecoration(
   filled: true,
-  fillColor: Colors.white,
+  fillColor: offWhite,
   isDense: true,
   contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
   border: OutlineInputBorder(
-    borderRadius: BorderRadius.all(Radius.circular(12)),
-    borderSide: BorderSide(color: Colors.black12),
+    borderRadius: BorderRadius.all(Radius.circular(14)),
+    borderSide: BorderSide.none,
   ),
   enabledBorder: OutlineInputBorder(
-    borderRadius: BorderRadius.all(Radius.circular(12)),
-    borderSide: BorderSide(color: Colors.black12),
+    borderRadius: BorderRadius.all(Radius.circular(14)),
+    borderSide: BorderSide.none,
   ),
   focusedBorder: OutlineInputBorder(
-    borderRadius: BorderRadius.all(Radius.circular(12)),
-    borderSide: BorderSide(color: goldAccent, width: 2),
+    borderRadius: BorderRadius.all(Radius.circular(14)),
+    borderSide: BorderSide(color: goldAccent, width: 1.5),
   ),
   errorBorder: OutlineInputBorder(
-    borderRadius: BorderRadius.all(Radius.circular(12)),
+    borderRadius: BorderRadius.all(Radius.circular(14)),
     borderSide: BorderSide(color: Colors.redAccent),
   ),
 );
@@ -272,49 +272,87 @@ class _LeaveScreenState extends State<LeaveScreen> {
     final displayedApplications = _getFilteredApplications();
     final hasMultipleApplications = _leaveApplications.length > 1;
 
-    return _card(
-      [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Leave History', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: matteBlack, letterSpacing: -0.3)),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: _searchController,
-                decoration: kInputDecoration.copyWith(
-                  hintText: 'Search...',
-                  prefixIcon: const Icon(Icons.search),
-                  fillColor: Colors.white,
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))],
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search leaves...',
+                    hintStyle: TextStyle(fontSize: 13.5, color: Colors.grey.shade400, fontWeight: FontWeight.w400),
+                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-            DropdownButton<String>(
-              dropdownColor: Colors.white,
-              value: _selectedStatus,
-              hint: const Text('Status'),
-              items: ['Open', 'Approved', 'Rejected','Cancelled']
-                  .map((status) => DropdownMenuItem(
-                        value: status,
-                        child: Text(status),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedStatus = value;
-                });
-              },
+            const SizedBox(width: 12),
+            Container(
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))],
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  dropdownColor: Colors.white,
+                  value: _selectedStatus,
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade600),
+                  hint: Text('Status', style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                  items: [
+                    const DropdownMenuItem<String>(value: '', child: Text('All')),
+                    ...['Open', 'Approved', 'Rejected','Cancelled'].map((status) => DropdownMenuItem(value: status, child: Text(status, style: const TextStyle(fontSize: 14)))),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      if (value == null || value.isEmpty) {
+                        _selectedStatus = null;
+                      } else {
+                        _selectedStatus = value;
+                      }
+                    });
+                  },
+                ),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         _isLoadingApplications
             ? ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: 2, // Display 2 skeleton cards
+                itemCount: 2,
                 itemBuilder: (context, index) => const _LeaveApplicationCardSkeleton(),
               )
             : displayedApplications.isEmpty
-                ? const Center(child: Text('No leave applications found.'))
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Column(
+                        children: [
+                          Icon(Icons.event_busy_rounded, size: 48, color: Colors.grey.shade300),
+                          const SizedBox(height: 12),
+                          Text('No leave applications found.', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  )
                 : ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -326,21 +364,23 @@ class _LeaveScreenState extends State<LeaveScreen> {
                   ),
         if (hasMultipleApplications && !_showAllApplications)
           Padding(
-            padding: const EdgeInsets.only(top: 16.0),
+            padding: const EdgeInsets.only(top: 8.0),
             child: Center(
-              child: OutlinedButton(
+              child: TextButton(
                 onPressed: _toggleShowAllApplications,
-                child: const Text('Show All Applications'),
+                style: TextButton.styleFrom(foregroundColor: goldAccent),
+                child: const Text('Show All Applications', style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
           ),
         if (_showAllApplications)
           Padding(
-            padding: const EdgeInsets.only(top: 16.0),
+            padding: const EdgeInsets.only(top: 8.0),
             child: Center(
-              child: OutlinedButton(
+              child: TextButton(
                 onPressed: _toggleShowAllApplications,
-                child: const Text('Hide All Applications'),
+                style: TextButton.styleFrom(foregroundColor: matteBlack),
+                child: const Text('Hide Applications', style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
           ),
@@ -355,9 +395,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
         [
           const Text(
             'Apply for Leave',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: matteBlack, letterSpacing: -0.3),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           if (_successMessage != null)
             Container(
@@ -633,13 +673,19 @@ Color _getStatusTextColor(String status) {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isDark ? Colors.grey[800]! : Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
       ),
-      elevation: 3,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -648,47 +694,84 @@ Color _getStatusTextColor(String status) {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  application.leaveType,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Chip(
-                  label: Text(
-                    application.status,
-                    style: TextStyle(color: _getStatusTextColor(application.status)),
+                Expanded(
+                  child: Text(
+                    application.leaveType,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  backgroundColor: _getStatusColor(application.status),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(application.status),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    application.status,
+                    style: TextStyle(
+                      color: _getStatusTextColor(application.status),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
               'Applied on: ${application.postingDate}',
-              style: Theme.of(context).textTheme.bodySmall,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
-            const Divider(height: 24),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1),
+            ),
             Row(
               children: [
-                const Icon(Icons.date_range, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  '${application.fromDate} to ${application.toDate}',
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: goldAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.date_range_rounded, size: 16, color: goldAccent),
                 ),
-                const Spacer(),
-                const Icon(Icons.calendar_today, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  '${application.totalLeaveDays} '
-                  '${application.totalLeaveDays == 1 ? "day" : "days"}',
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${application.fromDate} to ${application.toDate}',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: matteBlack.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${application.totalLeaveDays} '
+                    '${application.totalLeaveDays == 1 ? "day" : "days"}',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: matteBlack),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            if (application.description.isNotEmpty)
-              Text(
-                'Reason: ${application.description}',
-                style: Theme.of(context).textTheme.bodyMedium,
+            if (application.description.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  application.description,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+                ),
               ),
+            ]
           ],
         ),
       ),
@@ -705,13 +788,13 @@ class _LeaveApplicationCardSkeleton extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     Color? skeletonColor = isDark ? Colors.grey[800] : Colors.grey[300];
 
-    return Card(
-      color: isDark ? Colors.grey[850] : Colors.white,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isDark ? Colors.grey[800]! : Colors.grey.shade200),
       ),
-      elevation: 3,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -720,51 +803,27 @@ class _LeaveApplicationCardSkeleton extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  width: 120,
-                  height: 18,
-                  color: skeletonColor,
-                ),
-                Container(
-                  width: 70,
-                  height: 25,
-                  color: skeletonColor,
-                  // borderRadius: BorderRadius.circular(12),
-                ),
+                Container(width: 120, height: 18, color: skeletonColor),
+                Container(width: 70, height: 25, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(20))),
               ],
             ),
             const SizedBox(height: 8),
-            Container(
-              width: 180,
-              height: 14,
-              color: skeletonColor,
+            Container(width: 140, height: 14, color: skeletonColor),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1),
             ),
-            const Divider(height: 24),
             Row(
               children: [
-                Container(width: 16, height: 16, color: skeletonColor),
-                const SizedBox(width: 8),
-                Container(
-                  width: 100,
-                  height: 16,
-                  color: skeletonColor,
-                ),
+                Container(width: 32, height: 32, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(8))),
+                const SizedBox(width: 10),
+                Container(width: 150, height: 16, color: skeletonColor),
                 const Spacer(),
-                Container(width: 16, height: 16, color: skeletonColor),
-                const SizedBox(width: 8),
-                Container(
-                  width: 50,
-                  height: 16,
-                  color: skeletonColor,
-                ),
+                Container(width: 60, height: 32, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(8))),
               ],
             ),
             const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              height: 14,
-              color: skeletonColor,
-            ),
+            Container(width: double.infinity, height: 40, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(12))),
           ],
         ),
       ),

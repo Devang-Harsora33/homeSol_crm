@@ -6,6 +6,7 @@ import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:Homesol/services/api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:screen_protector/screen_protector.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lead.dart' as model_lead;
 import '../models/sales_team.dart';
@@ -20,6 +21,7 @@ import 'create_site_visit_page.dart';
 import 'create_followup_page.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; 
 import 'package:fl_chart/fl_chart.dart';
+import '../components/project_share_bottom_sheet.dart';
 
 class CRMPage extends StatefulWidget {
   final String? developerId;
@@ -67,11 +69,13 @@ class _CRMPageState extends State<CRMPage> {
   @override
   void initState() {
     super.initState();
+    ScreenProtector.preventScreenshotOn();
     _initializeData();
   }
 
   @override
   void dispose() {
+    ScreenProtector.preventScreenshotOff();
     _searchController.dispose();
     super.dispose();
   }
@@ -1486,6 +1490,7 @@ class _CRMPageState extends State<CRMPage> {
           : Padding(
               padding: const EdgeInsets.only(bottom: 70.0),
               child: FloatingActionButton(
+                heroTag: null,
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -2158,7 +2163,7 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
                 child: _buildActionButton(
                   icon: const Icon(Icons.phone_callback_rounded, size: 16),
                   label: 'Follow Up',
-                  color: const Color(0xFF2A2A2A),
+                  color: const Color(0xFF1A1A1A),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -2502,6 +2507,9 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
             onWhatsApp: () =>
                 _showNumberSelectionDialog(context, lead, 'whatsapp'),
             onFollowUp: () {
+              if (lead.name != null) {
+                LeadService.recordButtonPress(lead.name!, 'Follow Up Button');
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -2516,6 +2524,9 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
               );
             },
             onSiteVisit: () async {
+              if (lead.name != null) {
+                LeadService.recordButtonPress(lead.name!, 'Site Visit Button');
+              }
               await Navigator.push(                context,
                 MaterialPageRoute(
                   builder: (context) => CreateSiteVisitScreen(
@@ -2602,45 +2613,15 @@ class _LeadCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const kAccent = Color(0xFF675D40);
 
-    // Find the project name from the projects list
-    final projectName = projects
-        .firstWhere((p) => lead.projectId.contains(p.id),
-            orElse: () => Project(
-                  id: '',
-                  projectName: 'N/A',
-                  developer: '',
-                  mandate: '',
-                  reraId: '',
-                  constructionStatus: '',
-                  propertyType: '',
-                  description: '',
-                  projectRm: '',
-                  locationName: '',
-                  city: '',
-                  state: '',
-                  nearbyLandmarks: '',
-                  projectApproval: '',
-                  developmentScheme: '',
-                  priceRangeMin: 0,
-                  priceRangeMax: 0,
-                  parkingType: '',
-                  launchDate: '',
-                  possessionDate: '',
-                  targetPossession: '',
-                  architect: '',
-                  contractor: '',
-                  electricalContractor: '',
-                  reraLiasoning: '',
-                  amenities: [],
-                  documents: [],
-                  brokerageSlabs: [],
-                  configurations: [],
-                  galleryImages: [],
-                  projectTimeline: [],
-                  creation: '',
-                  modified: '',
-                ))
-        .projectName;
+    // Find the project object from the projects list
+    Project? project;
+    try {
+      project = projects.firstWhere((p) => lead.projectId.contains(p.id));
+    } catch (e) {
+      project = null;
+    }
+
+    final projectName = project?.projectName ?? 'N/A';
         
     final latestSiteVisit = _getLatestSiteVisitForLead(lead.name ?? '');
     final latestFollowUp = _getLatestFollowUpForLead(lead.name ?? '');
@@ -2777,60 +2758,71 @@ class _LeadCard extends StatelessWidget {
           const SizedBox(height: 8),
 
           // Footer: Actions
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          FittedBox(
+            fit: BoxFit.scaleDown,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                IconButton(
-                  icon: const FaIcon(FontAwesomeIcons.phone, color: Colors.blueGrey, size: 18),                    
+                // 1. Phone Action
+                _actionIconButton(
+                  icon: FontAwesomeIcons.phone,
+                  color: Colors.blue.shade700,
                   onPressed: onCall,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                 ),
-                IconButton(
-                  icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green, size: 20),
+                const SizedBox(width: 6),
+                
+                // 2. WhatsApp Action
+                _actionIconButton(
+                  icon: FontAwesomeIcons.whatsapp,
+                  color: const Color(0xFF25D366),
                   onPressed: onWhatsApp,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                 ),
-                const SizedBox(width: 8), 
-
-                // 3. Site Visit (Primary Action Button)
-                if (currentDesignation?.toLowerCase() != 'property developer') ...[
-                  ElevatedButton.icon(
-                    onPressed: onSiteVisit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kAccent, // Your Gold #675d40
-                      foregroundColor: Colors.white, // Text & Icon Color
-                      elevation: 0, // Flat "Matte" look
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8), // Slightly rounded corners
-                      ),
-                    ),
-                    icon: const FaIcon(FontAwesomeIcons.house, size: 14),
-                    label: const Text(
-                      "Site Visit",
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                    ),
+                const SizedBox(width: 6),
+                
+                // 3. Share Project Action
+                if (project != null) ...[
+                  _actionIconButton(
+                    icon: Icons.share_rounded,
+                    color: kAccent,
+                    onPressed: () {
+                      if (lead.name != null) {
+                        LeadService.recordButtonPress(lead.name!, 'Share Button');
+                      }
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) {
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              top: MediaQuery.of(context).padding.top + 20, 
+                              bottom: MediaQuery.of(context).viewInsets.bottom,
+                            ),
+                            child: ProjectShareBottomSheet(project: project!, lead: lead),
+                          );
+                        },
+                      );
+                    },
                   ),
+                  const SizedBox(width: 6),
+                ],
 
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
+                // 4. Site Visit
+                if (currentDesignation?.toLowerCase() != 'property developer') ...[
+                  _actionButton(
+                    onPressed: onSiteVisit,
+                    label: "Site Visit",
+                    icon: FontAwesomeIcons.house,
+                    backgroundColor: kAccent,
+                  ),
+                  const SizedBox(width: 6),
+
+                  // 5. Follow Up
+                  _actionButton(
                     onPressed: onFollowUp,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2A2A2A),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    icon: const Icon(Icons.history, size: 14),
-                    label: const Text(
-                      "Follow Up",
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                    ),
+                    label: "Follow Up",
+                    icon: FontAwesomeIcons.clockRotateLeft,
+                    backgroundColor: const Color(0xFF1A1A1A),
                   ),
                 ],
               ],
@@ -2929,20 +2921,88 @@ class _LeadCard extends StatelessWidget {
   }
 }
 
-Color _getVisitStatusColor(String status) {
-  switch (status.toLowerCase()) {
-    case 'scheduled':
-      return Colors.blue.shade700;
-    case 'completed':
-      return Colors.green.shade700;
-    case 'rescheduled':
-      return Colors.orange.shade700;
-    case 'canceled':
-      return Colors.red.shade700;
-    default:
-      return Colors.grey.shade600;
+  Color _getVisitStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'scheduled':
+        return Colors.blue.shade700;
+      case 'completed':
+        return Colors.green.shade700;
+      case 'rescheduled':
+        return Colors.orange.shade700;
+      case 'canceled':
+        return Colors.red.shade700;
+      default:
+        return Colors.grey.shade600;
+    }
   }
-}
+
+  Widget _actionIconButton({
+    required dynamic icon,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    // Detect FontAwesome icons safely
+    bool isFontAwesome = false;
+    try {
+      isFontAwesome = icon.fontFamily?.startsWith('FontAwesome') ?? false;
+    } catch (_) {
+      // Fallback check
+      isFontAwesome = icon.toString().contains('FontAwesome');
+    }
+    
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.15)),
+      ),
+      child: IconButton(
+        icon: isFontAwesome 
+            ? FaIcon(icon, color: color, size: 18)
+            : Icon(icon, color: color, size: 20),
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        splashRadius: 24,
+      ),
+    );
+  }
+
+  Widget _actionButton({
+    required String label,
+    required dynamic icon,
+    required Color backgroundColor,
+    required VoidCallback onPressed,
+  }) {
+    bool isFontAwesome = false;
+    try {
+      isFontAwesome = icon.fontFamily?.startsWith('FontAwesome') ?? false;
+    } catch (_) {
+      isFontAwesome = icon.toString().contains('FontAwesome');
+    }
+
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: backgroundColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      icon: isFontAwesome 
+          ? FaIcon(icon, size: 14)
+          : Icon(icon, size: 14),
+      label: Text(
+        label,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+      ),
+    );
+  }
 }
 
 class _LeadCardSkeleton extends StatelessWidget {

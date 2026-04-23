@@ -438,6 +438,11 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
                           _buildSectionTitle('Documents'),
                           _buildDocumentsList(),
                         ],
+                        if (widget.project.brochures.isNotEmpty) ...[
+                          const SizedBox(height: 30),
+                          _buildSectionTitle('Brochures'),
+                          _buildBrochuresList(),
+                        ],
                         const SizedBox(height: 30),
                         _buildSectionTitle('Inventory Matrix'),
                         LiveInventoryMatrix(
@@ -812,26 +817,105 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
   Widget _buildDocumentsList() {
     return Column(
       children: widget.project.documents.map((doc) {
-        return InkWell(
-          onTap: () async {
-            final url = buildImageUrl(doc.file);
-            if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url));
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: kSurfaceWhite,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: kSurfaceWhite,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () async {
+              final url = buildImageUrl(doc.file);
+              // Use inAppBrowserView for a better preview experience
+              if (await canLaunchUrl(Uri.parse(url))) {
+                await launchUrl(Uri.parse(url), mode: LaunchMode.inAppBrowserView);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.picture_as_pdf, color: Colors.red, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      doc.documentName, 
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.share_outlined, color: kTextGrey),
+                    onPressed: () {
+                       final url = buildImageUrl(doc.file);
+                       Share.share('Check out this document for ${widget.project.projectName}: ${doc.documentName}\n\n$url');
+                    },
+                  ),
+                  const Icon(Icons.open_in_new, color: kPrimaryGold, size: 18),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.picture_as_pdf, color: Colors.red, size: 24),
-                const SizedBox(width: 12),
-                Expanded(child: Text(doc.documentName, style: const TextStyle(fontWeight: FontWeight.w500))),
-                const Icon(Icons.download_rounded, color: kTextGrey),
-              ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildBrochuresList() {
+    return Column(
+      children: widget.project.brochures.map((brochure) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: kSurfaceWhite,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () async {
+              final url = buildImageUrl(brochure.file);
+              if (await canLaunchUrl(Uri.parse(url))) {
+                await launchUrl(Uri.parse(url), mode: LaunchMode.inAppBrowserView);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.menu_book, color: Colors.blue, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      brochure.brochureName, 
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.share_outlined, color: kTextGrey),
+                    onPressed: () {
+                       final url = buildImageUrl(brochure.file);
+                       Share.share('Check out this brochure for ${widget.project.projectName}: ${brochure.brochureName}\n\n$url');
+                    },
+                  ),
+                  const Icon(Icons.open_in_new, color: kPrimaryGold, size: 18),
+                ],
+              ),
             ),
           ),
         );
