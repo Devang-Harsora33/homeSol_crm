@@ -8,8 +8,8 @@ def get_shift_types():
     shifts = frappe.get_all("Shift Type", fields=["name", "start_time", "end_time", "holiday_list"])
     return shifts
 
-@frappe.whitelist()
-def employee_checkin(log_type, latitude=None, longitude=None, device_id=None, device_type=None):
+@frappe.whitelist(methods=['POST', 'PUT'])
+def mark_attendance(log_type, latitude=None, longitude=None, device_id=None, device_type=None, remark=None):
     user = frappe.session.user
     if user == "Guest":
         frappe.throw("Please log in to check in.")
@@ -28,8 +28,13 @@ def employee_checkin(log_type, latitude=None, longitude=None, device_id=None, de
             "longitude": longitude,
             "device_id": device_id, 
         }
+        
         if device_type:
-             doc_data["custom_device_type"] = device_type
+            doc_data["custom_device_type"] = device_type
+             
+        if remark:
+            
+            doc_data["custom_remark"] = remark 
 
         doc = frappe.get_doc(doc_data)
         doc.insert(ignore_permissions=True)

@@ -11,38 +11,43 @@
   "firm_name",
   "mobile_number",
   "rera_number",
+  "cp_quality",
   "column_break_abzh",
   "email",
   "territory",
   "category",
+  "type",
+  "cp_preferences_section",
+  "property_preferences",
+  "station_preferences",
   "location_section",
   "location",
   "get_current_location",
   "full_address",
   "classifications_tab",
-  "classifications_section",
-  "work_type_column",
-  "is_digital",
-  "is_reference",
-  "is_data_calling",
-  "business_mode_column",
-  "is_retail",
-  "is_under_construction",
-  "is_rental",
-  "is_ready_to_move",
+  "flags_specialisation_section",
+  "commercial",
+  "luxury",
+  "land",
+  "column_break_xwfq",
+  "redevelopment",
+  "residential",
+  "retail",
   "cp_requirements_section",
-  "req_calling_support",
-  "req_digital_kit",
-  "req_standees",
-  "req_sms_blast",
-  "req_whatsapp_blast",
+  "does_digitalmarketing",
+  "aop_signed",
+  "column_break_nxaj",
+  "gives_callingdata",
   "contacts_and_documents_tab",
   "team_details_section",
   "team_column",
   "contact_persons",
   "compliance_section",
   "documents_column",
-  "documents"
+  "documents",
+  "button_logs_tab",
+  "logs_section",
+  "button_logs"
  ],
  "fields": [
   {
@@ -104,96 +109,9 @@
    "label": "Classifications"
   },
   {
-   "fieldname": "classifications_section",
-   "fieldtype": "Section Break",
-   "label": "Classifications"
-  },
-  {
-   "fieldname": "work_type_column",
-   "fieldtype": "Column Break",
-   "label": "Work Type"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_digital",
-   "fieldtype": "Check",
-   "label": "Is Digital"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_reference",
-   "fieldtype": "Check",
-   "label": "Is Reference"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_data_calling",
-   "fieldtype": "Check",
-   "label": "Is Data Calling"
-  },
-  {
-   "fieldname": "business_mode_column",
-   "fieldtype": "Column Break",
-   "label": "Business Mode"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_retail",
-   "fieldtype": "Check",
-   "label": "Is Retail"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_under_construction",
-   "fieldtype": "Check",
-   "label": "Is Under Construction"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_rental",
-   "fieldtype": "Check",
-   "label": "Is Rental"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_ready_to_move",
-   "fieldtype": "Check",
-   "label": "Is Ready to Move"
-  },
-  {
    "fieldname": "cp_requirements_section",
    "fieldtype": "Section Break",
-   "label": "CP Requirements"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_calling_support",
-   "fieldtype": "Check",
-   "label": "Req Calling Support"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_digital_kit",
-   "fieldtype": "Check",
-   "label": "Req Digital Kit"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_standees",
-   "fieldtype": "Check",
-   "label": "Req Standees"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_sms_blast",
-   "fieldtype": "Check",
-   "label": "Req SMS Blast"
-  },
-  {
-   "default": "0",
-   "fieldname": "req_whatsapp_blast",
-   "fieldtype": "Check",
-   "label": "Req WhatsApp Blast"
+   "label": "How does the CP work:"
   },
   {
    "fieldname": "contacts_and_documents_tab",
@@ -251,12 +169,123 @@
    "fieldname": "full_address",
    "fieldtype": "Small Text",
    "label": "Full Address"
+  },
+  {
+   "fieldname": "button_logs_tab",
+   "fieldtype": "Tab Break",
+   "label": "Button Logs"
+  },
+  {
+   "fieldname": "logs_section",
+   "fieldtype": "Section Break",
+   "label": "Logs"
+  },
+  {
+   "fieldname": "button_logs",
+   "fieldtype": "Table",
+   "label": "Button Logs",
+   "options": "Button Pressed Logs CP"
+  },
+  {
+   "fieldname": "cp_quality",
+   "fieldtype": "Rating",
+   "label": "CP Quality"
+  },
+  {
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "P1\nP2\nP3"
+  },
+  {
+   "default": "0",
+   "fieldname": "does_digitalmarketing",
+   "fieldtype": "Check",
+   "label": "Does digital marketing or not"
+  },
+  {
+   "default": "0",
+   "fieldname": "gives_callingdata",
+   "fieldtype": "Check",
+   "label": "Does cp gives calling data or not"
+  },
+  {
+   "default": "0",
+   "fieldname": "aop_signed",
+   "fieldtype": "Check",
+   "label": "AOP signed or not"
+  },
+  {
+   "fieldname": "flags_specialisation_section",
+   "fieldtype": "Section Break",
+   "label": "Flags Specialisation"
+  },
+  {
+   "default": "0",
+   "fieldname": "commercial",
+   "fieldtype": "Check",
+   "label": "Commercial"
+  },
+  {
+   "default": "0",
+   "fieldname": "luxury",
+   "fieldtype": "Check",
+   "label": "Luxury"
+  },
+  {
+   "default": "0",
+   "fieldname": "land",
+   "fieldtype": "Check",
+   "label": "Land"
+  },
+  {
+   "fieldname": "column_break_xwfq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "redevelopment",
+   "fieldtype": "Check",
+   "label": "Redevelopment"
+  },
+  {
+   "default": "0",
+   "fieldname": "residential",
+   "fieldtype": "Check",
+   "label": "Residential"
+  },
+  {
+   "fieldname": "column_break_nxaj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "retail",
+   "fieldtype": "Check",
+   "label": "Retail"
+  },
+  {
+   "fieldname": "cp_preferences_section",
+   "fieldtype": "Section Break",
+   "label": "CP Preferences"
+  },
+  {
+   "fieldname": "property_preferences",
+   "fieldtype": "Select",
+   "label": "Property Preferences",
+   "options": "Under Construction\nReady to Move In\nResale"
+  },
+  {
+   "fieldname": "station_preferences",
+   "fieldtype": "Table",
+   "label": "Station Preferences",
+   "options": "Station Preferences"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-20 16:53:02.776715",
+ "modified": "2026-05-04 11:35:53.504904",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Channel Partner",

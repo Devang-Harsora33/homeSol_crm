@@ -85,6 +85,47 @@ def get_team_leads():
 
     return leads
 
+@frappe.whitelist(methods=['GET'])
+def get_leads_by_developer(developer_id):
+    if not developer_id:
+        return {"error": "Developer ID is required"}
+
+    current_user = frappe.session.user
+    
+    if current_user != "Administrator":
+        
+        actual_developer_email = frappe.db.get_value("Developer", developer_id, "username")
+        
+        if actual_developer_email != current_user:
+            frappe.throw("Not Authorized: You can only view your own leads.", frappe.PermissionError)
+    # ----------------------
+
+    # 1. Find all projects that belong to this specific developer
+    projects = frappe.get_all(
+        "Property Projects",
+        filters={"developer": developer_id},
+        fields=["name"],
+        ignore_permissions=True # Safe: We verified their identity above
+    )
+
+    if not projects:
+        return []
+
+    project_ids = [project.name for project in projects]
+
+    # 2. Fetch all Leads interested in any of these projects
+    leads = frappe.get_all(
+        "Lead",
+        filters={
+            "custom_interested_project": ["in", project_ids]
+        },
+        fields=["*"],
+        order_by="creation desc",
+        ignore_permissions=True # Safe: We verified their identity above
+    )
+
+    return leads
+
 @frappe.whitelist(allow_guest=True)
 def get_all_projects():
     project_list = frappe.get_all("Property Projects", fields=["name"])
@@ -93,6 +134,40 @@ def get_all_projects():
         doc = frappe.get_doc("Property Projects", project.name)
         full_data.append(doc.as_dict())
     return full_data
+
+
+@frappe.whitelist(allow_guest=True)
+def get_all_project_locations():
+    # Only fetch name, project_name, and location to make the API super fast
+    project_list = frappe.get_all("Property Projects", fields=["name", "project_name", "location"])
+    
+    clean_locations = []
+    
+    for project in project_list:
+        if project.location:
+            try:
+                # 1. Convert the GeoJSON string into a Python dictionary
+                loc_data = json.loads(project.location)
+                
+                # 2. Drill down to the coordinates array [Longitude, Latitude]
+                coordinates = loc_data.get("features")[0].get("geometry").get("coordinates")
+                
+                # 3. Extract them safely
+                if coordinates and len(coordinates) == 2:
+                    longitude = coordinates[0]
+                    latitude = coordinates[1]
+                    
+                    clean_locations.append({
+                        "project_id": project.name,
+                        "project_name": project.project_name,
+                        "latitude": latitude,   # Flipped to standard Lat/Lng order for Flutter Maps!
+                        "longitude": longitude
+                    })
+            except Exception as e:
+                # If a project has a corrupted location string, skip it without crashing
+                continue
+                
+    return clean_locations
 
 @frappe.whitelist(allow_guest=True)
 def get_all_developers():
@@ -266,6 +341,115 @@ def get_team_site_visits():
     
     return visits
 
+@frappe.whitelist(methods=['GET'])
+def get_site_visits_by_developer(developer_id):
+    if not developer_id:
+        return {"error": "Developer ID is required"}
+
+    current_user = frappe.session.user
+    
+    if current_user != "Administrator":
+        # Fetch the 'username' (email) attached to the requested Developer ID
+        actual_developer_email = frappe.db.get_value("Developer", developer_id, "username")
+        
+        if actual_developer_email != current_user:
+            frappe.throw("Not Authorized: You can only view your own site visits.", frappe.PermissionError)
+
+    projects = frappe.get_all(
+        "Property Projects",
+        filters={"developer": developer_id},
+        fields=["name"],
+        ignore_permissions=True 
+    )
+
+    if not projects:
+        return []
+
+    project_ids = [project.name for project in projects]
+
+    # 2. Fetch Site Visits linked to any of these projects
+    visits = frappe.get_all(
+        "Site Visit",
+        fields=[
+            "name",           
+            "lead",           
+            "project",        
+            "visit_date",     
+            "status",         
+            "remark",         
+            "creation",       
+            "visit_scheduled_datetime",
+            "owner"           # Shows which field agent logged the visit
+        ],
+        filters={
+            "project": ["in", project_ids]  # <--- Filters by the Developer's projects
+        },
+        order_by="visit_date desc",
+        ignore_permissions=True # Safe: Identity is already verified
+    )
+    
+    return visits
+
+@frappe.whitelist(methods=['GET'])
+def get_site_visits_by_channel_partner(partner_id):
+    if not partner_id:
+        return {"error": "Channel Partner ID is required"}
+
+    current_user = frappe.session.user
+    user_roles = frappe.get_roles()
+    
+    # Define roles that have permission to view all site visits
+    management_roles = ["System Manager", "Sales Manager", "CRM Manager"]
+    is_manager = any(role in user_roles for role in management_roles)
+    is_admin = current_user == "Administrator" or "administrator@homesolindia.com" in current_user.lower()
+    is_cp = partner_id.lower() == current_user.lower()
+
+    # Determine filtering for site visits
+    # If not admin, manager, or the CP itself, we only show visits OWNED by the current user
+    owner_filter = None
+    if not is_admin and not is_manager and not is_cp:
+        owner_filter = current_user
+
+    # 1. Fetch Leads tagged to this Channel Partner
+    leads = frappe.get_all(
+        "Lead",
+        filters={"custom_channel_partner": partner_id},
+        fields=["name"],
+        ignore_permissions=True 
+    )
+
+    if not leads:
+        return []
+
+    lead_ids = [lead.name for lead in leads]
+
+    # 2. Fetch Site Visits linked to any of these leads
+    visit_filters = {
+        "lead": ["in", lead_ids]
+    }
+    
+    if owner_filter:
+        visit_filters["owner"] = owner_filter
+
+    visits = frappe.get_all(
+        "Site Visit",
+        fields=[
+            "name",           
+            "lead",           
+            "project",        
+            "visit_date",     
+            "status",         
+            "remark",         
+            "creation",       
+            "visit_scheduled_datetime",
+            "owner"           # Shows which field agent logged the visit
+        ],
+        filters=visit_filters,
+        order_by="visit_date desc",
+        ignore_permissions=True # Safe: Filtering handles access
+    )
+    
+    return visits
 
 @frappe.whitelist()
 def get_team_followups_list():
@@ -448,6 +632,260 @@ def get_lead_activity_logs(lead_id):
                             "message": f"Added a new entry to {child_table_name}"
                         })
                 
+                else:
+                     activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Creation/Other",
+                            "message": "System Log Created"
+                        })
+
+            except Exception as e:
+                activity_logs.append({
+                    "version_id": v.name,
+                    "error_message": str(e),
+                    "raw_data": str(v.data)
+                })
+
+    return activity_logs
+
+
+@frappe.whitelist()
+def get_channel_partner_activity_logs(partner_id):
+
+    if not partner_id:
+        return {"error": "Channel Partner ID is required"}
+
+    # Fetch history specifically for the Channel Partner DocType
+    versions = frappe.get_all(
+        "Version",
+        filters={
+            "ref_doctype": "Channel Partner",
+            "docname": partner_id
+        },
+        fields=["*"],
+        order_by="creation desc",
+        ignore_permissions=True 
+    )
+
+    if not versions:
+        return {"debug": "No versions found matching this Channel Partner ID.", "raw": versions}
+
+    activity_logs = []
+
+    for v in versions:
+        if v.data:
+            try:
+                # Safely parse the JSON data stored in the version log
+                if isinstance(v.data, str):
+                    changes = json.loads(v.data)
+                else:
+                    changes = v.data 
+
+                # Handle standard field edits
+                if "changed" in changes:
+                    for change in changes["changed"]:
+                        fieldname = change[0]
+                        old_val = change[1]
+                        new_val = change[2]
+                        
+                        clean_fieldname = fieldname.replace("_", " ").title()
+
+                        activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Edit",
+                            "message": f"Changed {clean_fieldname} from '{old_val}' to '{new_val}'",
+                        })
+                
+                # Handle additions to child tables (like the Contacts or Links table)
+                elif "added" in changes:
+                    for added_row in changes["added"]:
+                        child_table_name = added_row[0].replace("_", " ").title()
+                        activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Addition",
+                            "message": f"Added a new entry to {child_table_name}"
+                        })
+                
+                # Handle generic saves/creations
+                else:
+                     activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Creation/Other",
+                            "message": "System Log Created"
+                        })
+
+            except Exception as e:
+                activity_logs.append({
+                    "version_id": v.name,
+                    "error_message": str(e),
+                    "raw_data": str(v.data)
+                })
+
+    return activity_logs
+
+
+@frappe.whitelist()
+def trigger_otp_sales_service(mobile_number, service_name=None):
+    """
+    Generates OTP for Sales Fields Service.
+    - If document is new (no valid ID), uses Mobile No as the cache key.
+    - If document is saved, uses Service Name as the cache key.
+    """
+    if not mobile_number:
+        frappe.throw(_("Mobile Number is required to send OTP"))
+
+    # Determine the unique Cache Key
+    # If service_name is real (not None and not temporary 'new-sales-fields-service-...'), use it.
+    if service_name and not service_name.startswith("new-sales-fields-service"):
+        cache_key = f"sales_service_otp:{service_name}"
+    else:
+        # New Unsaved Document -> Use Mobile Number as key
+        cache_key = f"sales_service_otp:{mobile_number}"
+
+    # Generate 6-digit Random OTP
+    otp = str(random.randint(100000, 999999))
+
+    # Store OTP in Cache (Expires in 10 minutes)
+    frappe.cache().set_value(cache_key, otp, expires_in_sec=600)
+
+    # DEBUG: Show OTP on screen
+    frappe.msgprint(f"<b>DEBUG MODE:</b><br>Sending to: <b>{mobile_number}</b><br>OTP: <b>{otp}</b>")
+
+    # TODO: Uncomment for real SMS
+    # from frappe.core.doctype.sms_settings.sms_settings import send_sms
+    # send_sms([mobile_number], f"Your verification code is {otp}")
+    
+    return "success"
+
+
+@frappe.whitelist()
+def verify_otp_sales_service(user_otp, mobile_number, service_name=None):
+    """
+    Verifies OTP using the same key logic as trigger.
+    """
+    if not user_otp:
+        return False
+
+    # Reconstruct the Key to find the OTP
+    if service_name and not service_name.startswith("new-sales-fields-service"):
+        cache_key = f"sales_service_otp:{service_name}"
+    else:
+        cache_key = f"sales_service_otp:{mobile_number}"
+
+    cached_otp = frappe.cache().get_value(cache_key)
+
+    if cached_otp and str(user_otp) == str(cached_otp):
+        frappe.cache().delete_value(cache_key) # Clear cache so it can't be used twice
+        return True
+    else:
+        return False
+    
+@frappe.whitelist(methods=['GET'])
+def get_sourcing_by_developer(developer_id):
+    if not developer_id:
+        return {"error": "Developer ID is required"}
+
+    current_user = frappe.session.user
+    
+    if current_user != "Administrator":
+        actual_developer_email = frappe.db.get_value("Developer", developer_id, "username")
+        
+        if actual_developer_email != current_user:
+            frappe.throw("Not Authorized: You can only view your own sourcing records.", frappe.PermissionError)
+
+    projects = frappe.get_all(
+        "Property Projects",
+        filters={"developer": developer_id},
+        fields=["name"],
+        ignore_permissions=True # Safe: We verified their identity above
+    )
+
+    if not projects:
+        return []
+
+    project_ids = [project.name for project in projects]
+
+    sourcing_records = frappe.get_all(
+        "Sales Fields Service",
+        filters={
+            "interested_project": ["in", project_ids]  
+        },
+        fields=["*"],  # Fetch all fields just like the Leads API
+        order_by="creation desc",
+        ignore_permissions=True 
+    )
+
+    return sourcing_records
+
+@frappe.whitelist()
+def get_sourcing_activity_logs(sfs_id):
+    if not sfs_id:
+        return {"error": "Sales Fields Service ID is required"}
+
+    # Fetch history specifically for the Sales Fields Service DocType
+    versions = frappe.get_all(
+        "Version",
+        filters={
+            "ref_doctype": "Sales Fields Service",
+            "docname": sfs_id
+        },
+        fields=["*"],
+        order_by="creation desc",
+        ignore_permissions=True 
+    )
+
+    if not versions:
+        return {"debug": "No versions found matching this Sales Fields Service ID.", "raw": versions}
+
+    activity_logs = []
+
+    for v in versions:
+        if v.data:
+            try:
+                # Safely parse the JSON data stored in the version log
+                if isinstance(v.data, str):
+                    changes = json.loads(v.data)
+                else:
+                    changes = v.data 
+
+                # Handle standard field edits (e.g., changing 'Visit Status' or checkboxes)
+                if "changed" in changes:
+                    for change in changes["changed"]:
+                        fieldname = change[0]
+                        old_val = change[1]
+                        new_val = change[2]
+                        
+                        clean_fieldname = fieldname.replace("_", " ").title()
+
+                        activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Edit",
+                            "message": f"Changed {clean_fieldname} from '{old_val}' to '{new_val}'",
+                        })
+                
+                # Handle additions to child tables (if you ever add any to this DocType)
+                elif "added" in changes:
+                    for added_row in changes["added"]:
+                        child_table_name = added_row[0].replace("_", " ").title()
+                        activity_logs.append({
+                            "version_id": v.name,
+                            "user": v.owner,
+                            "timestamp": v.creation,
+                            "type": "Addition",
+                            "message": f"Added a new entry to {child_table_name}"
+                        })
+                
+                # Handle generic saves/creations
                 else:
                      activity_logs.append({
                             "version_id": v.name,

@@ -1,0 +1,54 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-04 11:30:11.160344",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "general_information_section",
+  "railway_route",
+  "from_station",
+  "to_station"
+ ],
+ "fields": [
+  {
+   "fieldname": "general_information_section",
+   "fieldtype": "Section Break",
+   "label": "General Information"
+  },
+  {
+   "fieldname": "railway_route",
+   "fieldtype": "Select",
+   "label": "Railway Route",
+   "options": "Western\nCentral\nHarbour"
+  },
+  {
+   "fieldname": "from_station",
+   "fieldtype": "Link",
+   "label": "From",
+   "options": "Railway Stations"
+  },
+  {
+   "fieldname": "to_station",
+   "fieldtype": "Link",
+   "label": "To",
+   "options": "Railway Stations"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-04 13:14:15.438652",
+ "modified_by": "Administrator",
+ "module": "Homesol App",
+ "name": "Station Preferences",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

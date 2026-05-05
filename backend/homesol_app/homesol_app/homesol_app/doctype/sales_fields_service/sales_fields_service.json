@@ -12,32 +12,36 @@
   "contact_person_met",
   "mobile_number",
   "whatsapp_number",
+  "interested_project",
+  "next_follow_up",
   "column_break_pciy",
   "visit_status",
+  "visit_type",
+  "cp_interest",
   "visit_date",
   "remark",
-  "classifications_section",
-  "work_type",
-  "digital",
-  "reference",
-  "data_calling",
-  "column_break_lfcb",
-  "business_mode",
-  "retail",
-  "under_construction",
-  "rental",
-  "ready_to_move",
-  "column_break_wcrc",
-  "cp_requirement",
-  "calling_support",
-  "digital_kit",
-  "standees",
-  "sms_blast",
-  "whatsapp_blast",
+  "visit_duration",
   "geolocation_section",
   "location",
   "get_current_location",
-  "address"
+  "address",
+  "otp_verification_tab",
+  "verification_section",
+  "send_otp",
+  "enter_otp",
+  "verify_otp",
+  "is_verified",
+  "questionnaire_tab",
+  "questions_section",
+  "general_questions",
+  "offered_coffee",
+  "met_the_owner",
+  "market_conditions",
+  "asked_about_price_trends",
+  "considering_redevelopment",
+  "concerned_about_interest_rates",
+  "compared_micro_markets",
+  "strictly_rera_registered"
  ],
  "fields": [
   {
@@ -60,7 +64,7 @@
    "fieldname": "visit_status",
    "fieldtype": "Select",
    "label": "Visit Status",
-   "options": "\nInterested\nNot Interested"
+   "options": "\nVisit Done\nRevisit Done\nRevisit Scheduled"
   },
   {
    "default": "Now",
@@ -103,118 +107,6 @@
    "label": "Remark"
   },
   {
-   "fieldname": "classifications_section",
-   "fieldtype": "Section Break",
-   "label": "Classifications"
-  },
-  {
-   "fieldname": "work_type",
-   "fieldtype": "Heading",
-   "label": "Work Type"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.is_digital",
-   "fieldname": "digital",
-   "fieldtype": "Check",
-   "label": "Digital"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.is_reference",
-   "fieldname": "reference",
-   "fieldtype": "Check",
-   "label": " Reference"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.is_data_calling",
-   "fieldname": "data_calling",
-   "fieldtype": "Check",
-   "label": "Data Calling"
-  },
-  {
-   "fieldname": "column_break_lfcb",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "business_mode",
-   "fieldtype": "Heading",
-   "label": "Business Mode"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.is_retail",
-   "fieldname": "retail",
-   "fieldtype": "Check",
-   "label": "Retail"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.is_under_construction",
-   "fieldname": "under_construction",
-   "fieldtype": "Check",
-   "label": "Under Construction"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.is_rental",
-   "fieldname": "rental",
-   "fieldtype": "Check",
-   "label": " Rental"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.is_ready_to_move",
-   "fieldname": "ready_to_move",
-   "fieldtype": "Check",
-   "label": "Ready to Move"
-  },
-  {
-   "fieldname": "column_break_wcrc",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "cp_requirement",
-   "fieldtype": "Heading",
-   "label": "CP Requirement"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.req_calling_support",
-   "fieldname": "calling_support",
-   "fieldtype": "Check",
-   "label": "Calling Support"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.req_digital_kit",
-   "fieldname": "digital_kit",
-   "fieldtype": "Check",
-   "label": "Digital Kit"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.req_standees",
-   "fieldname": "standees",
-   "fieldtype": "Check",
-   "label": "Standees"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.req_sms_blast",
-   "fieldname": "sms_blast",
-   "fieldtype": "Check",
-   "label": "SMS Blast"
-  },
-  {
-   "default": "0",
-   "fetch_from": "sales_partner.req_whatsapp_blast",
-   "fieldname": "whatsapp_blast",
-   "fieldtype": "Check",
-   "label": "WhatsApp Blast"
-  },
-  {
    "fieldname": "geolocation_section",
    "fieldtype": "Section Break",
    "label": "Geolocation"
@@ -233,13 +125,134 @@
    "fieldname": "address",
    "fieldtype": "Data",
    "label": "Address"
+  },
+  {
+   "fieldname": "visit_type",
+   "fieldtype": "Select",
+   "label": "Visit Type",
+   "options": "\nOpen\nClose"
+  },
+  {
+   "fieldname": "cp_interest",
+   "fieldtype": "Select",
+   "label": "CP Interest",
+   "options": "\nInterested\nNot Interested"
+  },
+  {
+   "fieldname": "interested_project",
+   "fieldtype": "Link",
+   "label": "Interested Project",
+   "options": "Property Projects"
+  },
+  {
+   "fieldname": "otp_verification_tab",
+   "fieldtype": "Tab Break",
+   "label": "OTP Verification"
+  },
+  {
+   "fieldname": "verification_section",
+   "fieldtype": "Section Break",
+   "label": "Verification"
+  },
+  {
+   "fieldname": "send_otp",
+   "fieldtype": "Button",
+   "label": "Send OTP"
+  },
+  {
+   "fieldname": "enter_otp",
+   "fieldtype": "Data",
+   "label": "Enter OTP"
+  },
+  {
+   "fieldname": "verify_otp",
+   "fieldtype": "Button",
+   "label": "Verify OTP"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_verified",
+   "fieldtype": "Check",
+   "label": "Is Verified"
+  },
+  {
+   "fieldname": "next_follow_up",
+   "fieldtype": "Datetime",
+   "label": "Next Follow Up"
+  },
+  {
+   "fieldname": "visit_duration",
+   "fieldtype": "Data",
+   "label": "Visit Duration"
+  },
+  {
+   "fieldname": "questionnaire_tab",
+   "fieldtype": "Tab Break",
+   "label": "Questionnaire"
+  },
+  {
+   "fieldname": "questions_section",
+   "fieldtype": "Section Break",
+   "label": "Questions"
+  },
+  {
+   "fieldname": "general_questions",
+   "fieldtype": "Heading",
+   "label": "General Questions"
+  },
+  {
+   "default": "0",
+   "fieldname": "offered_coffee",
+   "fieldtype": "Check",
+   "label": "Did they offer coffee/tea?"
+  },
+  {
+   "default": "0",
+   "fieldname": "met_the_owner",
+   "fieldtype": "Check",
+   "label": "Did you meet the owner?"
+  },
+  {
+   "fieldname": "market_conditions",
+   "fieldtype": "Heading",
+   "label": "Market Conditions"
+  },
+  {
+   "default": "0",
+   "fieldname": "asked_about_price_trends",
+   "fieldtype": "Check",
+   "label": "Did the client ask about recent price trends in the area?"
+  },
+  {
+   "default": "0",
+   "fieldname": "considering_redevelopment",
+   "fieldtype": "Check",
+   "label": "Is the client considering redevelopment properties?"
+  },
+  {
+   "default": "0",
+   "fieldname": "concerned_about_interest_rates",
+   "fieldtype": "Check",
+   "label": "Are they concerned about current home loan interest rates?"
+  },
+  {
+   "default": "0",
+   "fieldname": "compared_micro_markets",
+   "fieldtype": "Check",
+   "label": "Did they compare this locality to a neighboring micro-market?"
+  },
+  {
+   "default": "0",
+   "fieldname": "strictly_rera_registered",
+   "fieldtype": "Check",
+   "label": "Is the client strictly looking for RERA-registered projects?"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-09 12:32:07.078769",
+ "modified": "2026-05-06 00:41:30.116191",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Sales Fields Service",
