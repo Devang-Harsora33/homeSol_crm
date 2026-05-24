@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/models/channel_partner.dart';
 import 'package:Homesol/models/lead.dart';
 import 'package:Homesol/models/sales_team.dart';
@@ -632,6 +633,8 @@ class _LeadCreationPageState extends State<LeadCreationPage>
     TextEditingController? controller,
     bool readOnly = false,
     FormFieldValidator<String>? validator, // Add validator parameter here
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextFormField(
       key: ValueKey(keyName),
@@ -639,13 +642,16 @@ class _LeadCreationPageState extends State<LeadCreationPage>
       enabled: !readOnly,
       initialValue: controller == null ? _formData[keyName]?.toString() : null,
       keyboardType: type,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
       style: const TextStyle(fontWeight: FontWeight.w500),
       decoration: kInputDecoration.copyWith(
         labelText: label,
         labelStyle: TextStyle(color: Colors.grey.shade600),
+        counterText: "",
       ),
       validator: (v) {
-        if (required && v!.isEmpty) {
+        if (required && (v == null || v.isEmpty)) {
           return 'Required';
         }
         return validator?.call(v); // Call custom validator if provided
@@ -758,7 +764,11 @@ class _LeadCreationPageState extends State<LeadCreationPage>
                   MaterialPageRoute(
                     builder: (context) => const ChannelPartnerCreationPage(),
                   ),
-                );
+                ).then((result) {
+                  if (result == true) {
+                    _fetchDropdownData();
+                  }
+                });
               } else {
                 setState(() {
                   _formData[keyName] = v;
@@ -1234,13 +1244,12 @@ Widget _buildResidenceTypeButtons() {
             required: true,
             type: TextInputType.phone,
             controller: _mobile,
+            maxLength: 10,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             validator: (value) {
               if (value != null && value.isNotEmpty) {
-                if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-                  return 'Please enter a valid phone number (digits only)';
-                }
-                if (value.length < 7 || value.length > 15) {
-                  return 'Phone number must be between 7 and 15 digits';
+                if (value.length != 10) {
+                  return 'Phone number must be 10 digits';
                 }
               }
               return null;
@@ -1251,13 +1260,12 @@ Widget _buildResidenceTypeButtons() {
             'Secondary Number',
             (v) => _formData['whatsapp_no'] = v,
             type: TextInputType.phone,
+            maxLength: 10,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             validator: (value) {
               if (value != null && value.isNotEmpty) {
-                if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-                  return 'Please enter a valid phone number (digits only)';
-                }
-                if (value.length < 7 || value.length > 15) {
-                  return 'Phone number must be between 7 and 15 digits';
+                if (value.length != 10) {
+                  return 'Phone number must be 10 digits';
                 }
               }
               return null;
@@ -1508,9 +1516,7 @@ Widget _buildResidenceTypeButtons() {
                               _otpSent = true;
                               startResendTimer(); // <--- Add this line
                               if (otp.isNotEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('DEBUG: OTP $otp')),
-                                );
+                                CustomSnackBar.show(context, message: 'DEBUG: OTP $otp', isError: false, title: 'Notice');
                               }
                             }
                           });
@@ -1583,9 +1589,7 @@ Widget _buildResidenceTypeButtons() {
                                       );
                                     } else {
                                       setState(() => _isLoading = false);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
+                                      CustomSnackBar.show(context, message: 
                                             'Failed to create lead. Please try again.',
                                           ),
                                         ),
@@ -1594,8 +1598,7 @@ Widget _buildResidenceTypeButtons() {
                                   } else {
                                     setState(() => _isLoading = false);
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Invalid OTP')),
-                                    );
+                                      const SnackBar(content: Text('Invalid OTP', isError: true, title: 'Error');
                                   }
                                 },
                           child: _isLoading
@@ -1624,9 +1627,7 @@ Widget _buildResidenceTypeButtons() {
                                   if (otp != null) {
                                     startResendTimer();
                                     if (otp.isNotEmpty) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('DEBUG: OTP $otp')),
-                                      );
+                                      CustomSnackBar.show(context, message: 'DEBUG: OTP $otp', isError: false, title: 'Notice');
                                     }
                                   }
                                 },
@@ -1737,9 +1738,7 @@ Widget _buildResidenceTypeButtons() {
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Lead updated successfully!')),
-          );
+          CustomSnackBar.show(context, message: 'Lead updated successfully!', isError: false, title: 'Notice');
           // Navigate back to CRM page by popping twice (once for form, once for detail view)
           Future.delayed(const Duration(seconds: 1), () {
             if (mounted) {
@@ -1754,9 +1753,7 @@ Widget _buildResidenceTypeButtons() {
         final newLead = await LeadService.createLeadFromForm(submissionData);
         if (newLead != null) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Lead created successfully!')),
-            );
+            CustomSnackBar.show(context, message: 'Lead created successfully!', isError: false, title: 'Notice');
             // Navigate back to CRM page with success result
             Future.delayed(const Duration(seconds: 1), () {
               if (mounted) Navigator.of(context).pop(true);
@@ -1765,9 +1762,7 @@ Widget _buildResidenceTypeButtons() {
           return true;
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to create lead. Please try again.')),
-            );
+            CustomSnackBar.show(context, message: 'Failed to create lead. Please try again.', isError: true, title: 'Error');
           }
           return false;
         }
@@ -1796,9 +1791,7 @@ Widget _buildResidenceTypeButtons() {
           errorMessage = 'Backend server issue. Please try again later.';
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+        CustomSnackBar.show(context, message: errorMessage, isError: true, title: 'Error');
       }
       print('Submission error: $e'); // Keep for debugging
       return false;

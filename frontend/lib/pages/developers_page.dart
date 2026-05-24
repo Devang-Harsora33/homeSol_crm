@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/developers/developer_service.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/components/cached_image.dart';
 import 'package:flutter/material.dart';
@@ -1408,21 +1409,7 @@ Download HomeSol App to connect with developers and explore projects!
     // Copy to clipboard and show message
     Clipboard.setData(ClipboardData(text: shareText));
     final theme = Theme.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Developer details copied to clipboard!'),
-        backgroundColor: theme.colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        action: SnackBarAction(
-          label: 'Share',
-          textColor: Colors.white,
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: shareText));
-          },
-        ),
-      ),
-    );
+    CustomSnackBar.show(context, message: 'Developer details copied to clipboard!', isError: false, title: 'Notice');
   }
 
   Widget _buildTagAllProjectsButton(ThemeData theme) {
@@ -1441,12 +1428,7 @@ Download HomeSol App to connect with developers and explore projects!
             final brokerId = broker?['broker_id']?.toString();
 
             if (brokerId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Please log in to add enquiry'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              CustomSnackBar.show(context, message: 'Please log in to add enquiry', isError: false, title: 'Notice');
               return;
             }
 
@@ -1460,12 +1442,7 @@ Download HomeSol App to connect with developers and explore projects!
             //   },
             // );
           } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            CustomSnackBar.show(context, message: 'Error: ${e.toString()}', isError: true, title: 'Error');
           }
         },
         style: ElevatedButton.styleFrom(

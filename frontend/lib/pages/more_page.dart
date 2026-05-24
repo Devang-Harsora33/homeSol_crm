@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'dart:io';
 import '../services/auth_service.dart';
 import 'broker_profile_page.dart';
@@ -344,14 +345,7 @@ class MorePage extends StatelessWidget {
             await LeadService.clearAllCaches();
             await SourcingService.clearAllCaches();
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Local cache cleared successfully! App restarting...',
-                  ),
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              CustomSnackBar.show(context, message: 'Local cache cleared successfully! App restarting...', duration: const Duration(seconds: 2));
               // Trigger a full app restart to re-fetch all data
               Navigator.of(
                 context,

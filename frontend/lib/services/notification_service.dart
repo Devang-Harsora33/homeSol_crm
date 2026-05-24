@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../firebase_options.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService {
   NotificationService._();
@@ -18,6 +21,7 @@ class NotificationService {
       _foregroundMessagesController.stream;
 
   Future<void> initialize() async {
+    debugPrint('[NotificationService] initialize() called');
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
@@ -26,6 +30,8 @@ class NotificationService {
 
     await _requestPermissions();
     await _initializeLocalNotifications();
+    tz.initializeTimeZones();
+    debugPrint('[NotificationService] initialize() complete');
 
     // Handle foreground messages (when app is open)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -39,13 +45,17 @@ class NotificationService {
   }
 
   Future<void> _initializeLocalNotifications() async {
+    debugPrint('[NotificationService] _initializeLocalNotifications() called');
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const InitializationSettings initializationSettings =
         InitializationSettings(android: initializationSettingsAndroid);
 
-    await _localNotifications.initialize(initializationSettings);
+    final bool? result = await _localNotifications.initialize(
+      settings: initializationSettings,
+    );
+    debugPrint('[NotificationService] _initializeLocalNotifications() result=$result');
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
@@ -76,13 +86,78 @@ class NotificationService {
       );
 
       await _localNotifications.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        platformChannelSpecifics,
+        id: notification.hashCode,
+        title: notification.title,
+        body: notification.body,
+        notificationDetails: platformChannelSpecifics,
         payload: data.toString(),
       );
     }
+  }
+
+  Future<void> scheduleTimerNotification(int id, String title, String body, Duration delay) async {
+    final AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'timer_reminders',
+      'Timer Reminders',
+      channelDescription: 'Notifications for ongoing meeting timers',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+      icon: 'ic_homesol_notification',
+      largeIcon: const DrawableResourceAndroidBitmap('@drawable/logo'),
+    );
+
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+
+    debugPrint('[NotificationService] scheduleTimerNotification called: id=$id, delay=${delay.inSeconds}s');
+    try {
+      final scheduledTime = tz.TZDateTime.now(tz.UTC).add(delay);
+      debugPrint('[NotificationService] Scheduling at UTC: $scheduledTime');
+      await _localNotifications.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledTime,
+        notificationDetails: platformChannelSpecifics,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+      debugPrint('[NotificationService] Notification scheduled successfully! id=$id');
+    } catch (e, stackTrace) {
+      debugPrint('[NotificationService] ERROR scheduling notification: $e');
+      debugPrint('[NotificationService] StackTrace: $stackTrace');
+    }
+  }
+
+  Future<void> showImmediateNotification(int id, String title, String body) async {
+    debugPrint('[NotificationService] showImmediateNotification called: id=$id');
+    try {
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'timer_reminders',
+        'Timer Reminders',
+        channelDescription: 'Notifications for ongoing meeting timers',
+        importance: Importance.max,
+        priority: Priority.high,
+        showWhen: true,
+        icon: 'ic_homesol_notification',
+      );
+      const NotificationDetails details = NotificationDetails(android: androidDetails);
+      await _localNotifications.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
+      debugPrint('[NotificationService] showImmediateNotification delivered! id=$id');
+    } catch (e) {
+      debugPrint('[NotificationService] ERROR showing immediate notification: $e');
+    }
+  }
+
+  Future<void> cancelNotification(int id) async {
+    await _localNotifications.cancel(id: id);
   }
 
   Future<String?> getToken() async {

@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:email",
+ "autoname": "field:firm_name",
  "creation": "2025-12-07 17:18:02.605922",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -13,10 +13,10 @@
   "rera_number",
   "cp_quality",
   "column_break_abzh",
-  "email",
   "territory",
   "category",
   "type",
+  "team_size",
   "cp_preferences_section",
   "property_preferences",
   "station_preferences",
@@ -74,12 +74,6 @@
    "fieldname": "firm_name",
    "fieldtype": "Data",
    "label": "Firm Name",
-   "reqd": 1
-  },
-  {
-   "fieldname": "email",
-   "fieldtype": "Data",
-   "label": "Email",
    "reqd": 1,
    "unique": 1
   },
@@ -89,8 +83,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Territory",
-   "options": "Territory",
-   "reqd": 1
+   "options": "Territory"
   },
   {
    "fieldname": "category",
@@ -271,21 +264,26 @@
   },
   {
    "fieldname": "property_preferences",
-   "fieldtype": "Select",
-   "label": "Property Preferences",
-   "options": "Under Construction\nReady to Move In\nResale"
+   "fieldtype": "Data",
+   "label": "Property Preferences (Under Construction, Ready to Move In, Resale)"
   },
   {
    "fieldname": "station_preferences",
    "fieldtype": "Table",
    "label": "Station Preferences",
    "options": "Station Preferences"
+  },
+  {
+   "fieldname": "team_size",
+   "fieldtype": "Select",
+   "label": "Team Size",
+   "options": "1 - 5\n5 - 10\n10 - 20\n20 - 50\n50+"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-04 11:35:53.504904",
+ "modified": "2026-05-06 12:48:57.323128",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Channel Partner",

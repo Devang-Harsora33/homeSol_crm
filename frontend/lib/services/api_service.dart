@@ -315,6 +315,32 @@ class ApiService {
     }
   }
 
+  static Future<List<Map<String, String>>> fetchRailwayStations() async {
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse(
+        '${AuthService.baseUrl}/api/resource/Railway Stations?fields=["station_name","route"]&limit_page_length=1000',
+      );
+
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final List<dynamic> jsonData = responseData['data'] ?? [];
+        return jsonData.map((json) => {
+          'station_name': json['station_name']?.toString() ?? '',
+          'route': json['route']?.toString() ?? '',
+        }).toList();
+      } else {
+        print('❌ Error fetching railway stations: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Exception fetching railway stations: $e');
+      return [];
+    }
+  }
+
   static Future<Profile?> fetchEmployeeDetails(String employeeId) async {
     try {
       final headers = await _getHeaders();

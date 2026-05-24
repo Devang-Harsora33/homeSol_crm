@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -246,12 +247,7 @@ class _HomePageState extends State<HomePage> {
       remark = await _showLateRemarkPopup(context, newType);
       if (remark == null || remark.trim().isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Remark cannot be empty for late attendance."),
-              backgroundColor: Colors.red,
-            ),
-          );
+          CustomSnackBar.show(context, message: "Remark cannot be empty for late attendance.", isError: false, title: 'Notice');
         }
         return;
       }
@@ -262,25 +258,15 @@ class _HomePageState extends State<HomePage> {
 
       if (!locationResult['inRange']) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
+          CustomSnackBar.show(context, message: 
                 "You are out of range: ${locationResult['distance'].toStringAsFixed(2)} km away from project.",
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
+                isError: false, title: 'Notice');
         }
         return;
       }
        if (locationResult['error'] != null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Location Error: ${locationResult['error']}"),
-              backgroundColor: Colors.red,
-            ),
-          );
+          CustomSnackBar.show(context, message: "Location Error: ${locationResult['error']}", isError: true, title: 'Error');
         }
         return;
       }
@@ -522,22 +508,12 @@ class _HomePageState extends State<HomePage> {
         });
       } else {
          if (mounted && result['message'] != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Error: ${result['message']}"),
-              backgroundColor: Colors.red,
-            ),
-          );
+          CustomSnackBar.show(context, message: "Error: ${result['message']}", isError: true, title: 'Error');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("An error occurred: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
+        CustomSnackBar.show(context, message: "An error occurred: $e", isError: true, title: 'Error');
       }
     } finally {
       if (mounted) setState(() => _isAttendanceLoading = false);

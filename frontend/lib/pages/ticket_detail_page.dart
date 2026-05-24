@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/tickets/ticker_service.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Recommended for better icons
 import '../models/ticket.dart';
@@ -177,19 +178,12 @@ class TicketDetailPage extends StatelessWidget {
     try {
       await TicketService.deleteTicket(ticket.id);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ticket cancelled successfully'),
-            backgroundColor: kGold,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Ticket cancelled successfully', isError: false, title: 'Notice');
         Navigator.of(context).pop('deleted');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete: $e'), backgroundColor: Colors.red),
-        );
+        CustomSnackBar.show(context, message: 'Failed to delete: $e', isError: true, title: 'Error');
       }
     }
   }

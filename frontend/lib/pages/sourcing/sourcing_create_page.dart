@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/models/sourcing.dart';
 import 'package:Homesol/models/channel_partner.dart';
 import 'package:Homesol/services/apis/sourcing/sourcing_service.dart';
@@ -69,19 +71,7 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
   DateTime _visitDate = DateTime.now();
   DateTime _nextFollowUpDate = DateTime.now().add(const Duration(days: 7));
   String? _interestedProject;
-  
-  bool _digital = false;
-  bool _reference = false;
-  bool _dataCalling = false;
-  bool _retail = false;
-  bool _underConstruction = false;
-  bool _rental = false;
-  bool _readyToMove = false;
-  bool _callingSupport = false;
-  bool _digitalKit = false;
-  bool _standees = false;
-  bool _smsBlast = false;
-  bool _whatsappBlast = false;
+
 
   List<ChannelPartner> _channelPartners = [];
   ChannelPartner? _selectedCP;
@@ -221,18 +211,7 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
         if (s.nextFollowUp != null) {
           _nextFollowUpDate = DateTime.tryParse(s.nextFollowUp!) ?? DateTime.now().add(const Duration(days: 7));
         }
-        _digital = s.digital == 1;
-        _reference = s.reference == 1;
-        _dataCalling = s.dataCalling == 1;
-        _retail = s.retail == 1;
-        _underConstruction = s.underConstruction == 1;
-        _rental = s.rental == 1;
-        _readyToMove = s.readyToMove == 1;
-        _callingSupport = s.callingSupport == 1;
-        _digitalKit = s.digitalKit == 1;
-        _standees = s.standees == 1;
-        _smsBlast = s.smsBlast == 1;
-        _whatsappBlast = s.whatsappBlast == 1;
+
       } else {
         if (widget.initialChannelPartner != null) {
           final matchedCP = partners.where((p) => p.name == widget.initialChannelPartner!.name).toList();
@@ -299,18 +278,7 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
       _selectedTeamMember = null;
       
       if (cp != null) {
-        _digital = cp.isDigital == 1;
-        _reference = cp.isReference == 1;
-        _dataCalling = cp.isDataCalling == 1;
-        _retail = cp.isRetail == 1;
-        _underConstruction = cp.isUnderConstruction == 1;
-        _rental = cp.isRental == 1;
-        _readyToMove = cp.isReadyToMove == 1;
-        _callingSupport = cp.reqCallingSupport == 1;
-        _digitalKit = cp.reqDigitalKit == 1;
-        _standees = cp.reqStandees == 1;
-        _smsBlast = cp.reqSmsBlast == 1;
-        _whatsappBlast = cp.reqWhatsappBlast == 1;
+
         
         if (cp.fullAddress != null) {
           _addressController.text = cp.fullAddress!;
@@ -448,7 +416,7 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
   }
 
   Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: _visitDate,
       firstDate: DateTime(2000),
@@ -466,10 +434,37 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
         );
       },
     );
-    if (picked != null) {
-      setState(() {
-        _visitDate = picked;
-      });
+
+    if (pickedDate != null) {
+      if (!mounted) return;
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_visitDate),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: goldAccent,
+                onPrimary: Colors.white,
+                onSurface: matteBlack,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          _visitDate = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
     }
   }
 
@@ -621,9 +616,7 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
                         ? null
                         : () async {
                             if (otp.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please enter the verification code')),
-                              );
+                              CustomSnackBar.show(context, message: 'Please enter the verification code', isError: false, title: 'Notice');
                               return;
                             }
                             
@@ -634,13 +627,7 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
                             if (success) {
                               Navigator.pop(context, {'verified': true, 'otp': otp});
                             } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Verification failed. Please check the code.'),
-                                  backgroundColor: Colors.redAccent,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
+                              CustomSnackBar.show(context, message: 'Verification failed. Please check the code.', isError: true, title: 'Error');
                             }
                           },
                     child: isVerifying
@@ -678,9 +665,7 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
       if (triggerResponse == null) {
         setState(() => _isLoading = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to send OTP. Please try again.')),
-          );
+          CustomSnackBar.show(context, message: 'Failed to send OTP. Please try again.', isError: true, title: 'Error');
         }
         return;
       }
@@ -713,22 +698,12 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
       remark: _remarkController.text,
       address: _addressController.text,
       location: _locationController.text,
-      digital: _digital ? 1 : 0,
-      reference: _reference ? 1 : 0,
-      dataCalling: _dataCalling ? 1 : 0,
-      retail: _retail ? 1 : 0,
-      underConstruction: _underConstruction ? 1 : 0,
-      rental: _rental ? 1 : 0,
-      readyToMove: _readyToMove ? 1 : 0,
-      callingSupport: _callingSupport ? 1 : 0,
-      digitalKit: _digitalKit ? 1 : 0,
-      standees: _standees ? 1 : 0,
-      smsBlast: _smsBlast ? 1 : 0,
-      whatsappBlast: _whatsappBlast ? 1 : 0,
+
       visitType: _visitType,
       cpInterest: _cpInterest,
       enterOtp: enteredOtp,
       isVerified: isVerified,
+
     );
 
     bool success;
@@ -744,24 +719,12 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
 
     if (success) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Sourcing saved successfully'),
-            backgroundColor: Colors.green[700],
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Sourcing saved successfully', isError: false, title: 'Notice');
         Navigator.pop(context, true);
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Failed to save sourcing'),
-            backgroundColor: Colors.red[700],
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Failed to save sourcing', isError: true, title: 'Error');
       }
     }
   }
@@ -846,9 +809,16 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
                         decoration: kInputDecoration.copyWith(
                           labelText: 'Mobile Number *',
                           prefixIcon: const Icon(Icons.phone_android_rounded, color: goldAccent),
+                          counterText: "",
                         ),
                         keyboardType: TextInputType.phone,
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                        maxLength: 10,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Required';
+                          if (v.length != 10) return 'Mobile number must be 10 digits';
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
@@ -856,8 +826,11 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
                         decoration: kInputDecoration.copyWith(
                           labelText: 'WhatsApp Number',
                           prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, color: goldAccent),
+                          counterText: "",
                         ),
                         keyboardType: TextInputType.phone,
+                        maxLength: 10,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       ),
                     ]),
                     
@@ -939,11 +912,11 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
                         onTap: _selectDate,
                         child: InputDecorator(
                           decoration: kInputDecoration.copyWith(
-                            labelText: 'Visit Date',
+                            labelText: 'Visit Date & Time',
                             prefixIcon: const Icon(Icons.calendar_today_rounded, color: goldAccent),
                           ),
                           child: Text(
-                            DateFormat('dd MMM yyyy').format(_visitDate),
+                            DateFormat('dd MMM yyyy, hh:mm a').format(_visitDate),
                             style: const TextStyle(fontSize: 16),
                           ),
                         ),
@@ -1001,23 +974,8 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
                       ),
                     ]),
 
-                    const SizedBox(height: 24),
-                    _buildSectionHeader('Services & Support'),
-                    _buildFormCard([
-                      _buildSwitch('Digital Marketing', _digital, (v) => setState(() => _digital = v)),
-                      _buildSwitch('Reference', _reference, (v) => setState(() => _reference = v)),
-                      _buildSwitch('Data Calling', _dataCalling, (v) => setState(() => _dataCalling = v)),
-                      _buildSwitch('Retail Presence', _retail, (v) => setState(() => _retail = v)),
-                      _buildSwitch('Under Construction', _underConstruction, (v) => setState(() => _underConstruction = v)),
-                      _buildSwitch('Rental Service', _rental, (v) => setState(() => _rental = v)),
-                      _buildSwitch('Ready to Move', _readyToMove, (v) => setState(() => _readyToMove = v)),
-                      _buildSwitch('Calling Support', _callingSupport, (v) => setState(() => _callingSupport = v)),
-                      _buildSwitch('Digital Kit', _digitalKit, (v) => setState(() => _digitalKit = v)),
-                      _buildSwitch('Standees', _standees, (v) => setState(() => _standees = v)),
-                      _buildSwitch('SMS Blast', _smsBlast, (v) => setState(() => _smsBlast = v)),
-                      _buildSwitch('WhatsApp Blast', _whatsappBlast, (v) => setState(() => _whatsappBlast = v)),
-                    ]),
-                    
+
+
                     const SizedBox(height: 40),
                     SizedBox(
                       width: double.infinity,
@@ -1076,21 +1034,5 @@ class _SourcingCreatePageState extends State<SourcingCreatePage> {
     );
   }
 
-  Widget _buildSwitch(String label, bool value, ValueChanged<bool> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: goldAccent,
-            activeTrackColor: goldAccent.withOpacity(0.3),
-          ),
-        ],
-      ),
-    );
-  }
+
 }

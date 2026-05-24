@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
@@ -82,17 +83,7 @@ Download HomeSol App to explore more properties and connect with developers!
 
     Clipboard.setData(ClipboardData(text: shareText));
     final theme = Theme.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Project details copied to clipboard!'),
-        backgroundColor: theme.colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        action: SnackBarAction(
-          label: 'Share',
-          textColor: Colors.white,
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: shareText));
+    CustomSnackBar.show(context, message: 'Project details copied to clipboard!', isError: false, title: 'Notice');
           },
         ),
       ),

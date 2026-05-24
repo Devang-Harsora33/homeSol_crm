@@ -181,6 +181,7 @@
    "label": "Next Follow Up"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "visit_duration",
    "fieldtype": "Data",
    "label": "Visit Duration"
@@ -201,12 +202,14 @@
    "label": "General Questions"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "offered_coffee",
    "fieldtype": "Check",
    "label": "Did they offer coffee/tea?"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "met_the_owner",
    "fieldtype": "Check",
@@ -218,30 +221,35 @@
    "label": "Market Conditions"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "asked_about_price_trends",
    "fieldtype": "Check",
    "label": "Did the client ask about recent price trends in the area?"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "considering_redevelopment",
    "fieldtype": "Check",
    "label": "Is the client considering redevelopment properties?"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "concerned_about_interest_rates",
    "fieldtype": "Check",
    "label": "Are they concerned about current home loan interest rates?"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "compared_micro_markets",
    "fieldtype": "Check",
    "label": "Did they compare this locality to a neighboring micro-market?"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "strictly_rera_registered",
    "fieldtype": "Check",
@@ -252,7 +260,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-06 00:41:30.116191",
+ "modified": "2026-05-06 02:37:41.480301",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Sales Fields Service",

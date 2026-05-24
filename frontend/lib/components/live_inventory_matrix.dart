@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import '../models/property_unit.dart';
 import '../models/lead.dart';
 import '../services/apis/projects/property_unit_service.dart';
@@ -690,13 +691,9 @@ class UnitDetailsBottomSheetState extends State<UnitDetailsBottomSheet> {
 
         widget.onStatusUpdated();
         Navigator.pop(context); // Close bottom sheet after successful update
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Status updated successfully')),
-        );
+        CustomSnackBar.show(context, message: 'Status updated successfully', isError: false, title: 'Notice');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update status'), backgroundColor: Colors.red),
-        );
+        CustomSnackBar.show(context, message: 'Failed to update status', isError: true, title: 'Error');
       }
     }
   }
@@ -723,13 +720,9 @@ class UnitDetailsBottomSheetState extends State<UnitDetailsBottomSheet> {
 
       if (success) {
         widget.onStatusUpdated();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment Method updated successfully')),
-        );
+        CustomSnackBar.show(context, message: 'Payment Method updated successfully', isError: false, title: 'Notice');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update Payment Method'), backgroundColor: Colors.red),
-        );
+        CustomSnackBar.show(context, message: 'Failed to update Payment Method', isError: true, title: 'Error');
       }
     }
   }
@@ -776,26 +769,18 @@ class UnitDetailsBottomSheetState extends State<UnitDetailsBottomSheet> {
         if (success) {
           widget.onStatusUpdated();
           Navigator.pop(context); // Close bottom sheet
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(leadId.isEmpty 
+          CustomSnackBar.show(context, message: leadId.isEmpty 
                   ? 'Lead removed and unit marked Available' 
-                  : 'Lead linked and unit marked Hold'),
-            ),
-          );
+                  : 'Lead linked and unit marked Hold');
         } else {
           setState(() => _isUpdating = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Operation failed'), backgroundColor: Colors.red),
-          );
+          CustomSnackBar.show(context, message: 'Operation failed', isError: true, title: 'Error');
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUpdating = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        CustomSnackBar.show(context, message: 'Error: $e', isError: true, title: 'Error');
       }
     }
   }

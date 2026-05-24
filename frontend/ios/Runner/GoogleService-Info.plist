@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.syndicate</string>
+	<string>com.homesolindia.crm</string>
 	<key>PROJECT_ID</key>
 	<string>homesolreports</string>
 	<key>STORAGE_BUCKET</key>

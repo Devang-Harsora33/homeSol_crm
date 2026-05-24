@@ -1,4 +1,5 @@
 import 'package:Homesol/models/follow_up.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -90,9 +91,7 @@ class _FollowUpDetailPageState extends State<FollowUpDetailPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e'), backgroundColor: Colors.redAccent),
-        );
+        CustomSnackBar.show(context, message: 'Error loading data: $e', isError: true, title: 'Error');
         setState(() => _isLoading = false);
       }
     }
@@ -163,26 +162,16 @@ class _FollowUpDetailPageState extends State<FollowUpDetailPage> {
 
       if (mounted) {
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Follow-up updated successfully!'),
-              backgroundColor: kAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          CustomSnackBar.show(context, message: 'Follow-up updated successfully!', isError: false, title: 'Notice');
           Navigator.of(context).pop(true);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update.'), backgroundColor: Colors.redAccent),
-          );
+          CustomSnackBar.show(context, message: 'Failed to update.', isError: true, title: 'Error');
         }
         setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
-        );
+        CustomSnackBar.show(context, message: 'Error: $e', isError: true, title: 'Error');
         setState(() => _isLoading = false);
       }
     }

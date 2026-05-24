@@ -20,22 +20,27 @@ class ChannelPartner {
     String? category;
     String? location;
     String? fullAddress;
-    int? isDigital;
-    int? isReference;
-    int? isDataCalling;
-    int? isRetail;
-    int? isUnderConstruction;
-    int? isRental;
-    int? isReadyToMove;
-    int? reqCallingSupport;
-    int? reqDigitalKit;
-    int? reqStandees;
-    int? reqSmsBlast;
-    int? reqWhatsappBlast;
+    
+    // New fields
+    double? cpQuality;
+    String? type; // P1, P2, P3
+    String? propertyPreferences; // Under Construction, Ready to Move In, Resale
+    
+    int? commercial;
+    int? luxury;
+    int? land;
+    int? redevelopment;
+    int? residential;
+    int? retail;
+    int? doesDigitalmarketing;
+    int? aopSigned;
+    int? givesCallingdata;
+    
     String? doctype;
     List<ContactPerson>? contactPersons;
     List<Document>? documents;
     List<ButtonPressedLog>? buttonLogs;
+    List<StationPreference>? stationPreferences;
 
     ChannelPartner({
         this.name,
@@ -53,22 +58,23 @@ class ChannelPartner {
         this.category,
         this.location,
         this.fullAddress,
-        this.isDigital,
-        this.isReference,
-        this.isDataCalling,
-        this.isRetail,
-        this.isUnderConstruction,
-        this.isRental,
-        this.isReadyToMove,
-        this.reqCallingSupport,
-        this.reqDigitalKit,
-        this.reqStandees,
-        this.reqSmsBlast,
-        this.reqWhatsappBlast,
+        this.cpQuality,
+        this.type,
+        this.propertyPreferences,
+        this.commercial,
+        this.luxury,
+        this.land,
+        this.redevelopment,
+        this.residential,
+        this.retail,
+        this.doesDigitalmarketing,
+        this.aopSigned,
+        this.givesCallingdata,
         this.doctype,
         this.contactPersons,
         this.documents,
         this.buttonLogs,
+        this.stationPreferences,
     });
 
     factory ChannelPartner.fromJson(Map<String, dynamic> json) => ChannelPartner(
@@ -87,22 +93,23 @@ class ChannelPartner {
         category: json["category"],
         location: json["location"],
         fullAddress: json["full_address"],
-        isDigital: json["is_digital"],
-        isReference: json["is_reference"],
-        isDataCalling: json["is_data_calling"],
-        isRetail: json["is_retail"],
-        isUnderConstruction: json["is_under_construction"],
-        isRental: json["is_rental"],
-        isReadyToMove: json["is_ready_to_move"],
-        reqCallingSupport: json["req_calling_support"],
-        reqDigitalKit: json["req_digital_kit"],
-        reqStandees: json["req_standees"],
-        reqSmsBlast: json["req_sms_blast"],
-        reqWhatsappBlast: json["req_whatsapp_blast"],
+        cpQuality: json["cp_quality"] == null ? null : double.tryParse(json["cp_quality"].toString()),
+        type: json["type"],
+        propertyPreferences: json["property_preferences"],
+        commercial: json["commercial"],
+        luxury: json["luxury"],
+        land: json["land"],
+        redevelopment: json["redevelopment"],
+        residential: json["residential"],
+        retail: json["retail"],
+        doesDigitalmarketing: json["does_digitalmarketing"],
+        aopSigned: json["aop_signed"],
+        givesCallingdata: json["gives_callingdata"],
         doctype: json["doctype"],
         contactPersons: json["contact_persons"] == null ? [] : List<ContactPerson>.from(json["contact_persons"].map((x) => ContactPerson.fromJson(x))),
         documents: json["documents"] == null ? [] : List<Document>.from(json["documents"].map((x) => Document.fromJson(x))),
         buttonLogs: json["button_logs"] == null ? [] : List<ButtonPressedLog>.from(json["button_logs"].map((x) => ButtonPressedLog.fromJson(x))),
+        stationPreferences: json["station_preferences"] == null ? [] : List<StationPreference>.from(json["station_preferences"].map((x) => StationPreference.fromJson(x))),
     );
 
     Map<String, dynamic> toJson() => {
@@ -121,22 +128,91 @@ class ChannelPartner {
         "category": category,
         "location": location,
         "full_address": fullAddress,
-        "is_digital": isDigital,
-        "is_reference": isReference,
-        "is_data_calling": isDataCalling,
-        "is_retail": isRetail,
-        "is_under_construction": isUnderConstruction,
-        "is_rental": isRental,
-        "is_ready_to_move": isReadyToMove,
-        "req_calling_support": reqCallingSupport,
-        "req_digital_kit": reqDigitalKit,
-        "req_standees": reqStandees,
-        "req_sms_blast": reqSmsBlast,
-        "req_whatsapp_blast": reqWhatsappBlast,
+        "cp_quality": cpQuality,
+        "type": type,
+        "property_preferences": propertyPreferences,
+        "commercial": commercial,
+        "luxury": luxury,
+        "land": land,
+        "redevelopment": redevelopment,
+        "residential": residential,
+        "retail": retail,
+        "does_digitalmarketing": doesDigitalmarketing,
+        "aop_signed": aopSigned,
+        "gives_callingdata": givesCallingdata,
         "doctype": doctype,
         "contact_persons": contactPersons == null ? [] : List<dynamic>.from(contactPersons!.map((x) => x.toJson())),
         "documents": documents == null ? [] : List<dynamic>.from(documents!.map((x) => x.toJson())),
         "button_logs": buttonLogs == null ? [] : List<dynamic>.from(buttonLogs!.map((x) => x.toJson())),
+        "station_preferences": stationPreferences == null ? [] : List<dynamic>.from(stationPreferences!.map((x) => x.toJson())),
+    };
+}
+
+class StationPreference {
+    String? name;
+    String? owner;
+    DateTime? creation;
+    DateTime? modified;
+    String? modifiedBy;
+    int? docstatus;
+    int? idx;
+    String? railwayRoute;
+    String? fromStation;
+    String? toStation;
+    String? parent;
+    String? parentfield;
+    String? parenttype;
+    String? doctype;
+
+    StationPreference({
+        this.name,
+        this.owner,
+        this.creation,
+        this.modified,
+        this.modifiedBy,
+        this.docstatus,
+        this.idx,
+        this.railwayRoute,
+        this.fromStation,
+        this.toStation,
+        this.parent,
+        this.parentfield,
+        this.parenttype,
+        this.doctype,
+    });
+
+    factory StationPreference.fromJson(Map<String, dynamic> json) => StationPreference(
+        name: json["name"],
+        owner: json["owner"],
+        creation: json["creation"] == null ? null : DateTime.parse(json["creation"]),
+        modified: json["modified"] == null ? null : DateTime.parse(json["modified"]),
+        modifiedBy: json["modified_by"],
+        docstatus: json["docstatus"],
+        idx: json["idx"],
+        railwayRoute: json["railway_route"],
+        fromStation: json["from_station"],
+        toStation: json["to_station"],
+        parent: json["parent"],
+        parentfield: json["parentfield"],
+        parenttype: json["parenttype"],
+        doctype: json["doctype"],
+    );
+
+    Map<String, dynamic> toJson() => {
+        "name": name,
+        "owner": owner,
+        "creation": creation?.toIso8601String(),
+        "modified": modified?.toIso8601String(),
+        "modified_by": modifiedBy,
+        "docstatus": docstatus,
+        "idx": idx,
+        "railway_route": railwayRoute,
+        "from_station": fromStation,
+        "to_station": toStation,
+        "parent": parent,
+        "parentfield": parentfield,
+        "parenttype": parenttype,
+        "doctype": doctype,
     };
 }
 

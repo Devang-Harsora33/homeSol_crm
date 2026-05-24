@@ -34,6 +34,8 @@
   "price_range_max",
   "parking_type",
   "configurations",
+  "campaigns_section",
+  "campaign_summary_html",
   "timeline_and_teams_section",
   "launch_date",
   "possession_date",
@@ -381,12 +383,22 @@
    "fieldtype": "Table",
    "label": "Brochure",
    "options": "Project Brochure"
+  },
+  {
+   "fieldname": "campaigns_section",
+   "fieldtype": "Section Break",
+   "label": "Campaigns"
+  },
+  {
+   "fieldname": "campaign_summary_html",
+   "fieldtype": "HTML",
+   "label": "Campaign Summary"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-19 02:51:05.724822",
+ "modified": "2026-05-23 22:25:35.801976",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Property Projects",
@@ -411,5 +423,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "project_name"
+ "title_field": "project_name",
+ "track_changes": 1
 }

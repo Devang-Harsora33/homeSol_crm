@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/channel_partners/channel_partner.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -7,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 // import 'dart:io';
 // import 'dart:convert';
 import '../../services/api_service.dart';
+
+import 'package:flutter/services.dart';
 
 // Reusing styles from LeadCreationPage
 const kAccent = Color(0xFF675D40);
@@ -35,24 +38,29 @@ class ChannelPartnerCreationPage extends StatefulWidget {
       _ChannelPartnerCreationPageState();
 }
 
-class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage> {
+class _ChannelPartnerCreationPageState
+    extends State<ChannelPartnerCreationPage> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, dynamic> _formData = {};
   int _step = 0;
   bool _isLoading = false;
-  bool _isGettingLocation = false;
-  String? _locationError;
-  List<Map<String, String>> _contactPersons = [];
+  List<Map<String, String>> _contactPersons = [
+    {'full_name': '', 'roles': 'Sales', 'mobile': '', 'email': ''},
+  ];
+  List<Map<String, dynamic>> _stationPreferences = [
+    {'railway_route': 'Western', 'from_station': null, 'to_station': null},
+  ];
   List<Map<String, dynamic>> _documents = [];
-  List<String> _territories = [];
-  bool _isFetchingTerritories = true;
+
+  List<Map<String, String>> _railwayStations = [];
+  bool _isFetchingStations = true;
 
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _fetchDropdownData();
+    _fetchStations();
   }
 
   @override
@@ -61,25 +69,24 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
     super.dispose();
   }
 
-  Future<void> _fetchDropdownData() async {
+  Future<void> _fetchStations() async {
     setState(() {
-      _isFetchingTerritories = true;
+      _isFetchingStations = true;
     });
     try {
-      final territories = await LeadService.fetchTerritories();
+      final stations = await ApiService.fetchRailwayStations();
       setState(() {
-        _territories = territories;
-        _isFetchingTerritories = false;
+        _railwayStations = stations;
+        _isFetchingStations = false;
       });
     } catch (e) {
       setState(() {
-        _isFetchingTerritories = false;
+        _isFetchingStations = false;
       });
-      // Optionally show an error message
     }
   }
 
-    Future<void> _submitForm() async {
+  Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -94,12 +101,18 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
       final initialPayload = Map<String, dynamic>.from(_formData);
       initialPayload['contact_persons'] = []; // Send empty for initial creation
       initialPayload['documents'] = []; // Send empty for initial creation
+      initialPayload['station_preferences'] =
+          []; // Send empty for initial creation
+      initialPayload['mobile'] = _formData['mobile_number'];
 
-      final newChannelPartnerName = await ChannelPartnerService.createChannelPartner(initialPayload);
+      final newChannelPartner =
+          await ChannelPartnerService.createChannelPartner(initialPayload);
 
-      if (newChannelPartnerName == null) {
+      if (newChannelPartner == null || newChannelPartner.name == null) {
         throw Exception('Failed to create Channel Partner initially.');
       }
+
+      final newChannelPartnerName = newChannelPartner.name!;
 
       // 2. Upload Documents and prepare final document data
       List<Map<String, dynamic>> finalDocumentsData = [];
@@ -108,9 +121,10 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
         String? uploadedFileUrl;
         if (doc['document_attachment'] != null &&
             doc['document_attachment'] is String &&
-            !(doc['document_attachment'] as String).startsWith('/files/') && // Check if it's a local path
+            !(doc['document_attachment'] as String).startsWith(
+              '/files/',
+            ) && // Check if it's a local path
             !(doc['document_attachment'] as String).startsWith('http')) {
-          
           final filePath = doc['document_attachment'] as String;
           // final file = File(filePath);
           // final fileBytes = await file.readAsBytes();
@@ -130,12 +144,11 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
               _documents[i]['is_uploaded'] = true;
             });
           }
-
         } else {
           // If already a URL or null, keep it as is
           uploadedFileUrl = doc['document_attachment'] as String?;
         }
-        
+
         finalDocumentsData.add({
           "document_name": doc['document_name'],
           "document_attachment": uploadedFileUrl,
@@ -155,36 +168,55 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
         };
       }).toList();
 
-      // 4. Update Channel Partner with full data
+      // 4. Prepare final station preferences data
+      final finalStationPreferencesData = _stationPreferences.map((pref) {
+        return {
+          ...pref,
+          "parent": newChannelPartnerName,
+          "parenttype": "Channel Partner",
+          "parentfield": "station_preferences",
+        };
+      }).toList();
+
+      // 5. Update Channel Partner with full data
       final finalPayload = Map<String, dynamic>.from(_formData);
-      finalPayload['name'] = newChannelPartnerName; // Ensure name is in payload for update
+      finalPayload['name'] =
+          newChannelPartnerName; // Ensure name is in payload for update
       finalPayload['contact_persons'] = finalContactPersonsData;
       finalPayload['documents'] = finalDocumentsData;
+      finalPayload['station_preferences'] = finalStationPreferencesData;
+      finalPayload['mobile'] = _formData['mobile_number'];
 
       print("Final payload: ");
 
-      final updateResponse = await ChannelPartnerService.updateChannelPartner(finalPayload);
+      final updateResponse = await ChannelPartnerService.updateChannelPartner(
+        finalPayload,
+      );
 
-      if (updateResponse) { // Assuming updateChannelPartner returns a boolean
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Channel Partner created and updated successfully!')),
-        );
-        Navigator.of(context).pop();
+      if (updateResponse != null) {
+        // updateChannelPartner now returns ChannelPartner?
+        CustomSnackBar.show(context, message: 'Channel Partner created and updated successfully!');
+        Navigator.of(
+          context,
+        ).pop(true); // Return true to signal success to the caller
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update Channel Partner after creation.')),
+          const SnackBar(
+            content: Text('Failed to update Channel Partner after creation.'),
+          ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred: ')),
-      );
+      print('Error in _submitForm: $e');
+      CustomSnackBar.show(context, message: 'An error occurred: $e', isError: true, title: 'Error');
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
-  }void _scrollToTop() {
+  }
+
+  void _scrollToTop() {
     _scrollController.animateTo(
       0.0,
       duration: const Duration(milliseconds: 300),
@@ -193,7 +225,13 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
   }
 
   Widget _stepHeader() {
-    final steps = ['Basic Info', 'Address', 'Contacts', 'Documents & Flags'];
+    final steps = [
+      'Basic Info',
+      'Address',
+      'Contacts',
+      'Stations',
+      'Docs & Flags',
+    ];
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -237,7 +275,7 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
                 Text(
                   steps[i],
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     color: active ? Colors.black87 : Colors.grey,
                     fontWeight: active ? FontWeight.w600 : FontWeight.normal,
                   ),
@@ -260,6 +298,8 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
       case 2:
         return _buildContactsStep();
       case 3:
+        return _buildStationPreferencesStep();
+      case 4:
         return _buildDocumentsAndFlagsStep();
       default:
         return Center(child: Text("Step ${_step + 1}"));
@@ -270,33 +310,240 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
     return _card([
       Text("Basic Information", style: Theme.of(context).textTheme.titleMedium),
       const Divider(),
-      _text('firm_name', 'Firm Name', (v) => _formData['firm_name'] = v,
-          required: true),
-      _text('email', 'Email', (v) => _formData['email'] = v,
-          required: true,
-          type: TextInputType.emailAddress,
-          validator: (value) {
-            if (value == null || value.isEmpty) return 'Required';
-            final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-            if (!emailRegex.hasMatch(value)) {
-              return 'Enter a valid email address (e.g., name@example.com)';
-            }
-            return null;
-          }),
-      _text('mobile_number', 'Mobile Number', (v) => _formData['mobile_number'] = v,
-          required: true, type: TextInputType.phone),
+      _text(
+        'firm_name',
+        'Firm Name',
+        (v) => _formData['firm_name'] = v,
+        required: true,
+      ),
+      // _text(
+      //   'email',
+      //   'Company Email',
+      //   (v) => _formData['email'] = v,
+      //   required: true,
+      //   type: TextInputType.emailAddress,
+      //   validator: (value) {
+      //     if (value == null || value.isEmpty) return 'Required';
+      //     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      //     if (!emailRegex.hasMatch(value)) {
+      //       return 'Enter a valid email address (e.g., name@example.com)';
+      //     }
+      //     return null;
+      //   },
+      // ),
+      _text(
+        'mobile_number',
+        'Company Phone Number',
+        (v) => _formData['mobile_number'] = v,
+        required: true,
+        type: TextInputType.phone,
+        maxLength: 10,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        validator: (v) {
+          if (v == null || v.isEmpty) return 'Required';
+          if (v.length != 10) return 'Mobile number must be 10 digits';
+          return null;
+        },
+      ),
       _text('rera_number', 'RERA Number', (v) => _formData['rera_number'] = v),
+
+
+      _starRating('CP Quality'),
+      
+
+      _dropdown('type', 'Type', ['P1', 'P2', 'P3'], (v) {
+        setState(() {
+          _formData['type'] = v;
+        });
+      }, required: true),
+      
+      _multiSelect(
+        'property_preferences',
+        'Property Preferences',
+        ['Under Construction', 'Ready to Move In', 'Resale'],
+        (v) {
+          setState(() {
+            _formData['property_preferences'] = v.join(',');
+          });
+        },
+        required: true,
+      ),
+
       _dropdown('category', 'Category', ['Individual', 'Company'], (v) {
         setState(() {
           _formData['category'] = v;
         });
       }, required: true),
-      _dropdown('territory', 'Territory', _territories, (v) {
-        setState(() {
-          _formData['territory'] = v;
-        });
-      }, isLoading: _isFetchingTerritories, required: true),
+      
+      _dropdown(
+        'team_size',
+        'Team Size',
+        ['1 - 5', '5 - 10', '10 - 20', '20 - 50', '50+'],
+        (v) {
+          setState(() {
+            _formData['team_size'] = v;
+          });
+        },
+        required: true,
+      ),
     ]);
+  }
+
+  Widget _starRating(String label) {
+    return FormField<double>(
+      initialValue: (_formData['cp_quality'] as num?)?.toDouble() ?? 0.0,
+      validator: (v) => (v == null || v == 0.0) ? 'Required' : null,
+      builder: (state) {
+        int currentRating = ((state.value ?? 0.0) / 0.2).round();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: state.hasError
+                    ? Colors.red.shade700
+                    : Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(5, (index) {
+                int starValue = index + 1;
+                bool isActive = starValue <= currentRating;
+                return GestureDetector(
+                  onTap: () {
+                    final newVal = starValue * 0.2;
+                    setState(() {
+                      _formData['cp_quality'] = newVal;
+                    });
+                    state.didChange(newVal);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      isActive
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: isActive ? Colors.amber[600] : Colors.grey[300],
+                      size: 32,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            if (state.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  state.errorText!,
+                  style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStationPreferencesStep() {
+    return Column(
+      children: [
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _stationPreferences.length,
+          itemBuilder: (context, index) {
+            final currentRoute = _stationPreferences[index]['railway_route'];
+            final filteredStations =
+                _railwayStations
+                    .where((s) => s['route'] == currentRoute)
+                    .map((s) => s['station_name']!)
+                    .toSet()
+                    .toList() // Remove duplicates if any
+                  ..sort();
+
+            return _card([
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Station Preference ${index + 1}",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.remove_circle_outline,
+                      color: Colors.red,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _stationPreferences.removeAt(index);
+                      });
+                    },
+                  ),
+                ],
+              ),
+              const Divider(),
+              _dynamicDropdown(
+                'Railway Route',
+                ['Western', 'Central', 'Harbour'],
+                currentRoute,
+                (v) {
+                  setState(() {
+                    _stationPreferences[index]['railway_route'] = v;
+                    _stationPreferences[index]['from_station'] = null;
+                    _stationPreferences[index]['to_station'] = null;
+                  });
+                },
+              ),
+              // const SizedBox(height: 16),
+              _stationSelector(
+                'From Station',
+                _stationPreferences[index]['from_station'],
+                filteredStations,
+                (v) {
+                  setState(() {
+                    _stationPreferences[index]['from_station'] = v;
+                  });
+                },
+                isLoading: _isFetchingStations,
+                required: true,
+              ),
+              // const SizedBox(height: 16),
+              _stationSelector(
+                'To Station',
+                _stationPreferences[index]['to_station'],
+                filteredStations,
+                (v) {
+                  setState(() {
+                    _stationPreferences[index]['to_station'] = v;
+                  });
+                },
+                isLoading: _isFetchingStations,
+                required: true,
+              ),
+            ]);
+          },
+        ),
+        ElevatedButton.icon(
+          onPressed: () {
+            setState(() {
+              _stationPreferences.add({
+                'railway_route': 'Western',
+                'from_station': null,
+                'to_station': null,
+              });
+            });
+          },
+          icon: const Icon(Icons.add),
+          label: const Text("Add Station Preference"),
+        ),
+      ],
+    );
   }
 
   Widget _buildContactsStep() {
@@ -311,10 +558,15 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Contact Person ${index + 1}",
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    "Contact Person ${index + 1}",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   IconButton(
-                    icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                    icon: const Icon(
+                      Icons.remove_circle_outline,
+                      color: Colors.red,
+                    ),
                     onPressed: () {
                       setState(() {
                         _contactPersons.removeAt(index);
@@ -324,10 +576,14 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
                 ],
               ),
               const Divider(),
-              _text('full_name_$index', 'Full Name', (v) {},
-                  initialValue: _contactPersons[index]['full_name'],
-                  onChanged: (v) => _contactPersons[index]['full_name'] = v,
-                  required: true),
+              _text(
+                'full_name_$index',
+                'Full Name',
+                (v) {},
+                initialValue: _contactPersons[index]['full_name'],
+                onChanged: (v) => _contactPersons[index]['full_name'] = v,
+                required: true,
+              ),
               _dynamicDropdown(
                 'Roles',
                 ['Manager', 'Owner', 'Sales'],
@@ -338,22 +594,35 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
                   });
                 },
               ),
-              _text('mobile_$index', 'Mobile', (v) {},
-                  initialValue: _contactPersons[index]['mobile'],
-                  onChanged: (v) => _contactPersons[index]['mobile'] = v,
-                  type: TextInputType.phone),
-              _text('email_$index', 'Email', (v) {},
-                  initialValue: _contactPersons[index]['email'],
-                  onChanged: (v) => _contactPersons[index]['email'] = v,
-                  type: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return null;
-                    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                    if (!emailRegex.hasMatch(value)) {
-                      return 'Enter a valid email address';
-                    }
-                    return null;
-                  }),
+              _text(
+                'mobile_$index',
+                'Mobile',
+                (v) {},
+                initialValue: _contactPersons[index]['mobile'],
+                onChanged: (v) => _contactPersons[index]['mobile'] = v,
+                type: TextInputType.phone,
+                maxLength: 10,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                required: true,
+              ),
+              _text(
+                'email_$index',
+                'Email',
+                (v) {},
+                initialValue: _contactPersons[index]['email'],
+                onChanged: (v) => _contactPersons[index]['email'] = v,
+                type: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value == null || value.isEmpty) return null;
+                  final emailRegex = RegExp(
+                    r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                  );
+                  if (!emailRegex.hasMatch(value)) {
+                    return 'Enter a valid email address';
+                  }
+                  return null;
+                },
+              ),
             ]);
           },
         ),
@@ -377,106 +646,54 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
 
   Widget _buildAddressStep() {
     return _card([
-      Text("Address & Location",
-          style: Theme.of(context).textTheme.titleMedium),
+      Text(
+        "Address & Location",
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
       const Divider(),
-      _text('full_address', 'Full Address', (v) => _formData['full_address'] = v,
-          required: true),
+      _text(
+        'full_address',
+        'Full Address',
+        (v) => _formData['full_address'] = v,
+        required: true,
+      ),
       _buildLocationWidget(),
     ]);
   }
 
-  Future<void> _getCurrentLocation() async {
-    setState(() {
-      _isGettingLocation = true;
-      _locationError = null;
-    });
-
-    try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() {
-            _locationError = 'Location permissions are denied';
-            _isGettingLocation = false;
-          });
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        setState(() {
-          _locationError =
-              'Location permissions are permanently denied, we cannot request permissions.';
-          _isGettingLocation = false;
-        });
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition();
-      setState(() {
-        _formData['location'] =
-            '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"point_type":"marker"},"geometry":{"type":"Point","coordinates":[${position.longitude},${position.latitude}]}}]}';
-        _isGettingLocation = false;
-      });
-    } catch (e) {
-      setState(() {
-        _locationError = 'Failed to get location: $e';
-        _isGettingLocation = false;
-      });
-    }
-  }
-  
   Widget _buildLocationWidget() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            ElevatedButton.icon(
-              onPressed: _isGettingLocation ? null : _getCurrentLocation,
-              icon: _isGettingLocation
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.location_on),
-              label: const Text('Get Location'),
-            ),
+            // Button removed as per request
+            const Icon(Icons.location_on, color: Colors.grey),
             const SizedBox(width: 16),
             Expanded(
-              child: (_formData['location'] != null &&
+              child:
+                  (_formData['location'] != null &&
                       _formData['location'].isNotEmpty)
                   ? const Icon(Icons.check_circle_outline, color: Colors.green)
                   : const Text(
-                      'No location set',
+                      'Location required',
                       style: TextStyle(fontSize: 12),
                     ),
             ),
           ],
         ),
-        if (_locationError != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(
-              _locationError!,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-                fontSize: 12,
-              ),
-            ),
-          ),
       ],
     );
   }
 
-    Widget _buildDocumentsAndFlagsStep() {
+  Widget _buildDocumentsAndFlagsStep() {
     return Column(
       children: [
         _card([
-          Text("Documents (currently not working)", style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            "Documents (currently not working)",
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const Divider(),
           ListView.builder(
             shrinkWrap: true,
@@ -504,7 +721,10 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
                       onPressed: () => _pickFile(index),
                     ),
                   IconButton(
-                    icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                    icon: const Icon(
+                      Icons.remove_circle_outline,
+                      color: Colors.red,
+                    ),
                     onPressed: () {
                       setState(() {
                         _documents.removeAt(index);
@@ -530,13 +750,27 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
           ),
         ]),
         _card([
-          Text("Flags", style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            "Property Flags (Select)",
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const Divider(),
           _buildFlags(),
         ]),
+        _card([
+          Text(
+            "Operations & Status",
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const Divider(),
+          _buildOperations(),
+        ]),
+        
       ],
     );
-  }  Future<void> _pickFile(int index) async {
+  }
+
+  Future<void> _pickFile(int index) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     print("Picked file: ${pickedFile?.path}");
@@ -545,82 +779,517 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
         _documents[index]['document_attachment'] = pickedFile.path;
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File picking cancelled.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File picking cancelled.')));
     }
-  }Widget _buildFlags() {
-  final flags = [
-    'is_digital',
-    'is_reference',
-    'is_data_calling',
-    'is_retail',
-    'is_under_construction',
-    'is_rental',
-    'is_ready_to_move',
-    'req_calling_support',
-    'req_digital_kit',
-    'req_standees',
-    'req_sms_blast',
-    'req_whatsapp_blast',
-  ];
+  }
 
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      // Calculate width: (Total width - spacing) / 2 columns
-      final double itemWidth = (constraints.maxWidth - 10) / 2;
+  Widget _buildOperations() {
+    final flags = [
+      {
+        'key': 'does_digitalmarketing',
+        'title': 'Does Digital Marketing',
+        'icon': Icons.campaign_rounded,
+      },
+      {
+        'key': 'aop_signed',
+        'title': 'AOP Signed',
+        'icon': Icons.verified_user_rounded,
+      },
+      {
+        'key': 'gives_callingdata',
+        'title': 'Gives Calling Data',
+        'icon': Icons.contact_phone_rounded,
+      },
+    ];
 
-      return Wrap(
-        spacing: 10, // Horizontal space between columns
-        runSpacing: 10, // Vertical space between rows
-        children: flags.map((flag) {
-          return SizedBox(
-            width: itemWidth, // Forces exactly 2 columns
-            child: CheckboxListTile(
-              // Formatting the text
-              title: Text(
-                flag.replaceAll('_', ' ').split(' ').map((l) => l[0].toUpperCase() + l.substring(1)).join(' '),
-                style: const TextStyle(fontSize: 13), // Slightly smaller text to fit
-                maxLines: 2, // Allow 2 lines if needed
-                overflow: TextOverflow.ellipsis,
-              ),
-              value: _formData[flag] == 1,
-              onChanged: (bool? value) {
+    return Column(
+      children: flags.map((flag) {
+        final key = flag['key'] as String;
+        final title = flag['title'] as String;
+        final icon = flag['icon'] as IconData;
+        final isActive = _formData[key] == 1;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: isActive ? kAccent.withOpacity(0.05) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isActive ? kAccent.withOpacity(0.3) : Colors.grey.shade200,
+              width: isActive ? 1.5 : 1,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
                 setState(() {
-                  _formData[flag] = value == true ? 1 : 0;
+                  _formData[key] = isActive ? 0 : 1;
                 });
               },
-              // UI Compactness settings
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              dense: true, // Removes extra vertical padding
-              visualDensity: VisualDensity.compact, // Removes extra horizontal padding
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? kAccent.withOpacity(0.1)
+                            : Colors.grey.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        color: isActive ? kAccent : Colors.grey.shade500,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: isActive
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: isActive
+                              ? Colors.black87
+                              : Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: isActive,
+                      activeColor: kAccent,
+                      onChanged: (bool value) {
+                        setState(() {
+                          _formData[key] = value ? 1 : 0;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
-          );
-        }).toList(),
-      );
-    },
-  );
-}
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildFlags() {
+    final flags = [
+      {'key': 'commercial', 'icon': Icons.business_center_rounded},
+      {'key': 'luxury', 'icon': Icons.diamond_rounded},
+      {'key': 'land', 'icon': Icons.landscape_rounded},
+      {'key': 'redevelopment', 'icon': Icons.construction_rounded},
+      {'key': 'residential', 'icon': Icons.home_rounded},
+      {'key': 'retail', 'icon': Icons.storefront_rounded},
+    ];
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: flags.map((flag) {
+        final key = flag['key'] as String;
+        final icon = flag['icon'] as IconData;
+        final title = key
+            .replaceAll('_', ' ')
+            .split(' ')
+            .map((l) => l[0].toUpperCase() + l.substring(1))
+            .join(' ');
+        final isSelected = _formData[key] == 1;
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () {
+              setState(() {
+                _formData[key] = isSelected ? 0 : 1;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected ? kAccent : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? kAccent : Colors.grey.shade300,
+                  width: 1,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: kAccent.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: isSelected ? Colors.white : Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
+                      color: isSelected ? Colors.white : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _stationSelector(
+    String label,
+    String? value,
+    List<String> items,
+    Function(String) onSelected, {
+    bool isLoading = false,
+    bool required = false,
+  }) {
+    return FormField<String>(
+      initialValue: value,
+      validator: required
+          ? (_) => (value == null || value.isEmpty) ? 'Required' : null
+          : null,
+      builder: (FormFieldState<String> state) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: isLoading
+                  ? null
+                  : () => _showSearchDialog(label, items, (v) {
+                      onSelected(v);
+                      state.didChange(v);
+                    }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: state.hasError
+                        ? Colors.red.shade700
+                        : Colors.black12,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: TextStyle(
+                              color: state.hasError
+                                  ? Colors.red.shade700
+                                  : Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            value?.isNotEmpty == true
+                                ? value!
+                                : "Select Station",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: value?.isNotEmpty == true
+                                  ? Colors.black87
+                                  : Colors.grey.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isLoading)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: kAccent,
+                        ),
+                      )
+                    else
+                      const Icon(
+                        Icons.arrow_drop_down_rounded,
+                        color: Colors.black45,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (state.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0, left: 16.0),
+                child: Text(
+                  state.errorText!,
+                  style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _dynamicDropdown(
     String label,
     List<String> items,
     String? currentValue,
-    Function(String?) onChanged,
+    Function(String?) onChanged, {
+    bool isLoading = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: currentValue,
+          decoration: kInputDecoration.copyWith(
+            labelText: label,
+            suffixIcon: isLoading
+                ? Transform.scale(
+                    scale: 0.5,
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
+          ),
+          dropdownColor: Colors.white,
+          isExpanded: true,
+          items: items.map((String value) {
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(value, overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
+          onChanged: isLoading ? null : onChanged,
+        ),
+      ],
+    );
+  }
+
+  void _showSearchDialog(
+    String label,
+    List<String> items,
+    Function(String) onSelected,
   ) {
-    return DropdownButtonFormField<String>(
-      value: currentValue,
-      decoration: kInputDecoration.copyWith(
-        labelText: label,
-      ),
-      dropdownColor: Colors.white, // Added this line
-      items: items.map((String value) {
-        return DropdownMenuItem<String>(
-          value: value,
-          child: Text(value),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final filtered = items
+                .where(
+                  (i) =>
+                      i != 'SEARCH_STATION' &&
+                      i.toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList();
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Select $label',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black87,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: Colors.grey[400],
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.grey[100],
+                            padding: const EdgeInsets.all(8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: TextField(
+                        autofocus: true,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Search for a station...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 16,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            color: kAccent,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 15,
+                            horizontal: 20,
+                          ),
+                        ),
+                        onChanged: (v) {
+                          setSheetState(() {
+                            query = v;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off_rounded,
+                                size: 64,
+                                color: Colors.grey[200],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No stations found',
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            itemCount: filtered.length,
+                            separatorBuilder: (context, index) => const Divider(
+                              height: 1,
+                              indent: 60,
+                              endIndent: 16,
+                              color: Color(0xFFF1F1F1),
+                            ),
+                            itemBuilder: (context, index) {
+                              final station = filtered[index];
+                              return ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                leading: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: kAccent.withOpacity(0.05),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.train_rounded,
+                                    color: kAccent,
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  station,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                trailing: Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Colors.grey[300],
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                onTap: () {
+                                  onSelected(station);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
-      }).toList(),
-      onChanged: onChanged,
+      },
     );
   }
 
@@ -664,22 +1333,33 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
     Function(String)? onChanged,
     String? initialValue,
     String? Function(String?)? validator,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextFormField(
       key: ValueKey(keyName),
       controller: controller,
-      initialValue: initialValue ?? (controller == null ? _formData[keyName]?.toString() : null),
+      initialValue:
+          initialValue ??
+          (controller == null ? _formData[keyName]?.toString() : null),
       keyboardType: type,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
       style: const TextStyle(fontWeight: FontWeight.w500),
       decoration: kInputDecoration.copyWith(
         labelText: label,
         labelStyle: TextStyle(color: Colors.grey.shade600),
+        counterText: "", // Hide the counter UI
       ),
-      validator: validator ?? (required ? (v) => v!.isEmpty ? 'Required' : null : null),
+      validator:
+          validator ??
+          (required ? (v) => v!.isEmpty ? 'Required' : null : null),
       onSaved: onSave,
-      onChanged: onChanged ?? (val) {
-        if (controller == null) _formData[keyName] = val;
-      },
+      onChanged:
+          onChanged ??
+          (val) {
+            if (controller == null) _formData[keyName] = val;
+          },
     );
   }
 
@@ -715,9 +1395,88 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
           ),
         );
       }).toList(),
-      validator: required ? (v) => (v == null || v.isEmpty) ? 'Required' : null : null,
+      validator: required
+          ? (v) => (v == null || v.isEmpty) ? 'Required' : null
+          : null,
       onChanged: isLoading ? null : onChange,
       onSaved: onChange,
+    );
+  }
+
+  Widget _multiSelect(
+    String keyName,
+    String label,
+    List<String> items,
+    Function(List<String>) onChange, {
+    bool required = false,
+  }) {
+    List<String> selectedItems =
+        (_formData[keyName] as String?)
+            ?.split(',')
+            .where((e) => e.trim().isNotEmpty)
+            .toList() ??
+        [];
+
+    return FormField<List<String>>(
+      initialValue: selectedItems,
+      validator:
+          required ? (v) => (v == null || v.isEmpty) ? 'Required' : null : null,
+      builder: (state) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color:
+                    state.hasError ? Colors.red.shade700 : Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 0,
+              children: items.map((item) {
+                final isSelected = selectedItems.contains(item);
+                return FilterChip(
+                  label: Text(
+                    item,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedColor: Theme.of(context).primaryColor,
+                  checkmarkColor: Colors.white,
+                  onSelected: (bool selected) {
+                    if (selected) {
+                      if (!selectedItems.contains(item)) {
+                        selectedItems.add(item);
+                      }
+                    } else {
+                      selectedItems.remove(item);
+                    }
+                    state.didChange(selectedItems);
+                    onChange(selectedItems);
+                  },
+                );
+              }).toList(),
+            ),
+            if (state.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  state.errorText!,
+                  style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -783,54 +1542,80 @@ class _ChannelPartnerCreationPageState extends State<ChannelPartnerCreationPage>
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: _isLoading ? null : () {
-                  if (_formKey.currentState!.validate()) {
-                    _formKey.currentState!.save();
-                    
-                    // Custom validation for specific steps
-                    if (_step == 2) { // Contacts step
-                      if (_contactPersons.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please add at least one contact person.')),
-                        );
-                        return;
-                      }
-                    }
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        if (_formKey.currentState!.validate()) {
+                          _formKey.currentState!.save();
 
-                    if (_step == 3) { // Documents & Flags step
-                      final flags = [
-                        'is_digital', 'is_reference', 'is_data_calling', 'is_retail',
-                        'is_under_construction', 'is_rental', 'is_ready_to_move',
-                        'req_calling_support', 'req_digital_kit', 'req_standees',
-                        'req_sms_blast', 'req_whatsapp_blast',
-                      ];
-                      bool anyFlag = flags.any((flag) => _formData[flag] == 1);
-                      if (!anyFlag) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please select at least one flag.')),
-                        );
-                        return;
-                      }
-                    }
+                          // Custom validation for specific steps
+                          if (_step == 2) {
+                            // Contacts step
+                            if (_contactPersons.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Please add at least one contact person.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                          }
 
-                    if (_step < 3) {
-                      setState(() => _step++);
-                      _scrollToTop();
-                    } else {
-                      _submitForm();
-                    }
-                  }
-                },
-                child: _isLoading 
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : Text(
-                  _step < 3 ? 'Next' : 'Submit',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                          if (_step == 4) {
+                            // Documents & Flags step
+                            final flags = [
+                              'commercial',
+                              'luxury',
+                              'land',
+                              'redevelopment',
+                              'residential',
+                              'retail',
+                              'does_digitalmarketing',
+                              'aop_signed',
+                              'gives_callingdata',
+                            ];
+                            bool anyFlag = flags.any(
+                              (flag) => _formData[flag] == 1,
+                            );
+                            if (!anyFlag) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Please select at least one flag.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                          }
+
+                          if (_step < 4) {
+                            setState(() => _step++);
+                            _scrollToTop();
+                          } else {
+                            _submitForm();
+                          }
+                        }
+                      },
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        _step < 4 ? 'Next' : 'Submit',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],

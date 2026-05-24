@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:whatsapp_share2/whatsapp_share2.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path/path.dart' as path;
@@ -30,6 +29,8 @@ class ProjectShareBottomSheet extends StatefulWidget {
 }
 
 class _ProjectShareBottomSheetState extends State<ProjectShareBottomSheet> {
+  static const platform = MethodChannel('com.homesolindia.crm/whatsapp_share');
+  bool _isLoading = true;
   bool _isDownloading = false;
   String _currentUserEmail = 'test@homesolindia.com';
   String _currentUserName = 'HomeSol Agent';
@@ -140,6 +141,21 @@ class _ProjectShareBottomSheetState extends State<ProjectShareBottomSheet> {
     return buffer.toString().trim();
   }
 
+  Future<void> _directWhatsAppMultiShare(String phone, List<String> filePaths, String text) async {
+    try {
+      await platform.invokeMethod('shareMultipleFiles', {
+        'phoneNumber': phone,
+        'filePaths': filePaths,
+        'text': text,
+      });
+    } on PlatformException catch (e) {
+      debugPrint("Native Multi-Share failed: ${e.message}");
+      // Fallback to native share sheet
+      final files = filePaths.map((p) => XFile(p)).toList();
+      await Share.shareXFiles(files, text: text);
+    }
+  }
+
   Future<void> _shareSelected() async {
     setState(() => _isDownloading = true);
     List<XFile> filesToShare = [];
@@ -204,59 +220,55 @@ class _ProjectShareBottomSheetState extends State<ProjectShareBottomSheet> {
 
       if (filesToShare.isEmpty && textToShare.isEmpty) {
         if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select something to share.')));
+           CustomSnackBar.show(context, message: 'Please select something to share.', isError: false, title: 'Notice');
         }
         return;
       }
 
       // 3. Format phone
-      String phone = widget.lead.whatsappNo?.trim() ?? widget.lead.customerPhone.trim();
-      phone = phone.replaceAll(RegExp(r'[^0-9]'), '');
-      if (phone.length == 10) {
-        phone = '91$phone';
+      String phone = (widget.lead.whatsappNo?.isNotEmpty == true) 
+          ? widget.lead.whatsappNo! 
+          : widget.lead.customerPhone;
+      
+      phone = phone.trim().replaceAll(RegExp(r'[^0-9]'), '');
+      if (phone.startsWith('0')) phone = phone.substring(1);
+      if (phone.length == 10) phone = '91$phone';
+
+      // 4. Execute Sharing
+      if (phone.isNotEmpty) {
+        try {
+          // Direct Multi-File Sharing (Native Bypass)
+          if (filesToShare.isNotEmpty) {
+             debugPrint("Invoking Native Multi-Share for: $phone");
+             final paths = filesToShare.map((f) => f.path).toList();
+             final caption = textToShare.isNotEmpty ? textToShare : "Project Documents";
+             await _directWhatsAppMultiShare(phone, paths, caption);
+             return;
+          } 
+          
+          // Text-only Sharing
+          else if (textToShare.isNotEmpty) {
+            final whatsappUrl = Uri.parse("https://wa.me/$phone?text=${Uri.encodeComponent(textToShare)}");
+            if (await canLaunchUrl(whatsappUrl)) {
+              await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+              return;
+            }
+          }
+        } catch (e) {
+          debugPrint("Direct WhatsApp sharing failed: $e");
+        }
       }
 
-      // 4. Execute Sequential Sharing
-      if (phone.isNotEmpty) {
-        // Step A: Send Text Directly to WhatsApp first (if exists)
-        if (textToShare.isNotEmpty) {
-          debugPrint("Directly sending text to WhatsApp: $phone");
-          await WhatsappShare.share(phone: phone, text: textToShare);
-          
-          // If we also have files, give WhatsApp a moment to open before showing the file share sheet
-          if (filesToShare.isNotEmpty) {
-            await Future.delayed(const Duration(milliseconds: 1500));
-          }
-        }
-
-        // Step B: Send Files via Native Share Sheet (Most reliable for docs/images)
-        if (filesToShare.isNotEmpty) {
-          debugPrint("Opening Native Share Sheet for ${filesToShare.length} files");
-          if (mounted) {
-             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-               content: Text('Please select WhatsApp to share documents'),
-               duration: Duration(seconds: 4),
-             ));
-          }
-          
-          await Share.shareXFiles(
-            filesToShare,
-            // We don't repeat the text here because it's already sent, 
-            // and multiple files often drop the text anyway.
-          );
-        }
-      } else {
-        // If no phone, just use the system share sheet for everything
-        if (filesToShare.isNotEmpty) {
-          await Share.shareXFiles(filesToShare, text: textToShare.isNotEmpty ? textToShare : null);
-        } else if (textToShare.isNotEmpty) {
-          await Share.share(textToShare);
-        }
+      // 5. Fallback: Use System Native Share Sheet
+      if (filesToShare.isNotEmpty) {
+        await Share.shareXFiles(filesToShare, text: textToShare.isNotEmpty ? textToShare : null);
+      } else if (textToShare.isNotEmpty) {
+        await Share.share(textToShare);
       }
     } catch (e) {
       debugPrint("Sharing error: $e");
       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error sharing: $e')));
+         CustomSnackBar.show(context, message: 'Error sharing: $e', isError: true, title: 'Error');
       }
     } finally {
       if (mounted) {
@@ -268,9 +280,9 @@ class _ProjectShareBottomSheetState extends State<ProjectShareBottomSheet> {
   void _copyGeneralInfo() {
     if (_includeGeneralInfo) {
       Clipboard.setData(ClipboardData(text: _generateGeneralInfo()));
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied to clipboard!')));
+      CustomSnackBar.show(context, message: 'Copied to clipboard!', isError: false, title: 'Notice');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('General Information is not selected.')));
+      CustomSnackBar.show(context, message: 'General Information is not selected.', isError: false, title: 'Notice');
     }
   }
 

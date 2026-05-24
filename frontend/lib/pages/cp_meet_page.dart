@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/story.dart';
 import '../services/api_service.dart';
@@ -77,12 +78,7 @@ class _CPMeetPageState extends State<CPMeetPage> {
 
   Future<void> _registerForMeet(Story meetSchedule) async {
     if (currentBrokerId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please log in to register for the meet'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      CustomSnackBar.show(context, message: 'Please log in to register for the meet', isError: false, title: 'Notice');
       return;
     }
 
@@ -100,22 +96,12 @@ class _CPMeetPageState extends State<CPMeetPage> {
         setState(() {
           isRegistered = true;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Successfully registered for the meet!'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Successfully registered for the meet!', isError: false, title: 'Notice');
         // Refresh the meet schedules to get updated registration data
         _fetchMeetSchedules();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to register: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      CustomSnackBar.show(context, message: 'Failed to register: ${e.toString()}', isError: true, title: 'Error');
     } finally {
       setState(() {
         isRegistering = false;
@@ -140,22 +126,12 @@ class _CPMeetPageState extends State<CPMeetPage> {
         setState(() {
           isRegistered = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Successfully unregistered from the meet'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Successfully unregistered from the meet', isError: false, title: 'Notice');
         // Refresh the meet schedules to get updated registration data
         _fetchMeetSchedules();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to unregister: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      CustomSnackBar.show(context, message: 'Failed to unregister: ${e.toString()}', isError: true, title: 'Error');
     } finally {
       setState(() {
         isRegistering = false;
@@ -705,12 +681,7 @@ class _ActionButtons extends StatelessWidget {
 
   void _handleShareAction(BuildContext context) {
     // TODO: Implement share functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Share functionality coming soon!'),
-        backgroundColor: Colors.blue,
-      ),
-    );
+    CustomSnackBar.show(context, message: 'Share functionality coming soon!', isError: false, title: 'Notice');
   }
 
   Widget _getRegisterIcon(BuildContext context) {
@@ -1109,12 +1080,7 @@ class _MeetScheduleCard extends StatelessWidget {
   }
 
   void _handleCardShareAction(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Share functionality coming soon!'),
-        backgroundColor: Colors.blue,
-      ),
-    );
+    CustomSnackBar.show(context, message: 'Share functionality coming soon!', isError: false, title: 'Notice');
   }
 
   Widget _getCardRegisterIcon(BuildContext context, Story meetSchedule) {
@@ -1239,12 +1205,7 @@ class _MeetDetailPageState extends State<_MeetDetailPage> {
 
   Future<void> _registerForMeet() async {
     if (currentBrokerId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please log in to register for the meet'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      CustomSnackBar.show(context, message: 'Please log in to register for the meet', isError: false, title: 'Notice');
       return;
     }
 
@@ -1262,20 +1223,10 @@ class _MeetDetailPageState extends State<_MeetDetailPage> {
         setState(() {
           isRegistered = true;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Successfully registered for the meet!'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Successfully registered for the meet!', isError: false, title: 'Notice');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to register: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      CustomSnackBar.show(context, message: 'Failed to register: ${e.toString()}', isError: true, title: 'Error');
     } finally {
       setState(() {
         isRegistering = false;
@@ -1300,20 +1251,10 @@ class _MeetDetailPageState extends State<_MeetDetailPage> {
         setState(() {
           isRegistered = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Successfully unregistered from the meet'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Successfully unregistered from the meet', isError: false, title: 'Notice');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to unregister: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      CustomSnackBar.show(context, message: 'Failed to unregister: ${e.toString()}', isError: true, title: 'Error');
     } finally {
       setState(() {
         isRegistering = false;

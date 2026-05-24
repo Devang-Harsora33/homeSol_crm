@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'firebase_options.dart';
-// import 'services/notification_service.dart';
+import 'services/notification_service.dart';
 import 'services/analytics_service.dart';
 import 'main_navigation.dart';
 import 'services/theme_service.dart';
@@ -21,7 +21,7 @@ void main() async {
   HttpOverrides.global = _DevHttpOverrides();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  // await NotificationService.instance.initialize();
+  await NotificationService.instance.initialize();
   await ThemeService.instance.load();
 
   // Initialize Firebase Analytics
@@ -29,7 +29,10 @@ void main() async {
   await analytics.setAnalyticsCollectionEnabled(true);
   AnalyticsService.instance.initialize(analytics);
 
-  runApp(MyApp(analytics: analytics));
+  runApp(
+    MyApp(analytics: analytics)
+    
+    );
 }
 
 class MyApp extends StatelessWidget {

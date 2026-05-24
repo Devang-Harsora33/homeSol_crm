@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/models/sourcing.dart';
 import 'package:Homesol/models/channel_partner.dart';
 import 'package:Homesol/services/apis/sourcing/sourcing_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
+import 'package:Homesol/models/project.dart';
 import 'package:Homesol/services/apis/channel_partners/channel_partner.dart';
 import 'package:Homesol/services/auth_service.dart';
 import 'sourcing_create_page.dart';
@@ -11,6 +13,10 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math' as math;
 import 'dart:convert';
+import 'dart:async';
+import 'package:Homesol/services/notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 class SourcingListPage extends StatefulWidget {
   final String? developerId;
@@ -43,15 +49,52 @@ class _SourcingListPageState extends State<SourcingListPage> {
   List<Sourcing> _allSources = [];
   Map<String, Map<String, double>> _projectLocations = {};
   List<ChannelPartner> _channelPartners = [];
+  Map<String, String> _projectNames = {};
   String? _currentUserDesignation;
+  Map<String, DateTime> _activeTimers = {};
 
   int _selectedDays = 15;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _load(forceRefresh: true);
     _fetchProfile();
+    _loadPersistedTimers();
+  }
+
+  Future<void> _loadPersistedTimers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? timersJson = prefs.getString('active_sourcing_timers');
+      if (timersJson != null) {
+        final Map<String, dynamic> decoded = jsonDecode(timersJson);
+        final Map<String, DateTime> restored = {};
+        decoded.forEach((key, value) {
+          restored[key] = DateTime.parse(value as String);
+        });
+        if (mounted) {
+          setState(() {
+            _activeTimers = restored;
+          });
+        }
+      }
+    } catch (e) {
+      print('Failed to load persisted timers: $e');
+    }
+  }
+
+  Future<void> _saveTimers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final Map<String, String> encoded = {};
+      _activeTimers.forEach((key, value) {
+        encoded[key] = value.toIso8601String();
+      });
+      await prefs.setString('active_sourcing_timers', jsonEncode(encoded));
+    } catch (e) {
+      print('Failed to save timers: $e');
+    }
   }
 
   Future<void> _fetchProfile() async {
@@ -81,11 +124,13 @@ class _SourcingListPageState extends State<SourcingListPage> {
         sourcingFuture,
         ProjectService.fetchProjectLocations(),
         ChannelPartnerService.fetchAllChannelPartners(forceRefresh: forceRefresh),
+        ProjectService.fetchApiProjects(forceRefresh: forceRefresh),
       ]);
       
       final sources = results[0] as List<Sourcing>;
       final projectLocs = results[1] as List<Map<String, dynamic>>;
       final partners = results[2] as List<ChannelPartner>;
+      final apiProjects = results[3] as List<Map<String, String>>;
       
       final Map<String, Map<String, double>> locMap = {};
       for (var loc in projectLocs) {
@@ -97,10 +142,18 @@ class _SourcingListPageState extends State<SourcingListPage> {
         }
       }
 
+      final Map<String, String> pNames = {};
+      for (var p in apiProjects) {
+        if (p['id'] != null) {
+          pNames[p['id']!] = p['name'] ?? p['id']!;
+        }
+      }
+
       setState(() {
         _allSources = sources;
         _projectLocations = locMap;
         _channelPartners = partners;
+        _projectNames = pNames;
         _future = Future.value(sources);
       });
     } catch (e) {
@@ -751,7 +804,7 @@ class _SourcingListPageState extends State<SourcingListPage> {
                 MaterialPageRoute(builder: (context) => SourcingDetailPage(sourcing: source)),
               );
               if (result == true) {
-                _load();
+                _load(forceRefresh: true);
               }
             },
             child: IntrinsicHeight(
@@ -825,34 +878,58 @@ class _SourcingListPageState extends State<SourcingListPage> {
                             children: [
                               Icon(Icons.person_outline, size: 14, color: Colors.grey.shade500),
                               const SizedBox(width: 6),
-                              Text(
-                                source.contactPersonMet ?? 'No Contact Person',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Icon(Icons.email_outlined, size: 14, color: Colors.grey.shade500),
-                              const SizedBox(width: 6),
-                              Text(
-                                source.salesPartner ?? 'No Sales Partner',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
+                              Expanded(
+                                child: Text(
+                                  source.contactPersonMet ?? 'No Contact Person',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
-                            
-                            
                           ),
-                          const SizedBox(height: 16),
-                          
-                          // Divider
-                          Divider(height: 1, color: Colors.grey.shade200),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.email_outlined, size: 14, color: Colors.grey.shade500),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  source.salesPartner ?? 'No Sales Partner',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 12),
+                          
+                          // Additional Data
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              if (source.visitType != null && source.visitType!.isNotEmpty)
+                                _buildInfoChip(Icons.category_outlined, source.visitType!),
+                              if (source.cpInterest != null && source.cpInterest!.isNotEmpty)
+                                _buildInfoChip(Icons.favorite_outline, source.cpInterest!),
+                              if (source.interestedProject != null && source.interestedProject!.isNotEmpty)
+                                _buildInfoChip(Icons.apartment_rounded, _projectNames[source.interestedProject!] ?? source.interestedProject!),
+                              if (source.visitDuration != null && source.visitDuration!.isNotEmpty)
+                                _buildInfoChip(Icons.timer_outlined, source.visitDuration!),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 16),
                           
                           // Footer: Date & Status
                           Row(
@@ -877,6 +954,142 @@ class _SourcingListPageState extends State<SourcingListPage> {
                               _buildVisitStatusBadge(source.visitStatus ?? '', statusColor),
                             ],
                           ),
+                          
+                          Builder(
+                            builder: (context) {
+                              bool isToday = false;
+                              if (source.visitDate != null) {
+                                try {
+                                  final visitDate = DateTime.parse(source.visitDate!);
+                                  final now = DateTime.now();
+                                  isToday = visitDate.year == now.year && visitDate.month == now.month && visitDate.day == now.day;
+                                } catch (_) {}
+                              }
+                              
+                              if (!isToday) return const SizedBox.shrink();
+                              
+                              final bool hasDuration = source.visitDuration != null && source.visitDuration!.isNotEmpty;
+                              
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: Row(
+                                  children: [
+                                    if (!hasDuration) ...[
+                                      Expanded(
+                                        child: _LiveTimerButton(
+                                          source: source,
+                                          startTime: _activeTimers[source.name],
+                                          onStart: () {
+                                            setState(() {
+                                              _activeTimers[source.name!] = DateTime.now();
+                                            });
+                                            _saveTimers();
+                                            CustomSnackBar.show(context, message: 'Timer started for ${_getFirmName(source.salesPartner)}', isError: false, title: 'Notice');
+
+                                            // System push notification (for when app is killed - real device)
+                                            final int notificationId = source.name.hashCode;
+                                            final String firmName = _getFirmName(source.salesPartner);
+                                            NotificationService.instance.scheduleTimerNotification(
+                                              notificationId,
+                                              'Meeting Ongoing',
+                                              'It\'s been 30s with $firmName.',
+                                              const Duration(seconds: 30),
+                                            );
+
+                                            // Backup: Future.delayed + immediate show (works on emulator + backgrounded app)
+                                            Future.delayed(const Duration(seconds: 30), () {
+                                              if (_activeTimers.containsKey(source.name)) {
+                                                NotificationService.instance.showImmediateNotification(
+                                                  notificationId,
+                                                  'Meeting Ongoing',
+                                                  'It\'s been 30s with $firmName.',
+                                                );
+                                              }
+                                            });
+
+                                            // 30 second in-app reminder
+                                            Future.delayed(const Duration(seconds: 30), () {
+                                              if (mounted && _activeTimers.containsKey(source.name)) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    elevation: 8,
+                                                    margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+                                                    padding: const EdgeInsets.all(16),
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                                    backgroundColor: matteBlack,
+                                                    behavior: SnackBarBehavior.floating,
+                                                    duration: const Duration(seconds: 6),
+                                                    content: Row(
+                                                      children: [
+                                                        Container(
+                                                          padding: const EdgeInsets.all(10),
+                                                          decoration: BoxDecoration(
+                                                            color: goldAccent.withOpacity(0.15),
+                                                            shape: BoxShape.circle,
+                                                          ),
+                                                          child: const Icon(Icons.timer_rounded, color: goldAccent, size: 24),
+                                                        ),
+                                                        const SizedBox(width: 16),
+                                                        Expanded(
+                                                          child: Column(
+                                                            mainAxisSize: MainAxisSize.min,
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                              const Text(
+                                                                'Meeting Ongoing',
+                                                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                                              ),
+                                                              const SizedBox(height: 4),
+                                                              Text(
+                                                                'It\'s been 30s with ${_getFirmName(source.salesPartner)}.',
+                                                                style: TextStyle(color: Colors.grey[300], fontSize: 13),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            });
+
+                                          },
+                                          onStop: (int minutes) async {
+                                            setState(() {
+                                              _activeTimers.remove(source.name);
+                                              source.visitDuration = '$minutes mins';
+                                            });
+                                            _saveTimers();
+                                            
+                                            // Cancel the notification if stopped early
+                                            NotificationService.instance.cancelNotification(source.name.hashCode);
+
+                                            
+                                            try {
+                                              await SourcingService.updateSourcingFields(source.name!, {
+                                                'visit_duration': '$minutes mins',
+                                              });
+                                              // Automatically submit the sourcing
+                                              await SourcingService.updateDocStatus(source.name!, 1);
+                                              
+                                              if (mounted) {
+                                                _showAutoOpenBottomSheet(source, minutes);
+                                              }
+                                            } catch (e) {
+                                              debugPrint('Error saving duration: $e');
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                    ],
+                                    Expanded(child: _buildQuestionnaireButton(source)),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -900,6 +1113,32 @@ class _SourcingListPageState extends State<SourcingListPage> {
       case 'Revisit Scheduled': return const Color(0xFFAF52DE); // iOS Purple
       default: return const Color(0xFF8E8E93); // iOS Gray
     }
+  }
+
+  Widget _buildInfoChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: kBackgroundColor,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey.shade600),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDocStatusBadge(int status) {
@@ -960,6 +1199,505 @@ class _SourcingListPageState extends State<SourcingListPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildQuestionnaireButton(Sourcing source) {
+    return InkWell(
+      onTap: () => _showQuestionnairePopup(source),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: matteBlack,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.assignment_outlined, size: 16, color: Colors.white),
+            const SizedBox(width: 6),
+            const Text(
+              'Questions',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _calculateDurationString(int minutes) {
+    if (minutes < 60) return '$minutes mins';
+    final hours = minutes ~/ 60;
+    final remainingMins = minutes % 60;
+    if (remainingMins == 0) {
+      return '$hours Hour${hours > 1 ? 's' : ''}';
+    }
+    return '$hours Hour${hours > 1 ? 's' : ''} and $remainingMins mins';
+  }
+
+  Future<void> _showAutoOpenBottomSheet(Sourcing source, int minutes) async {
+    bool cancelled = false;
+    bool isFinished = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (BuildContext bContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 5.0, end: 0.0),
+              duration: const Duration(seconds: 5),
+              onEnd: () {
+                if (!cancelled) {
+                  isFinished = true;
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context); // Close the bottom sheet
+                  }
+                  _showQuestionnairePopup(source, minutes); // Open the questionnaire
+                }
+              },
+              builder: (context, value, child) {
+                return Container(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Icon(Icons.timer_outlined, size: 48, color: goldAccent),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Timer Stopped!',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: matteBlack,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Duration recorded as ${_calculateDurationString(minutes)}.',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Opening Questionnaire in ${value.ceil()}s...',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: goldAccent,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      LinearProgressIndicator(
+                        value: value / 5.0,
+                        backgroundColor: Colors.grey[200],
+                        valueColor: const AlwaysStoppedAnimation<Color>(goldAccent),
+                        borderRadius: BorderRadius.circular(8),
+                        minHeight: 8,
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            cancelled = true;
+                            Navigator.pop(context);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey[700],
+                            side: BorderSide(color: Colors.grey[300]!),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'CANCEL',
+                            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    ).then((_) {
+      if (!cancelled && !isFinished) {
+        // User dismissed by swiping down or tapping outside before timer ended
+        cancelled = true;
+      }
+    });
+  }
+
+  void _showQuestionnairePopup(Sourcing source, [int? calculatedMinutes]) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _QuestionnairePopup(
+        source: source,
+        initialCalculatedMinutes: calculatedMinutes,
+        durationStringGenerator: _calculateDurationString,
+        onSaved: () => _load(forceRefresh: true),
+      ),
+    );
+  }
+}
+
+class _QuestionnairePopup extends StatefulWidget {
+  final Sourcing source;
+  final int? initialCalculatedMinutes;
+  final String Function(int) durationStringGenerator;
+  final VoidCallback onSaved;
+
+  const _QuestionnairePopup({
+    required this.source,
+    this.initialCalculatedMinutes,
+    required this.durationStringGenerator,
+    required this.onSaved,
+  });
+
+  @override
+  State<_QuestionnairePopup> createState() => _QuestionnairePopupState();
+}
+
+class _QuestionnairePopupState extends State<_QuestionnairePopup> {
+  bool _isLoading = false;
+  
+  late bool _offeredCoffee;
+  late bool _metTheOwner;
+  late bool _askedAboutPriceTrends;
+  late bool _consideringRedevelopment;
+  late bool _concernedAboutInterestRates;
+  late bool _comparedMicroMarkets;
+  late bool _strictlyReraRegistered;
+  
+  String? _finalDurationStr;
+
+  @override
+  void initState() {
+    super.initState();
+    _offeredCoffee = widget.source.offeredCoffee == 1;
+    _metTheOwner = widget.source.metTheOwner == 1;
+    _askedAboutPriceTrends = widget.source.askedAboutPriceTrends == 1;
+    _consideringRedevelopment = widget.source.consideringRedevelopment == 1;
+    _concernedAboutInterestRates = widget.source.concernedAboutInterestRates == 1;
+    _comparedMicroMarkets = widget.source.comparedMicroMarkets == 1;
+    _strictlyReraRegistered = widget.source.strictlyReraRegistered == 1;
+    
+    if (widget.initialCalculatedMinutes != null) {
+      _finalDurationStr = widget.durationStringGenerator(widget.initialCalculatedMinutes!);
+    } else {
+      _finalDurationStr = widget.source.visitDuration;
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final fieldsToUpdate = {
+        'visit_duration': _finalDurationStr,
+        'offered_coffee': _offeredCoffee ? 1 : 0,
+        'met_the_owner': _metTheOwner ? 1 : 0,
+        'asked_about_price_trends': _askedAboutPriceTrends ? 1 : 0,
+        'considering_redevelopment': _consideringRedevelopment ? 1 : 0,
+        'concerned_about_interest_rates': _concernedAboutInterestRates ? 1 : 0,
+        'compared_micro_markets': _comparedMicroMarkets ? 1 : 0,
+        'strictly_rera_registered': _strictlyReraRegistered ? 1 : 0,
+      };
+
+      final result = await SourcingService.updateSourcingFields(widget.source.name!, fieldsToUpdate);
+      if (result && mounted) {
+        Navigator.pop(context);
+        widget.onSaved();
+        CustomSnackBar.show(context, message: 'Details saved successfully', isError: false, title: 'Notice');
+      } else if (!result && mounted) {
+        throw Exception("Failed to update on server");
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackBar.show(context, message: 'Error saving: $e', isError: true, title: 'Error');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildSwitchRow(String title, bool value, ValueChanged<bool> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: matteBlack),
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+            activeColor: goldAccent,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    
+    return Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(4)),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Sourcing Details',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: matteBlack, letterSpacing: -0.5),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.grey),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_finalDurationStr != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: kBackgroundColor,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Visit Duration', style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 4),
+                            Text(_finalDurationStr!, style: const TextStyle(fontSize: 18, color: goldAccent, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    
+                    const Text('Questionnaire', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: matteBlack)),
+                    const SizedBox(height: 12),
+                    
+                    _buildSwitchRow('Did he offer coffee?', _offeredCoffee, (v) => setState(() => _offeredCoffee = v)),
+                    _buildSwitchRow('Did you meet the owner?', _metTheOwner, (v) => setState(() => _metTheOwner = v)),
+                    _buildSwitchRow('Did the client ask about recent price trends in the area?', _askedAboutPriceTrends, (v) => setState(() => _askedAboutPriceTrends = v)),
+                    _buildSwitchRow('Is the client considering redevelopment properties?', _consideringRedevelopment, (v) => setState(() => _consideringRedevelopment = v)),
+                    _buildSwitchRow('Are they concerned about current home loan interest rates?', _concernedAboutInterestRates, (v) => setState(() => _concernedAboutInterestRates = v)),
+                    _buildSwitchRow('Did they compare this locality to a neighboring micro-market?', _comparedMicroMarkets, (v) => setState(() => _comparedMicroMarkets = v)),
+                    _buildSwitchRow('Is the client strictly looking for RERA-registered projects?', _strictlyReraRegistered, (v) => setState(() => _strictlyReraRegistered = v)),
+                    
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Bottom Save Button
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _save,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: goldAccent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Save Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveTimerButton extends StatefulWidget {
+  final Sourcing source;
+  final DateTime? startTime;
+  final VoidCallback onStart;
+  final Function(int) onStop;
+
+  const _LiveTimerButton({
+    required this.source,
+    this.startTime,
+    required this.onStart,
+    required this.onStop,
+  });
+
+  @override
+  State<_LiveTimerButton> createState() => _LiveTimerButtonState();
+}
+
+class _LiveTimerButtonState extends State<_LiveTimerButton> {
+  Timer? _timer;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startTime != null) {
+      _startTicking();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_LiveTimerButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.startTime != oldWidget.startTime) {
+      if (widget.startTime != null) {
+        _startTicking();
+      } else {
+        _timer?.cancel();
+      }
+    }
+  }
+
+  void _startTicking() {
+    _updateDuration();
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        _updateDuration();
+      }
+    });
+  }
+
+  void _updateDuration() {
+    if (widget.startTime != null) {
+      setState(() {
+        _duration = DateTime.now().difference(widget.startTime!);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    if (duration.inHours > 0) {
+      return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+    }
+    return "$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isRunning = widget.startTime != null;
+
+    return InkWell(
+      onTap: () {
+        if (isRunning) {
+          final minutes = _duration.inMinutes > 0 ? _duration.inMinutes : 1;
+          widget.onStop(minutes);
+        } else {
+          widget.onStart();
+        }
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isRunning ? const Color(0xFFFF3B30).withOpacity(0.1) : const Color(0xFF675D40).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isRunning ? const Color(0xFFFF3B30).withOpacity(0.2) : const Color(0xFF675D40).withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
+              size: 18,
+              color: isRunning ? const Color(0xFFFF3B30) : const Color(0xFF675D40),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              isRunning ? 'Stop (${_formatDuration(_duration)})' : 'Start Timer',
+              style: TextStyle(
+                color: isRunning ? const Color(0xFFFF3B30) : const Color(0xFF675D40),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

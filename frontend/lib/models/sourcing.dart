@@ -17,18 +17,16 @@ class Sourcing {
   final String? remark;
   final String? address;
   final String? location;
-  final int? digital;
-  final int? reference;
-  final int? dataCalling;
-  final int? retail;
-  final int? underConstruction;
-  final int? rental;
-  final int? readyToMove;
-  final int? callingSupport;
-  final int? digitalKit;
-  final int? standees;
-  final int? smsBlast;
-  final int? whatsappBlast;
+
+  String? visitDuration;
+  final int? offeredCoffee;
+  final int? metTheOwner;
+  final int? askedAboutPriceTrends;
+  final int? consideringRedevelopment;
+  final int? concernedAboutInterestRates;
+  final int? comparedMicroMarkets;
+  final int? strictlyReraRegistered;
+
   final String? visitType;
   final String? cpInterest;
   final String? interestedProject;
@@ -56,18 +54,16 @@ class Sourcing {
     this.remark,
     this.address,
     this.location,
-    this.digital,
-    this.reference,
-    this.dataCalling,
-    this.retail,
-    this.underConstruction,
-    this.rental,
-    this.readyToMove,
-    this.callingSupport,
-    this.digitalKit,
-    this.standees,
-    this.smsBlast,
-    this.whatsappBlast,
+
+    this.visitDuration,
+    this.offeredCoffee,
+    this.metTheOwner,
+    this.askedAboutPriceTrends,
+    this.consideringRedevelopment,
+    this.concernedAboutInterestRates,
+    this.comparedMicroMarkets,
+    this.strictlyReraRegistered,
+
     this.visitType,
     this.cpInterest,
     this.interestedProject,
@@ -101,18 +97,16 @@ class Sourcing {
       remark: json['remark']?.toString(),
       address: json['address']?.toString(),
       location: json['location']?.toString(),
-      digital: json['digital'] is int ? json['digital'] : int.tryParse(json['digital']?.toString() ?? '0'),
-      reference: json['reference'] is int ? json['reference'] : int.tryParse(json['reference']?.toString() ?? '0'),
-      dataCalling: json['data_calling'] is int ? json['data_calling'] : int.tryParse(json['data_calling']?.toString() ?? '0'),
-      retail: json['retail'] is int ? json['retail'] : int.tryParse(json['retail']?.toString() ?? '0'),
-      underConstruction: json['under_construction'] is int ? json['under_construction'] : int.tryParse(json['under_construction']?.toString() ?? '0'),
-      rental: json['rental'] is int ? json['rental'] : int.tryParse(json['rental']?.toString() ?? '0'),
-      readyToMove: json['ready_to_move'] is int ? json['ready_to_move'] : int.tryParse(json['ready_to_move']?.toString() ?? '0'),
-      callingSupport: json['calling_support'] is int ? json['calling_support'] : int.tryParse(json['calling_support']?.toString() ?? '0'),
-      digitalKit: json['digital_kit'] is int ? json['digital_kit'] : int.tryParse(json['digital_kit']?.toString() ?? '0'),
-      standees: json['standees'] is int ? json['standees'] : int.tryParse(json['standees']?.toString() ?? '0'),
-      smsBlast: json['sms_blast'] is int ? json['sms_blast'] : int.tryParse(json['sms_blast']?.toString() ?? '0'),
-      whatsappBlast: json['whatsapp_blast'] is int ? json['whatsapp_blast'] : int.tryParse(json['whatsapp_blast']?.toString() ?? '0'),
+
+      visitDuration: json['visit_duration']?.toString(),
+      offeredCoffee: json['offered_coffee'] is int ? json['offered_coffee'] : int.tryParse(json['offered_coffee']?.toString() ?? '0'),
+      metTheOwner: json['met_the_owner'] is int ? json['met_the_owner'] : int.tryParse(json['met_the_owner']?.toString() ?? '0'),
+      askedAboutPriceTrends: json['asked_about_price_trends'] is int ? json['asked_about_price_trends'] : int.tryParse(json['asked_about_price_trends']?.toString() ?? '0'),
+      consideringRedevelopment: json['considering_redevelopment'] is int ? json['considering_redevelopment'] : int.tryParse(json['considering_redevelopment']?.toString() ?? '0'),
+      concernedAboutInterestRates: json['concerned_about_interest_rates'] is int ? json['concerned_about_interest_rates'] : int.tryParse(json['concerned_about_interest_rates']?.toString() ?? '0'),
+      comparedMicroMarkets: json['compared_micro_markets'] is int ? json['compared_micro_markets'] : int.tryParse(json['compared_micro_markets']?.toString() ?? '0'),
+      strictlyReraRegistered: json['strictly_rera_registered'] is int ? json['strictly_rera_registered'] : int.tryParse(json['strictly_rera_registered']?.toString() ?? '0'),
+
       visitType: json['visit_type']?.toString(),
       cpInterest: json['cp_interest']?.toString(),
       interestedProject: json['interested_project']?.toString(),
@@ -137,18 +131,16 @@ class Sourcing {
       'remark': remark,
       'address': address,
       'location': location,
-      'digital': digital,
-      'reference': reference,
-      'data_calling': dataCalling,
-      'retail': retail,
-      'under_construction': underConstruction,
-      'rental': rental,
-      'ready_to_move': readyToMove,
-      'calling_support': callingSupport,
-      'digital_kit': digitalKit,
-      'standees': standees,
-      'sms_blast': smsBlast,
-      'whatsapp_blast': whatsappBlast,
+
+      'visit_duration': visitDuration,
+      'offered_coffee': offeredCoffee,
+      'met_the_owner': metTheOwner,
+      'asked_about_price_trends': askedAboutPriceTrends,
+      'considering_redevelopment': consideringRedevelopment,
+      'concerned_about_interest_rates': concernedAboutInterestRates,
+      'compared_micro_markets': comparedMicroMarkets,
+      'strictly_rera_registered': strictlyReraRegistered,
+
       'visit_type': visitType,
       'cp_interest': cpInterest,
       'interested_project': interestedProject,

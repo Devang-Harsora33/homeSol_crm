@@ -827,6 +827,7 @@ def get_sourcing_by_developer(developer_id):
 
 @frappe.whitelist()
 def get_sourcing_activity_logs(sfs_id):
+
     if not sfs_id:
         return {"error": "Sales Fields Service ID is required"}
 
@@ -903,3 +904,35 @@ def get_sourcing_activity_logs(sfs_id):
                 })
 
     return activity_logs
+
+
+@frappe.whitelist(methods=['GET'])
+def get_campaigns_by_project(project_id):
+    if not project_id:
+        return {"error": "Project ID is required"}
+
+    # 1. Find all instances where this project is linked inside a Campaign
+    linked_campaigns = frappe.get_all(
+        "Campaign Project Link",
+        filters={"projects": project_id},
+        fields=["parent"],
+        ignore_permissions=True 
+    )
+
+    if not linked_campaigns:
+        return {"data": []}
+
+    # Extract the parent campaign IDs from the child table results
+    campaign_ids = [camp.parent for camp in linked_campaigns]
+
+    # 2. Fetch the actual Campaign details using those extracted IDs
+    campaigns = frappe.get_all(
+        "Property Project Campaign",
+        filters={"name": ["in", campaign_ids]},
+        fields=["*"],  # Fetch all fields for the campaigns
+        order_by="creation desc",
+        ignore_permissions=True
+    )
+
+    # Wrapping in a "data" key to match standard Frappe REST API structures
+    return {"data": campaigns}

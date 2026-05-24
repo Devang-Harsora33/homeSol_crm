@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:flutter/services.dart';
 import '../models/project.dart';
 import '../models/developer.dart';
@@ -142,19 +143,9 @@ class _BookmarkPageState extends State<BookmarkPage>
         setState(() {
           _bookmarkedProjects.removeWhere((p) => p.id == project.id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Project removed from bookmarks'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Project removed from bookmarks', isError: false, title: 'Notice');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to remove project from bookmarks'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Failed to remove project from bookmarks', isError: true, title: 'Error');
       }
     } catch (e) {
       print('❌ Error removing project bookmark: $e');
@@ -174,19 +165,9 @@ class _BookmarkPageState extends State<BookmarkPage>
         setState(() {
           _bookmarkedDevelopers.removeWhere((d) => d.id == developer.id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Developer removed from bookmarks'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Developer removed from bookmarks', isError: false, title: 'Notice');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to remove developer from bookmarks'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Failed to remove developer from bookmarks', isError: true, title: 'Error');
       }
     } catch (e) {
       print('❌ Error removing developer bookmark: $e');
@@ -699,14 +680,9 @@ class _BookmarkPageState extends State<BookmarkPage>
                                     ?.toString();
 
                                 if (brokerId == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
+                                  CustomSnackBar.show(context, message: 
                                         'Please log in to add enquiry',
-                                      ),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
+                                      , isError: false, title: 'Notice');
                                   return;
                                 }
 
@@ -721,12 +697,7 @@ class _BookmarkPageState extends State<BookmarkPage>
                                 //   },
                                 // );
                               } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error: ${e.toString()}'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
+                                CustomSnackBar.show(context, message: 'Error: ${e.toString()}', isError: true, title: 'Error');
                               }
                             },
                             borderRadius: BorderRadius.circular(12),
@@ -770,14 +741,9 @@ class _BookmarkPageState extends State<BookmarkPage>
             ${project.amenities.isNotEmpty ? '🏠 Amenities: ${project.amenities.take(5).map((a) => a.data).join(', ')}' : ''}
             ''';
                         Clipboard.setData(ClipboardData(text: shareText));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text(
+                        CustomSnackBar.show(context, message: 
                               'Project details copied to clipboard!',
-                            ),
-                            backgroundColor: theme.colorScheme.primary,
-                          ),
-                        );
+                            , isError: false, title: 'Notice');
                       },
                       child: Container(
                         height: 48,

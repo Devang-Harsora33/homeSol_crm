@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import '../../services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -84,20 +86,13 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (result['success']) {
         // Show success message and navigate to login
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Registration successful! Please login.'),
-            backgroundColor: theme.colorScheme.primary,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Registration successful! Please login.', isError: false, title: 'Notice');
 
         // Navigate back to login page
         Navigator.of(context).pop();
       } else {
         // Show error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['error']), backgroundColor: Colors.red),
-        );
+        CustomSnackBar.show(context, message: result['error'], isError: true, title: 'Error');
       }
     } finally {
       if (mounted) {
@@ -338,11 +333,18 @@ class _RegisterPageState extends State<RegisterPage> {
                             'Phone Number',
                             Icons.phone,
                             theme,
-                          ),
+                          ).copyWith(counterText: ""),
                           keyboardType: TextInputType.phone,
+                          maxLength: 10,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Phone number is required';
+                            }
+                            if (value.length != 10) {
+                              return 'Phone number must be 10 digits';
                             }
                             return null;
                           },

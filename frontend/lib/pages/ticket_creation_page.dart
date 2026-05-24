@@ -1,4 +1,5 @@
 import 'package:Homesol/models/ticket.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/tickets/ticker_service.dart';
 import 'package:Homesol/services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -105,19 +106,12 @@ class _TicketCreationPageState extends State<TicketCreationPage> {
       await TicketService.createTicket(ticketToCreate);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ticket raised successfully!'),
-            backgroundColor: kAccent,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Ticket raised successfully!', isError: false, title: 'Notice');
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        CustomSnackBar.show(context, message: 'Error: $e', isError: true, title: 'Error');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

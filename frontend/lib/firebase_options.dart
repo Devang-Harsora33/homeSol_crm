@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '430718961228',
     projectId: 'homesolreports',
     storageBucket: 'homesolreports.firebasestorage.app',
-    iosBundleId: 'com.example.syndicate',
+    iosBundleId: 'com.homesolindia.crm',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

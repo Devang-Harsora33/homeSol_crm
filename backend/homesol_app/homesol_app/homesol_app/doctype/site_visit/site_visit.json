@@ -14,7 +14,8 @@
   "column_break_yovw",
   "visit_date",
   "status",
-  "visit_scheduled_datetime"
+  "visit_scheduled_datetime",
+  "presence_of_cp"
  ],
  "fields": [
   {
@@ -71,16 +72,22 @@
    "fieldname": "visit_scheduled_datetime",
    "fieldtype": "Datetime",
    "label": "Visit Scheduled DateTime"
+  },
+  {
+   "default": "0",
+   "fieldname": "presence_of_cp",
+   "fieldtype": "Check",
+   "label": "Presence Of CP"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-07 19:14:06.049553",
+ "modified": "2026-05-20 17:31:25.884761",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Site Visit",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {

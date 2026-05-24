@@ -1,4 +1,5 @@
 import 'package:Homesol/services/api_service.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
@@ -710,18 +711,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white)),
-
-        // Use kAccent (0xFF675D40) for success, Red for error
-        backgroundColor: isError ? Colors.redAccent : kAccent,
-
-        behavior: SnackBarBehavior.floating,
-
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    CustomSnackBar.show(context, message: message, isError: isError);
   }
 
   // ───────────────────────── UI HELPERS ─────────────────────────
@@ -971,6 +961,8 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
     TextInputType type = TextInputType.text, // Added type
 
     FormFieldValidator<String>? validator, // Added validator
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextFormField(
       controller: controller,
@@ -984,6 +976,8 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
       maxLines: maxLines,
 
       keyboardType: type, // Pass type to TextFormField
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
 
       style: const TextStyle(fontWeight: FontWeight.w500),
 
@@ -995,6 +989,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
         alignLabelWithHint: maxLines > 1,
 
         suffixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
+        counterText: "",
       ),
 
       validator: (val) {
@@ -1090,6 +1085,16 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                       label: "Mobile Number",
                       icon: Icons.phone,
                       type: TextInputType.phone,
+                      maxLength: 10,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          if (value.length != 10) {
+                            return 'Phone number must be 10 digits';
+                          }
+                        }
+                        return null;
+                      },
                     ),
                   if (_missingFields.contains('residenceType'))
                     _styledTextField(

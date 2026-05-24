@@ -1,11 +1,13 @@
 
 import 'dart:convert';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/apis/developers/developer_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:Homesol/services/api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:screen_protector/screen_protector.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lead.dart' as model_lead;
@@ -53,8 +55,8 @@ class _CRMPageState extends State<CRMPage> {
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedProjects = <String>{};
   final Set<String> _selectedStatuses = <String>{};
-  double _budgetMinSlider = 0.5; // 50L in Crores
-  double _budgetMaxSlider = 50.0; // 50Cr in Crores
+  double _budgetMinSlider = 0.0; // 0Cr in Crores
+  double _budgetMaxSlider = 100.0; // 100Cr in Crores
   final Set<String> _selectedConfigurations = <String>{};
   final Set<String> _selectedDateFilters = <String>{};
   final Set<String> _selectedSources = <String>{};
@@ -65,6 +67,7 @@ class _CRMPageState extends State<CRMPage> {
   final Set<String> _selectedDeadReasons = <String>{};
   final Set<String> _selectedVisitFilters = <String>{};
   final Set<String> _selectedFollowUpFilters = <String>{};
+  int _selectedDays = 15;
 
   @override
   void initState() {
@@ -81,8 +84,9 @@ class _CRMPageState extends State<CRMPage> {
   }
 
   Future<void> _launchUrl(String url) async {
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       throw 'Could not launch $url';
     }
@@ -104,16 +108,18 @@ class _CRMPageState extends State<CRMPage> {
     }
 
     if (numbers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No phone number available')),
-      );
+      CustomSnackBar.show(context, message: 'No phone number available', isError: false, title: 'Notice');
       return;
     }
 
     if (numbers.length == 1) {
+      String number = numbers.first.trim().replaceAll(RegExp(r'[^0-9]'), '');
+      if (number.startsWith('0')) number = number.substring(1);
+      if (number.length == 10) number = '91$number';
+
       final url = action == 'call'
           ? 'tel:${numbers.first}'
-          : 'https://wa.me/${numbers.first}';
+          : 'https://wa.me/$number';
       _launchUrl(url);
       if (lead.name != null) {
         LeadService.recordButtonPress(
@@ -177,7 +183,11 @@ class _CRMPageState extends State<CRMPage> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: () {
-                        final url = isCall ? 'tel:$number' : 'https://wa.me/$number';
+                        String formattedNumber = number.trim().replaceAll(RegExp(r'[^0-9]'), '');
+                        if (formattedNumber.startsWith('0')) formattedNumber = formattedNumber.substring(1);
+                        if (formattedNumber.length == 10) formattedNumber = '91$formattedNumber';
+
+                        final url = isCall ? 'tel:$number' : 'https://wa.me/$formattedNumber';
                         _launchUrl(url);
                         if (lead.name != null) {
                           LeadService.recordButtonPress(lead.name!,
@@ -404,6 +414,13 @@ class _CRMPageState extends State<CRMPage> {
   List<model_lead.Lead> get _filteredLeads {
     List<model_lead.Lead> filtered = leads;
 
+    // Days Filter
+    final now = DateTime.now();
+    filtered = filtered.where((lead) {
+      if (lead.createdAt == null) return false;
+      return now.difference(lead.createdAt!).inDays <= _selectedDays;
+    }).toList();
+
     // Text search
     print('🔍 [FILTER] Starting with ${filtered.length} leads');
     if (_searchQuery.isNotEmpty) {
@@ -475,7 +492,7 @@ class _CRMPageState extends State<CRMPage> {
       final minVal = double.tryParse(lead.customBudgetMin ?? '') ?? 0.0;
       final maxVal = double.tryParse(lead.customBudgetMax ?? '') ?? 0.0;
 
-      // Slider values are in Crores (e.g., 0.5 = 50L). Compare directly as doubles.
+      // Slider values are in Crores (e.g., 1.0 = 1Cr). Compare directly as doubles.
       final sliderMin = _budgetMinSlider;
       final sliderMax = _budgetMaxSlider;
 
@@ -670,8 +687,8 @@ class _CRMPageState extends State<CRMPage> {
     return _searchQuery.isNotEmpty ||
         _selectedProjects.isNotEmpty ||
         _selectedStatuses.isNotEmpty ||
-        _budgetMinSlider > 0.5 ||
-        _budgetMaxSlider < 50.0 ||
+        _budgetMinSlider > 0.0 ||
+        _budgetMaxSlider < 100.0 ||
         _selectedConfigurations.isNotEmpty ||
         _selectedDateFilters.isNotEmpty ||
         _selectedSources.isNotEmpty ||
@@ -690,8 +707,8 @@ class _CRMPageState extends State<CRMPage> {
       _searchController.clear();
       _selectedProjects.clear();
       _selectedStatuses.clear();
-      _budgetMinSlider = 0.5;
-      _budgetMaxSlider = 50.0;
+      _budgetMinSlider = 0.0;
+      _budgetMaxSlider = 100.0;
       _selectedConfigurations.clear();
       _selectedDateFilters.clear();
       _selectedSources.clear();
@@ -702,6 +719,7 @@ class _CRMPageState extends State<CRMPage> {
       _selectedDeadReasons.clear();
       _selectedVisitFilters.clear();
       _selectedFollowUpFilters.clear();
+      _selectedDays = 15;
     });
   }
 
@@ -714,7 +732,7 @@ class _CRMPageState extends State<CRMPage> {
     switch (category) {
       case 'Projects':       return _selectedProjects.length;
       case 'Status':         return _selectedStatuses.length;
-      case 'Budget':         return (_budgetMinSlider > 0.5 || _budgetMaxSlider < 50.0) ? 1 : 0;
+      case 'Budget':         return (_budgetMinSlider > 0.0 || _budgetMaxSlider < 100.0) ? 1 : 0;
       case 'Configuration': return _selectedConfigurations.length;
       case 'Date Added':    return _selectedDateFilters.length;
       case 'Source':        return _selectedSources.length;
@@ -864,7 +882,7 @@ class _CRMPageState extends State<CRMPage> {
               _selectedIndustries, _selectedNCD, _selectedVisited,
               _selectedVisitFilters, _selectedFollowUpFilters,
             ].fold(0, (sum, s) => sum + s.length) +
-            (localBudgetMin > 0.5 || localBudgetMax < 50.0 ? 1 : 0);
+            (localBudgetMin > 0.0 || localBudgetMax < 100.0 ? 1 : 0);
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.88,
@@ -927,8 +945,8 @@ class _CRMPageState extends State<CRMPage> {
                           onPressed: () {
                             setSheetState(() {
                               checked.clear();
-                              localBudgetMin = 0.5;
-                              localBudgetMax = 50.0;
+                              localBudgetMin = 0.0;
+                              localBudgetMax = 100.0;
                             });
                             setState(() {
                               _clearAllFilters();
@@ -1268,7 +1286,7 @@ class _CRMPageState extends State<CRMPage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 const Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                                if (checked.isNotEmpty || localBudgetMin > 0.5 || localBudgetMax < 50.0) ...[
+                                if (checked.isNotEmpty || localBudgetMin > 0.0 || localBudgetMax < 100.0) ...[
                                   const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -1278,7 +1296,7 @@ class _CRMPageState extends State<CRMPage> {
                                     ),
                                     child: Text(
                                       checked.isNotEmpty ? checked.length.toString() :
-                                          (localBudgetMin > 0.5 || localBudgetMax < 50.0 ? '1' : ''),
+                                          (localBudgetMin > 0.0 || localBudgetMax < 100.0 ? '1' : ''),
                                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                     ),
                                   ),
@@ -1396,9 +1414,9 @@ class _CRMPageState extends State<CRMPage> {
             ),
             child: Slider(
               value: localMin,
-              min: 0.5,
-              max: 50,
-              divisions: 99,
+              min: 0.0,
+              max: 100,
+              divisions: 100,
               onChanged: (value) {
                 if (value <= localMax) onChanged(value, localMax);
               },
@@ -1425,9 +1443,9 @@ class _CRMPageState extends State<CRMPage> {
             ),
             child: Slider(
               value: localMax,
-              min: 0.5,
-              max: 50,
-              divisions: 99,
+              min: 0.0,
+              max: 100,
+              divisions: 100,
               onChanged: (value) {
                 if (value >= localMin) onChanged(localMin, value);
               },
@@ -1442,11 +1460,11 @@ class _CRMPageState extends State<CRMPage> {
             spacing: 8,
             runSpacing: 6,
             children: [
-              _buildBudgetPreset('< 50L', 0.5, 0.5, localMin, localMax, onChanged),
+              _buildBudgetPreset('< 50L', 0.0, 0.5, localMin, localMax, onChanged),
               _buildBudgetPreset('50L-1Cr', 0.5, 1.0, localMin, localMax, onChanged),
               _buildBudgetPreset('1Cr-2Cr', 1.0, 2.0, localMin, localMax, onChanged),
               _buildBudgetPreset('2Cr-5Cr', 2.0, 5.0, localMin, localMax, onChanged),
-              _buildBudgetPreset('5Cr+', 5.0, 50.0, localMin, localMax, onChanged),
+              _buildBudgetPreset('5Cr-100Cr', 5.0, 100.0, localMin, localMax, onChanged),
             ],
           ),
         ],
@@ -1579,17 +1597,20 @@ class _CRMPageState extends State<CRMPage> {
     );
   }
 
-Widget _buildSummaryWidgets() {
+Widget _buildSummaryWidgets(List<model_lead.Lead> filteredLeads) {
   // --- 1. Calculation Logic (Unchanged) ---
-  final totalLeadsCount = leads.length;
-  final totalSiteVisitsDone = siteVisits.where((v) => v.status.toLowerCase() == 'visit done').length;
-  final totalRevisitsDone = siteVisits.where((v) => v.status.toLowerCase() == 'revisit done').length;
+  final totalLeadsCount = filteredLeads.length;
+  final filteredLeadNames = filteredLeads.map((l) => l.name).toSet();
+  final currentSiteVisits = siteVisits.where((v) => filteredLeadNames.contains(v.lead)).toList();
+
+  final totalSiteVisitsDone = currentSiteVisits.where((v) => v.status.toLowerCase() == 'visit done').length;
+  final totalRevisitsDone = currentSiteVisits.where((v) => v.status.toLowerCase() == 'revisit done').length;
   
   final Map<String, int> scheduledCountByLead = {};
   int explicitRescheduled = 0;
   int totalScheduled = 0;
   
-  for (var v in siteVisits) {
+  for (var v in currentSiteVisits) {
     final status = v.status.toLowerCase();
     if (status == 'scheduled') {
       totalScheduled++;
@@ -1606,7 +1627,7 @@ Widget _buildSummaryWidgets() {
     }
   });
 
-  final totalCancelledSiteVisits = siteVisits.where((v) => 
+  final totalCancelledSiteVisits = currentSiteVisits.where((v) => 
     v.status.toLowerCase() == 'cancelled' || v.status.toLowerCase() == 'canceled'
   ).length;
 
@@ -1753,7 +1774,7 @@ Widget _buildSummaryWidgets() {
 
 // --- Helper Methods ---
 
-Widget _buildFollowUpSummaryWidgets() {
+Widget _buildFollowUpSummaryWidgets(List<model_lead.Lead> filteredLeads) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
 
@@ -1761,11 +1782,14 @@ Widget _buildFollowUpSummaryWidgets() {
   // If the user is a manager, they might already have team follow-ups from LeadService.fetchMyFollowups
   // if the backend implementation of get_team_followups_list handles it.
   
-  final totalFollowUps = followUps.length;
-  final pendingAndOpen = followUps.where((f) => f.status?.toLowerCase() == 'open').length;
-  final completed = followUps.where((f) => f.status?.toLowerCase() == 'completed').length;
+  final filteredLeadNames = filteredLeads.map((l) => l.name).toSet();
+  final currentFollowUps = followUps.where((f) => filteredLeadNames.contains(f.leadId)).toList();
+
+  final totalFollowUps = currentFollowUps.length;
+  final pendingAndOpen = currentFollowUps.where((f) => f.status?.toLowerCase() == 'open').length;
+  final completed = currentFollowUps.where((f) => f.status?.toLowerCase() == 'completed').length;
   
-  final missed = followUps.where((f) {
+  final missed = currentFollowUps.where((f) {
     if (f.status?.toLowerCase() != 'open') return false;
     if (f.followUpDate == null) return false;
     final fDate = DateTime.tryParse(f.followUpDate!);
@@ -1773,7 +1797,7 @@ Widget _buildFollowUpSummaryWidgets() {
     return fDate.isBefore(now);
   }).length;
 
-  final totalLeadsCount = leads.length;
+  final totalLeadsCount = filteredLeads.length;
 
   // Chart Data
   final List<PieChartSectionData> chartSections = [
@@ -2027,6 +2051,51 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
   );
 }
 
+  Widget _buildTimeRangeSelector() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: kBackgroundColor.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [15, 30, 45].map((days) {
+          final isSelected = _selectedDays == days;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedDays = days),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? goldAccent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: isSelected ? [
+                    BoxShadow(
+                      color: goldAccent.withOpacity(0.3),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    )
+                  ] : null,
+                ),
+                child: Center(
+                  child: Text(
+                    'Last $days Days',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? Colors.white : Colors.grey[600],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _buildSearchAndFilterCard() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -2133,6 +2202,9 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
           ],
         ),
 
+        const SizedBox(height: 12),
+        _buildTimeRangeSelector(),
+
         // ── Quick Action Buttons (non-developer only) ──
         if (currentDesignation?.toLowerCase() != 'property developer') ...[
           const SizedBox(height: 8),
@@ -2192,12 +2264,12 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
               children: [
                 ..._selectedProjects.map((p) => _buildFilterChip(p, Icons.apartment_rounded, const Color(0xFF5C6BC0), () => setState(() => _selectedProjects.remove(p)))),
                 ..._selectedStatuses.map((s) => _buildFilterChip(s, Icons.label_rounded, const Color(0xFF26A69A), () => setState(() => _selectedStatuses.remove(s)))),
-                if (_budgetMinSlider > 0.5 || _budgetMaxSlider < 50.0)
+                if (_budgetMinSlider > 0.0 || _budgetMaxSlider < 100.0)
                   _buildFilterChip(
                     '₹${_budgetMinSlider < 1 ? "${(_budgetMinSlider * 100).round()}L" : "${_budgetMinSlider.toStringAsFixed(1)}Cr"} – ${_budgetMaxSlider < 1 ? "${(_budgetMaxSlider * 100).round()}L" : "${_budgetMaxSlider.toStringAsFixed(1)}Cr"}',
                     Icons.currency_rupee_rounded,
                     const Color(0xFFEF6C00),
-                    () => setState(() { _budgetMinSlider = 0.5; _budgetMaxSlider = 50.0; }),
+                    () => setState(() { _budgetMinSlider = 0.0; _budgetMaxSlider = 100.0; }),
                   ),
                 ..._selectedConfigurations.map((c) => _buildFilterChip(c, Icons.bed_rounded, const Color(0xFF7B1FA2), () => setState(() => _selectedConfigurations.remove(c)))),
                 ..._selectedDateFilters.map((d) => _buildFilterChip(d, Icons.calendar_today_rounded, const Color(0xFF00838F), () => setState(() => _selectedDateFilters.remove(d)))),
@@ -2251,7 +2323,8 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
         _selectedDeadReasons.length +
         _selectedVisitFilters.length +
         _selectedFollowUpFilters.length +
-        (_budgetMinSlider > 0.5 || _budgetMaxSlider < 50.0 ? 1 : 0) +
+        (_selectedDays != 15 ? 1 : 0) +
+        (_budgetMinSlider > 0.0 || _budgetMaxSlider < 100.0 ? 1 : 0) +
         (_searchQuery.isNotEmpty ? 1 : 0);
   }
 
@@ -2477,9 +2550,9 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
         if (index == 0) {
           return Column(
             children: [
-              _buildSummaryWidgets(),
+              _buildSummaryWidgets(filteredLeads),
               if (currentDesignation?.toLowerCase() != 'property developer')
-                _buildFollowUpSummaryWidgets(),
+                _buildFollowUpSummaryWidgets(filteredLeads),
             ],
           );
         }
@@ -2748,6 +2821,9 @@ class _LeadCard extends StatelessWidget {
                 _leadDetailRow(context, Icons.event_note_rounded,
                     'Follow up: ${_formatPostedDate(DateTime.tryParse(latestFollowUp.followUpDate ?? ''))} (${latestFollowUp.status})',
                     color: Colors.orange.shade800),
+
+              if (lead.customTagging != null && lead.customTagging!.isNotEmpty)
+                _leadDetailRow(context, Icons.label_outline_rounded, lead.customTagging!, color: Colors.blueGrey),
             ],
           ),
 
@@ -2830,23 +2906,41 @@ class _LeadCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Creation Date Info
+          // Creation Date & Age Info
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.calendar_today_outlined,
-                  size: 14, color: Colors.grey.shade500),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Created: ${_formatPostedDate(lead.createdAt)}',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+              Row(
+                children: [
+                  Icon(Icons.calendar_today_outlined,
+                      size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Created: ${_formatPostedDate(lead.createdAt)}',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                ],
               ),
+              if (lead.createdAt != null)
+                Row(
+                  children: [
+                    Icon(Icons.hourglass_bottom_rounded,
+                        size: 14, color: Colors.grey.shade500),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Age: ${DateTime.now().difference(lead.createdAt!).inDays} Days',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ],
@@ -3226,6 +3320,8 @@ extension _LeadActions on _CRMPageState {
                       hint: 'Enter Phone',
                       keyboardType: TextInputType.phone,
                       controller: phoneController,
+                      maxLength: 10,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     ),
                     const SizedBox(height: 12),
                     // Email field removed from schema
@@ -3284,23 +3380,9 @@ extension _LeadActions on _CRMPageState {
                             });
                             Navigator.pop(context);
                             _loadLeads(forceRefresh: true);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text(
-                                  'Lead updated',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                                backgroundColor: Colors.black,
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
+                            CustomSnackBar.show(context, message: 'Lead updated', isError: false, title: 'Notice');
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
+                            CustomSnackBar.show(context, message: 'Error: $e', isError: true, title: 'Error');
                           }
                         },
                         style: ElevatedButton.styleFrom(
@@ -3362,27 +3444,9 @@ extension _LeadActions on _CRMPageState {
       try {
         await LeadService.deleteLead(lead.id ?? '');
         _loadLeads(forceRefresh: true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Lead deleted',
-              style: TextStyle(color: Colors.white),
-            ),
-            backgroundColor: Colors.black,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Lead deleted', isError: false, title: 'Notice');
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error: $e',
-              style: const TextStyle(color: Colors.white),
-            ),
-            backgroundColor: theme.colorScheme.primary,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Error: $e', isError: true, title: 'Error');
       }
     }
   }
@@ -3438,12 +3502,17 @@ class _LabeledTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final TextEditingController? controller;
   final Function(String)? onChanged;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+
   const _LabeledTextField({
     required this.label,
     required this.hint,
     required this.keyboardType,
     this.controller,
     this.onChanged,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   @override
@@ -3459,9 +3528,12 @@ class _LabeledTextField extends StatelessWidget {
             controller: controller,
             keyboardType: keyboardType,
             onChanged: onChanged,
+            maxLength: maxLength,
+            inputFormatters: inputFormatters,
             decoration: InputDecoration(
               hintText: hint,
               border: InputBorder.none,
+              counterText: "",
               hintStyle: TextStyle(
                 color: (isDark ? Colors.white : Colors.black).withOpacity(0.6),
                 fontSize: 16,

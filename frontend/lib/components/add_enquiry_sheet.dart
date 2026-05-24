@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import '../models/lead.dart';
 import '../models/project.dart';
 import '../services/api_service.dart';
@@ -139,6 +141,10 @@ class AddEnquirySheet {
                               hint: 'Enter Phone (10 digits or 5 Digits)',
                               keyboardType: TextInputType.phone,
                               controller: phoneController,
+                              maxLength: 10,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
                               onChanged: (value) {
                                 if (isFormattingPhone) {
                                   isFormattingPhone = false;
@@ -388,9 +394,7 @@ class AddEnquirySheet {
                                   onCreated?.call();
 
                                   // Show success message
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
+                                  CustomSnackBar.show(context, message: 
                                         lockProjectSelection &&
                                                 projects.length > 1
                                             ? 'Enquiry initiated for ${projects.length} projects!'
@@ -398,12 +402,7 @@ class AddEnquirySheet {
                                         style: const TextStyle(
                                           color: Colors.white,
                                         ),
-                                      ),
-                                      backgroundColor:
-                                          theme.colorScheme.primary,
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
+                                      , isError: false, title: 'Notice');
                                 } catch (e) {
                                   String errorMsg = 'Failed to create enquiry';
 
@@ -510,12 +509,17 @@ class _LabeledTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final TextEditingController? controller;
   final Function(String)? onChanged;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+
   const _LabeledTextField({
     required this.label,
     required this.hint,
     required this.keyboardType,
     this.controller,
     this.onChanged,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   @override
@@ -531,9 +535,12 @@ class _LabeledTextField extends StatelessWidget {
             controller: controller,
             keyboardType: keyboardType,
             onChanged: onChanged,
+            maxLength: maxLength,
+            inputFormatters: inputFormatters,
             decoration: InputDecoration(
               hintText: hint,
               border: InputBorder.none,
+              counterText: "",
               hintStyle: TextStyle(
                 color: (isDark ? Colors.white : Colors.black).withOpacity(0.6),
                 fontSize: 16,

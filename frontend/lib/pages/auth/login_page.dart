@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import '../../services/auth_service.dart';
 // import '../../services/notification_service.dart';
 // import '../../services/api_service.dart';
@@ -91,9 +92,7 @@ class _LoginPageState extends State<LoginPage> {
         );
       } else {
         // Show error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['error']), backgroundColor: Colors.red),
-        );
+        CustomSnackBar.show(context, message: result['error'], isError: true, title: 'Error');
       }
     } finally {
       if (mounted) {

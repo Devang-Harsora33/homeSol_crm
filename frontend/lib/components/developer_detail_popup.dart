@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/projects/project_service.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/components/cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -129,9 +130,7 @@ class _DeveloperDetailPopupState extends State<DeveloperDetailPopup> {
     final devId = widget.developer.id;
 
     if (brokerId == null || devId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login required to bookmark')),
-      );
+      CustomSnackBar.show(context, message: 'Login required to bookmark', isError: false, title: 'Notice');
       return;
     }
 

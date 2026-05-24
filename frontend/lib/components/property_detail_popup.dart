@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/developers/developer_service.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/components/cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -349,9 +350,7 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
     final projectLocation = widget.project.location;
     if (projectLocation == null || projectLocation.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Location data not available for this project.')),
-      );
+      CustomSnackBar.show(context, message: 'Location data not available for this project.', isError: false, title: 'Notice');
       return;
     }
 
@@ -369,15 +368,11 @@ class _PropertyDetailPopupState extends State<PropertyDetailPopup> {
         await launchUrl(googleMapsUrl);
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not launch Google Maps.')),
-        );
+        CustomSnackBar.show(context, message: 'Could not launch Google Maps.', isError: false, title: 'Notice');
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error parsing location data: $e')),
-      );
+      CustomSnackBar.show(context, message: 'Error parsing location data: $e', isError: true, title: 'Error');
     }
   }
 

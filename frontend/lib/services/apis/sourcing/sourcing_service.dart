@@ -82,22 +82,48 @@ class SourcingService {
     }
   }
 
-  static Future<List<Sourcing>> fetchAllSources() async {
-    if (!ConnectivityService.isOnline) return [];
+  static Future<Set<String>?> fetchAllSourceNames() async {
+    if (!ConnectivityService.isOnline) return null;
     try {
       final headers = await _getHeaders();
+      // Use resource API with limit_page_length=none to get ALL names for deletion sync
       final response = await http.get(
-        Uri.parse('$baseUrl/api/method/homesol_app.api.get_my_sources'),
+        Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service?fields=["name"]&limit_page_length=none'),
         headers: headers,
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        final List<dynamic> jsonData = responseData['message'] ?? [];
-        return jsonData.map((json) => Sourcing.fromJson(json)).toList();
+        final List<dynamic> jsonData = responseData['data'] ?? [];
+        return jsonData.map((json) => json['name'].toString()).toSet();
       }
-    } catch (_) {}
-    return [];
+    } catch (e) {
+      print('Error in fetchAllSourceNames: $e');
+    }
+    return null;
+  }
+
+  static Future<Set<String>?> fetchAllSourceNamesByDeveloper(String developerId) async {
+    if (!ConnectivityService.isOnline) return null;
+    try {
+      final headers = await _getHeaders();
+      // Filters for developer - assuming interested_project or a similar field
+      // We'll try to use the same logic as the custom API but via resource API for pagination safety
+      final String filters = json.encode([["interested_project", "=", developerId]]);
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service?fields=["name"]&filters=$filters&limit_page_length=none'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final List<dynamic> jsonData = responseData['data'] ?? [];
+        return jsonData.map((json) => json['name'].toString()).toSet();
+      }
+    } catch (e) {
+      print('Error in fetchAllSourceNamesByDeveloper: $e');
+    }
+    return null;
   }
 
   static Future<void> syncSourcingByDeveloper(String developerId) async {
@@ -116,9 +142,19 @@ class SourcingService {
         final List<dynamic> message = responseData['message'] ?? [];
         final SourcingDatabase sourcingDb = SourcingDatabase();
 
-        // For property developer, we might want to clear local cache if it's the first time 
-        // or just upsert. Given the requirements, upserting is safer.
-        // If we want to support deletion sync, we'd need another API or a different approach.
+        // Deletion Logic for Developer Sourcing
+        final Set<String>? serverSourceNames = await fetchAllSourceNamesByDeveloper(developerId);
+        if (serverSourceNames != null) {
+          final List<Map<String, dynamic>> localSourcesRaw = await sourcingDb.getAllSourcing();
+          
+          for (final localS in localSourcesRaw) {
+            final name = localS['name'].toString();
+            if (!serverSourceNames.contains(name)) {
+              await sourcingDb.deleteSourcing(name);
+              print('Deleted local sourcing: $name (no longer on server for developer $developerId)');
+            }
+          }
+        }
 
         DateTime latestModifiedDate = DateTime.parse(lastSyncTimestamp.contains(' ') ? lastSyncTimestamp.replaceAll(' ', 'T') + 'Z' : lastSyncTimestamp + 'T00:00:00Z');
 
@@ -166,14 +202,14 @@ class SourcingService {
         final SourcingDatabase sourcingDb = SourcingDatabase();
 
         // Deletion Logic
-        final List<Sourcing> serverSources = await fetchAllSources();
-        if (serverSources.isNotEmpty) {
-          final Set<String> serverSourceNames = serverSources.map((e) => e.name).whereType<String>().toSet();
+        final Set<String>? serverSourceNames = await fetchAllSourceNames();
+        if (serverSourceNames != null) {
           final List<Map<String, dynamic>> localSourcesRaw = await sourcingDb.getAllSourcing();
           for (final localS in localSourcesRaw) {
             final name = localS['name'].toString();
             if (!serverSourceNames.contains(name)) {
               await sourcingDb.deleteSourcing(name);
+              print('Deleted local sourcing: $name (no longer on server)');
             }
           }
         }
@@ -202,8 +238,11 @@ class SourcingService {
         }
         await prefs.setString(_lastSyncTimestampKey, formattedTimestamp);
       }
-    } catch (_) {}
+    } catch (e) {
+      print('Error in syncMySources: $e');
+    }
   }
+
 
   static Future<void> clearAllCaches() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -212,30 +251,35 @@ class SourcingService {
   }
 
   static Future<Sourcing?> getSourcingDetail(String name) async {
-    // Check local first
     final SourcingDatabase sourcingDb = SourcingDatabase();
-    final localData = await sourcingDb.getAllSourcing();
+
+    // Fetch from network first if online
+    if (ConnectivityService.isOnline) {
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service/$name'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 20));
+
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> responseData = jsonDecode(response.body);
+          final sourcing = Sourcing.fromJson(responseData['data']);
+          await sourcingDb.upsertSourcing(responseData['data']);
+          return sourcing;
+        }
+      } catch (_) {
+        // Silently fallback to local database on error
+      }
+    }
+
+    // Fallback to local database
     try {
+      final localData = await sourcingDb.getAllSourcing();
       final match = localData.firstWhere((d) => d['name'] == name);
       return Sourcing.fromJson(json.decode(match['data']));
     } catch (_) {}
 
-    if (!ConnectivityService.isOnline) return null;
-
-    try {
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service/$name'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 20));
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-        final sourcing = Sourcing.fromJson(responseData['data']);
-        await sourcingDb.upsertSourcing(responseData['data']);
-        return sourcing;
-      }
-    } catch (_) {}
     return null;
   }
 
@@ -251,7 +295,9 @@ class SourcingService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        return Sourcing.fromJson(responseData['data']);
+        final newSourcing = Sourcing.fromJson(responseData['data']);
+        await SourcingDatabase().upsertSourcing(responseData['data']);
+        return newSourcing;
       }
     } catch (_) {}
     return null;
@@ -269,10 +315,31 @@ class SourcingService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        return Sourcing.fromJson(responseData['data']);
+        final updatedSourcing = Sourcing.fromJson(responseData['data']);
+        await SourcingDatabase().upsertSourcing(responseData['data']);
+        return updatedSourcing;
       }
     } catch (_) {}
     return null;
+  }
+
+  static Future<bool> updateSourcingFields(String name, Map<String, dynamic> fields) async {
+    if (!ConnectivityService.isOnline) return false;
+    try {
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service/$name'),
+        headers: headers,
+        body: jsonEncode(fields),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        await SourcingDatabase().upsertSourcing(responseData['data']);
+        return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   static Future<bool> deleteSourcing(String name) async {
@@ -283,13 +350,17 @@ class SourcingService {
         Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service/$name'),
         headers: headers,
       ).timeout(const Duration(seconds: 20));
-      return response.statusCode == 202 || response.statusCode == 200;
+      
+      if (response.statusCode == 202 || response.statusCode == 200) {
+        await SourcingDatabase().deleteSourcing(name);
+        return true;
+      }
     } catch (_) {}
     return false;
   }
 
-  static Future<bool> updateDocStatus(String name, int status) async {
-    if (!ConnectivityService.isOnline) return false;
+  static Future<String?> updateDocStatus(String name, int status) async {
+    if (!ConnectivityService.isOnline) return "Offline";
     try {
       final headers = await _getHeaders();
       final response = await http.put(
@@ -297,9 +368,25 @@ class SourcingService {
         headers: headers,
         body: jsonEncode({'docstatus': status}),
       ).timeout(const Duration(seconds: 20));
-      return response.statusCode == 200;
-    } catch (_) {}
-    return false;
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        await SourcingDatabase().upsertSourcing(responseData['data']);
+        return null;
+      } else {
+        try {
+          final errorData = jsonDecode(response.body);
+          if (errorData['exc_type'] != null) {
+            return "${errorData['exc_type']}: ${errorData['_server_messages'] ?? ''}";
+          }
+          return response.body;
+        } catch (_) {
+          return "Status ${response.statusCode}: ${response.body}";
+        }
+      }
+    } catch (e) {
+      return "Exception: $e";
+    }
   }
 
   static Future<Map<String, dynamic>?> triggerOtp(String mobileNumber) async {

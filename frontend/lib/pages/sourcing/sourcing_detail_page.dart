@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:screen_protector/screen_protector.dart';
 import 'package:Homesol/models/sourcing.dart';
 import 'package:Homesol/services/apis/sourcing/sourcing_service.dart';
@@ -99,29 +100,17 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
 
   Future<void> _updateStatus(int status) async {
     setState(() => _isLoading = true);
-    final success = await SourcingService.updateDocStatus(_sourcing.name!, status);
+    final errorMsg = await SourcingService.updateDocStatus(_sourcing.name!, status);
     
-    if (success) {
+    if (errorMsg == null) {
       await _refreshData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(status == 1 ? 'Sourcing Submitted' : 'Sourcing Cancelled'),
-            backgroundColor: const Color(0xFF766F57),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        CustomSnackBar.show(context, message: status == 1 ? 'Sourcing Submitted' : 'Sourcing Cancelled', isError: false, title: 'Notice');
       }
     } else {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update status'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        CustomSnackBar.show(context, message: 'Failed to update status: $errorMsg', isError: true, title: 'Error');
       }
     }
   }
@@ -181,16 +170,12 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
 
       if (success) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sourcing deleted successfully'), behavior: SnackBarBehavior.floating),
-          );
+          CustomSnackBar.show(context, message: 'Sourcing deleted successfully');
           Navigator.pop(context, true);
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to delete sourcing'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
-          );
+          CustomSnackBar.show(context, message: 'Failed to delete sourcing', isError: true, title: 'Error');
         }
       }
     }
@@ -260,13 +245,20 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
                     _infoRow(Icons.favorite_outline, "CP Interest", _sourcing.cpInterest),
                     _infoRow(Icons.apartment_rounded, "Interested Project", _projectName ?? _sourcing.interestedProject),
                     _infoRow(Icons.notification_important_outlined, "Next Follow-up", _sourcing.nextFollowUp != null ? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(_sourcing.nextFollowUp!)) : 'N/A'),
-                    _infoRow(Icons.calendar_today_rounded, "Visit Date", _sourcing.visitDate != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(_sourcing.visitDate!)) : 'N/A'),
+                    _infoRow(Icons.calendar_today_rounded, "Visit Date", _sourcing.visitDate != null ? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(_sourcing.visitDate!)) : 'N/A'),
                     _infoRow(Icons.notes_rounded, "Remark", _sourcing.remark),
+                    const Divider(height: 24),
+                    _infoRow(Icons.timer_outlined, "Visit Duration", "${_sourcing.visitDuration ?? 'N/A'} "),
+                    _infoRow(Icons.coffee_outlined, "Did he offer coffee?", _sourcing.offeredCoffee == 1 ? "Yes" : "No"),
+                    _infoRow(Icons.person_pin_outlined, "Did you meet the owner?", _sourcing.metTheOwner == 1 ? "Yes" : "No"),
+                    _infoRow(Icons.trending_up_rounded, "Did the client ask about recent price trends in the area?", _sourcing.askedAboutPriceTrends == 1 ? "Yes" : "No"),
+                    _infoRow(Icons.build_outlined, "Is the client considering redevelopment properties?", _sourcing.consideringRedevelopment == 1 ? "Yes" : "No"),
+                    _infoRow(Icons.percent_rounded, "Are they concerned about current home loan interest rates?", _sourcing.concernedAboutInterestRates == 1 ? "Yes" : "No"),
+                    _infoRow(Icons.compare_arrows_rounded, "Did they compare this locality to a neighboring micro-market?", _sourcing.comparedMicroMarkets == 1 ? "Yes" : "No"),
+                    _infoRow(Icons.verified_user_outlined, "Is the client strictly looking for RERA-registered projects?", _sourcing.strictlyReraRegistered == 1 ? "Yes" : "No"),
                   ]),
                   const SizedBox(height: 16),
                   _buildLocationCard(),
-                  const SizedBox(height: 16),
-                  _buildServicesCard(),
                   const SizedBox(height: 24),
                   _buildActionButtons(),
                   const SizedBox(height: 40),
@@ -503,40 +495,7 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
     );
   }
 
-  Widget _buildServicesCard() {
-    final services = [
-      if (_sourcing.digital == 1) 'Digital Marketing',
-      if (_sourcing.reference == 1) 'Reference',
-      if (_sourcing.dataCalling == 1) 'Data Calling',
-      if (_sourcing.retail == 1) 'Retail Presence',
-      if (_sourcing.underConstruction == 1) 'Under Construction',
-      if (_sourcing.rental == 1) 'Rental Service',
-      if (_sourcing.readyToMove == 1) 'Ready to Move',
-      if (_sourcing.callingSupport == 1) 'Calling Support',
-      if (_sourcing.digitalKit == 1) 'Digital Kit',
-      if (_sourcing.standees == 1) 'Standees',
-      if (_sourcing.smsBlast == 1) 'SMS Blast',
-      if (_sourcing.whatsappBlast == 1) 'WhatsApp Blast',
-    ];
 
-    if (services.isEmpty) return const SizedBox.shrink();
-
-    return _buildSectionCard('Requested Services', [
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: services.map((s) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: offWhite,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Text(s, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: matteBlack)),
-        )).toList(),
-      ),
-    ]);
-  }
 
   Widget _buildActionButtons() {
     return Column(

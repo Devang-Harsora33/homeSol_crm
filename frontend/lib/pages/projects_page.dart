@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:flutter/services.dart';
 import '../models/project.dart';
 import '../components/projects/project_card.dart';
@@ -66,23 +67,18 @@ class _ProjectsPageState extends State<ProjectsPage> {
 
   Future<void> _initializeLocation() async {
     if (!mounted) return;
-    setState(() {
-    });
+    setState(() {});
 
     try {
       await _locationService.getCurrentLocation();
       if (!mounted) return;
-      if (_locationService.currentPosition == null) {
-        
-      }
+      if (_locationService.currentPosition == null) {}
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-      });
+      setState(() {});
     } finally {
       if (mounted) {
-        setState(() {
-        });
+        setState(() {});
       }
     }
   }
@@ -101,8 +97,12 @@ class _ProjectsPageState extends State<ProjectsPage> {
       });
 
       print('Fetching projects data...');
-      final projectsFuture = ApiService.fetchProjects(forceRefresh: forceRefresh);
-      final developersFuture = ApiService.fetchDevelopers(forceRefresh: forceRefresh);
+      final projectsFuture = ApiService.fetchProjects(
+        forceRefresh: forceRefresh,
+      );
+      final developersFuture = ApiService.fetchDevelopers(
+        forceRefresh: forceRefresh,
+      );
 
       final results = await Future.wait([projectsFuture, developersFuture]);
 
@@ -195,7 +195,10 @@ class _ProjectsPageState extends State<ProjectsPage> {
               body = AmenitiesFilter(
                 isDark: isDark,
                 amenities:
-                    (_projects.expand((p) => p.amenities.map((a) => a.data)).toSet().toList()
+                    (_projects
+                        .expand((p) => p.amenities.map((a) => a.data))
+                        .toSet()
+                        .toList()
                       ..sort()),
                 selectedAmenities: _selectedAmenities,
                 query: _amenitiesQuery,
@@ -1052,17 +1055,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
     // Copy to clipboard and show message
     Clipboard.setData(ClipboardData(text: shareText));
     final theme = Theme.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Project details copied to clipboard!'),
-        backgroundColor: theme.colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        action: SnackBarAction(
-          label: 'Share',
-          textColor: Colors.white,
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: shareText));
+    CustomSnackBar.show(context, message: 'Project details copied to clipboard!', isError: false, title: 'Notice');
           },
         ),
       ),
@@ -1102,12 +1095,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
               final brokerId = broker?['broker_id']?.toString();
 
               if (brokerId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please log in to add enquiry'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                CustomSnackBar.show(context, message: 'Please log in to add enquiry', isError: false, title: 'Notice');
                 return;
               }
 
@@ -1117,27 +1105,13 @@ class _ProjectsPageState extends State<ProjectsPage> {
                 brokerId: brokerId,
                 lockProjectSelection: true,
                 onCreated: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
+                  CustomSnackBar.show(context, message: 
                         'Enquiry added for ${_visibleProjects.length} projects!',
-                      ),
-                      backgroundColor: theme.colorScheme.primary,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  );
+                      , isError: false, title: 'Notice');
                 },
               );
             } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              CustomSnackBar.show(context, message: 'Error: ${e.toString()}', isError: true, title: 'Error');
             }
           },
           style: ElevatedButton.styleFrom(
@@ -1377,57 +1351,60 @@ class _ProjectsPageState extends State<ProjectsPage> {
               : RefreshIndicator(
                   onRefresh: () => _fetchData(forceRefresh: true),
                   child: PageView.builder(
-                  controller: _pageController,
-                  scrollDirection: Axis.vertical,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentIndex = index;
-                    });
-                  },
-                  itemCount: _visibleProjects.length,
-                  itemBuilder: (context, index) {
-                    final project = _visibleProjects[index];
-                    final developer = _developers.firstWhere(
-                      (dev) => dev.id == project.developerId,
-                      orElse: () => Developer(
-                        id: '',
-                        createdAt: '',
-                        updatedAt: '',
-                        username: 'Unknown',
-                        email: '',
-                        developerName: 'Unknown Developer',
-                        reraNumber: '',
-                        gstNumber: '',
-                        panNumber: '',
-                        officeAddress: '',
-                        contactPerson: '',
-                        contactEmail: '',
-                        contactPhone: '',
-                        companySize: '',
-                        specializations: [],
-                        certifications: [],
-                        bankDetails: BankDetails(
-                          accountNumber: '',
-                          ifscCode: '',
-                          bankName: '',
+                    controller: _pageController,
+                    scrollDirection: Axis.vertical,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentIndex = index;
+                      });
+                    },
+                    itemCount: _visibleProjects.length,
+                    itemBuilder: (context, index) {
+                      final project = _visibleProjects[index];
+                      final developer = _developers.firstWhere(
+                        (dev) => dev.id == project.developerId,
+                        orElse: () => Developer(
+                          id: '',
+                          createdAt: '',
+                          updatedAt: '',
+                          username: 'Unknown',
+                          email: '',
+                          developerName: 'Unknown Developer',
+                          reraNumber: '',
+                          gstNumber: '',
+                          panNumber: '',
+                          officeAddress: '',
+                          contactPerson: '',
+                          contactEmail: '',
+                          contactPhone: '',
+                          companySize: '',
+                          specializations: [],
+                          certifications: [],
+                          bankDetails: BankDetails(
+                            accountNumber: '',
+                            ifscCode: '',
+                            bankName: '',
+                          ),
+                          kycStatus: '',
+                          isVerified: false,
+                          isActive: false,
+                          websiteUrl: '',
+                          logoUrl: '',
+                          companyDescription: '',
+                          yearEstablished: 0,
+                          totalProjectsCompleted: 0,
+                          currentProjectsCount: 0,
+                          stories: [],
+                          projectsList: [],
                         ),
-                        kycStatus: '',
-                        isVerified: false,
-                        isActive: false,
-                        websiteUrl: '',
-                        logoUrl: '',
-                        companyDescription: '',
-                        yearEstablished: 0,
-                        totalProjectsCompleted: 0,
-                        currentProjectsCount: 0,
-                        stories: [],
-                        projectsList: [],
-                      ),
-                    );
+                      );
 
-                    return ProjectCard(project: project, developer: developer);
-                  },
-                ),
+                      return ProjectCard(
+                        project: project,
+                        developer: developer,
+                      );
+                    },
+                  ),
                 ),
 
           // Top navigation bar

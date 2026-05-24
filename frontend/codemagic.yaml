@@ -1,0 +1,73 @@
+# Check out https://docs.codemagic.io/flutter/yaml-configuration/ for more information
+
+workflows:
+  ios-workflow:
+    name: iOS Deployment Workflow
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        - app_store_credentials # Define this in Codemagic UI (Issuer ID, Key ID, API Key)
+      vars:
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+        BUNDLE_ID: "com.homesolindia.crm"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    integrations:
+      app_store_connect: "HomeSol Nexus" # CHANGE THIS to match your integration name in Codemagic UI
+    scripts:
+      - name: Set up code signing settings on Codemagic
+        script: |
+          keychain initialize
+          # The following command fetches certificates and provisioning profiles from App Store Connect
+          # Requires APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --project-type ios --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Get Flutter dependencies
+        script: |
+          flutter pub get
+      - name: Build iOS IPA
+        script: |
+          # Build the IPA without signing first to ensure code integrity
+          flutter build ipa --release --no-codesign
+          # Final build for App Store distribution
+          flutter build ipa --release \
+            --export-options-plist=$HOME/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Or use manual credentials if not using integration
+        # api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        # key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        # issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
+
+  android-workflow:
+    name: Android Deployment Workflow
+    max_build_duration: 30
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        - google_play_credentials # Define this in Codemagic UI (Service Account JSON)
+      vars:
+        PACKAGE_NAME: "com.homesolindia.crm"
+      flutter: stable
+    scripts:
+      - name: Get Flutter dependencies
+        script: |
+          flutter pub get
+      - name: Build Android App Bundle (AAB)
+        script: |
+          flutter build appbundle --release
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal # Change to 'production' when ready

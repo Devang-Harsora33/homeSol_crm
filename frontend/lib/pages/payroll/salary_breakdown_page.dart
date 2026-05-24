@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/workforces/workforce.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:Homesol/models/salary_breakdown.dart';
 import 'package:Homesol/services/api_service.dart';
@@ -37,16 +38,12 @@ class _SalaryBreakdownPageState extends State<SalaryBreakdownPage> {
       final String pdfUrl = await WorkforceService.downloadSalarySlip(widget.salarySlipId);
       if (await canLaunchUrl(Uri.parse(pdfUrl))) {
         await launchUrl(Uri.parse(pdfUrl), mode: LaunchMode.externalApplication);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloading PDF...')),
-        );
+        CustomSnackBar.show(context, message: 'Downloading PDF...', isError: false, title: 'Notice');
       } else {
         throw 'Could not launch $pdfUrl';
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to download slip: $e')),
-      );
+      CustomSnackBar.show(context, message: 'Failed to download slip: $e', isError: true, title: 'Error');
     }
   }
 

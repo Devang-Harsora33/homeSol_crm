@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -254,11 +255,11 @@ class _BrokerProfilePageState extends State<BrokerProfilePage> {
           if (result['success']) {
             _loadProfile();
           } else {
-             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'])));
+             CustomSnackBar.show(context, message: result['message'], isError: false, title: 'Notice');
           }
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error uploading image: $e")));
+        CustomSnackBar.show(context, message: "Error uploading image: $e", isError: true, title: 'Error');
       } finally {
         setState(() => isLoading = false);
       }

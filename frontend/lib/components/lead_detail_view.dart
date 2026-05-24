@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/developers/developer_service.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:flutter/material.dart';
@@ -19,11 +20,9 @@ import 'live_inventory_matrix.dart';
 import '../pages/site_visit_detail_page.dart';
 import '../pages/create_site_visit_page.dart'; 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; 
-import 'package:share_plus/share_plus.dart';
-import '../pages/crm/lead_creation_page.dart'; 
 import '../pages/crm/follow_up_detail_page.dart';
 import '../models/follow_up.dart';
-import '../utils.dart';
+import '../pages/crm/lead_creation_page.dart';
 import 'project_share_bottom_sheet.dart';
 
 // ─── STYLING CONSTANTS ───
@@ -328,8 +327,9 @@ class _LeadDetailViewState extends State<LeadDetailView> {
   }
 
   Future<void> _launchUrl(String url) async {
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       throw 'Could not launch $url';
     }
@@ -351,16 +351,18 @@ class _LeadDetailViewState extends State<LeadDetailView> {
     }
 
     if (numbers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No phone number available')),
-      );
+      CustomSnackBar.show(context, message: 'No phone number available', isError: false, title: 'Notice');
       return;
     }
 
     if (numbers.length == 1) {
+      String formattedNumber = numbers.first.trim().replaceAll(RegExp(r'[^0-9]'), '');
+      if (formattedNumber.startsWith('0')) formattedNumber = formattedNumber.substring(1);
+      if (formattedNumber.length == 10) formattedNumber = '91$formattedNumber';
+
       final url = action == 'call'
           ? 'tel:${numbers.first}'
-          : 'https://wa.me/${numbers.first}';
+          : 'https://wa.me/$formattedNumber';
       _launchUrl(url);
       if (lead.name != null) {
         LeadService.recordButtonPress(
@@ -425,7 +427,11 @@ class _LeadDetailViewState extends State<LeadDetailView> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: () {
-                        final url = isCall ? 'tel:$number' : 'https://wa.me/$number';
+                        String formattedNumber = number.trim().replaceAll(RegExp(r'[^0-9]'), '');
+                        if (formattedNumber.startsWith('0')) formattedNumber = formattedNumber.substring(1);
+                        if (formattedNumber.length == 10) formattedNumber = '91$formattedNumber';
+
+                        final url = isCall ? 'tel:$number' : 'https://wa.me/$formattedNumber';
                         _launchUrl(url);
                         if (lead.name != null) {
                           LeadService.recordButtonPress(lead.name!,
@@ -507,7 +513,7 @@ class _LeadDetailViewState extends State<LeadDetailView> {
         throw 'Could not launch $url';
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open map: $e')));
+      CustomSnackBar.show(context, message: 'Could not open map: $e', isError: false, title: 'Notice');
     }
   }
 
@@ -856,7 +862,7 @@ Widget _buildFollowUpsCard() {
               if (_currentLead.emailId != null && _currentLead.emailId!.isNotEmpty) {
                 _launchUrl('mailto:${_currentLead.emailId}');
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No email address available')));
+                CustomSnackBar.show(context, message: 'No email address available', isError: false, title: 'Notice');
               }
             }),
             const SizedBox(width: 12),
@@ -994,7 +1000,7 @@ Widget _buildFollowUpsCard() {
       child: InkWell(
         onTap: isTappable ? onTap : (isCopyable ? () {
           Clipboard.setData(ClipboardData(text: value));
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Copied!"), duration: Duration(milliseconds: 600)));
+          CustomSnackBar.show(context, message: "Copied!", isError: false, title: 'Notice');
           HapticFeedback.lightImpact();
         } : null),
         borderRadius: BorderRadius.circular(16),
@@ -1530,7 +1536,7 @@ Widget _buildFollowUpsCard() {
     final currentStatus = _currentLead.customLeadStatus ?? _currentLead.status;
     final stages = _getStagesForStatus(currentStatus);
     if (stages.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No stages available for current status.')));
+      CustomSnackBar.show(context, message: 'No stages available for current status.', isError: false, title: 'Notice');
       return;
     }
     _showSelectionDialog('Edit Lead Stage', stages, _currentLead.customStages ?? '', (newVal) async {
@@ -1653,13 +1659,13 @@ Widget _buildFollowUpsCard() {
       await LeadService.updateLead(_currentLead.name!, updates);
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lead updated successfully!')));
+        CustomSnackBar.show(context, message: 'Lead updated successfully!', isError: false, title: 'Notice');
         _fetchData(); // Refresh lead details
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update lead: $e')));
+        CustomSnackBar.show(context, message: 'Failed to update lead: $e', isError: true, title: 'Error');
       }
     }
   }
@@ -1756,9 +1762,7 @@ Widget _buildFollowUpsCard() {
       final marked = await LeadService.markLeadAsLost(_currentLead.name!);
       if (marked) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Lead marked as Lost successfully!')),
-          );
+          CustomSnackBar.show(context, message: 'Lead marked as Lost successfully!', isError: false, title: 'Notice');
           // Delay the pop to allow snackbar to show
           await Future.delayed(const Duration(milliseconds: 500));
           if (context.mounted) {
@@ -1767,16 +1771,12 @@ Widget _buildFollowUpsCard() {
         }
       } else {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to mark lead as Lost. Please try again.')),
-          );
+          CustomSnackBar.show(context, message: 'Failed to mark lead as Lost. Please try again.', isError: true, title: 'Error');
         }
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error marking lead as Lost: $e')),
-        );
+        CustomSnackBar.show(context, message: 'Error marking lead as Lost: $e', isError: true, title: 'Error');
       }
       print('Error marking lead as Lost: $e');
     }

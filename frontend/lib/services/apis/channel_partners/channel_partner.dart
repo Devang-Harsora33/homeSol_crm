@@ -119,10 +119,13 @@ class ChannelPartnerService {
           return rawPartners.map((data) => ChannelPartner.fromJson(json.decode(data['data']))).toList();
         }
 
-        DateTime latestModifiedDate = DateTime.parse(lastSyncTimestamp.contains(' ') ? lastSyncTimestamp.replaceAll(' ', 'T') + 'Z' : lastSyncTimestamp + 'T00:00:00Z');
+        // Fix: Removed 'Z' to avoid UTC conversion if server uses local time
+        DateTime latestModifiedDate = DateTime.parse(lastSyncTimestamp.contains(' ') ? lastSyncTimestamp.replaceAll(' ', 'T') : lastSyncTimestamp + 'T00:00:00');
 
         final List<Future<ChannelPartner>> futures = [];
-        for (final item in items) futures.add(fetchChannelPartner(item['name']));
+        for (final item in items) {
+          futures.add(fetchChannelPartner(item['name'], forceRefresh: true));
+        }
 
         List<ChannelPartner> partners = await Future.wait(futures);
 
@@ -170,10 +173,12 @@ class ChannelPartnerService {
   }
 
   static Future<List<ChannelPartner>> fetchAllChannelPartners({bool forceRefresh = false}) async {
-    if (forceRefresh || !ConnectivityService.isOnline) return await syncChannelPartners(forceRefresh: forceRefresh);
+    if (ConnectivityService.isOnline) {
+      return await syncChannelPartners(forceRefresh: forceRefresh);
+    }
+    
     final ChannelPartnerDatabase partnerDb = ChannelPartnerDatabase();
     final List<Map<String, dynamic>> rawPartners = await partnerDb.getAllChannelPartners();
-    if (rawPartners.isEmpty) return await syncChannelPartners();
     return rawPartners.map((data) => ChannelPartner.fromJson(json.decode(data['data']))).toList();
   }
 
@@ -213,23 +218,29 @@ class ChannelPartnerService {
     }
   }
 
-  static Future<String?> createChannelPartner(Map<String, dynamic> body) async {
+  static Future<ChannelPartner?> createChannelPartner(Map<String, dynamic> body) async {
     if (!ConnectivityService.isOnline) return null;
     try {
       final headers = await _getHeaders();
       final response = await http.post(Uri.parse('$baseUrl/api/resource/Channel%20Partner'), headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200 || response.statusCode == 201) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        return responseData['data']['name'] as String?;
+        final partner = ChannelPartner.fromJson(responseData['data']);
+        // Save to local database
+        final ChannelPartnerDatabase partnerDb = ChannelPartnerDatabase();
+        await partnerDb.upsertChannelPartner(responseData['data']);
+        return partner;
       }
-    } catch (_) {}
+    } catch (e) {
+      print('❌ Create Channel Partner error: $e');
+    }
     return null;
   }
 
-  static Future<bool> updateChannelPartner(Map<String, dynamic> body) async {
+  static Future<ChannelPartner?> updateChannelPartner(Map<String, dynamic> body) async {
     if (!ConnectivityService.isOnline) {
       print('❌ Update Channel Partner failed: No internet connection');
-      return false;
+      return null;
     }
     try {
       final headers = await _getHeaders();
@@ -237,25 +248,46 @@ class ChannelPartnerService {
       final url = '$baseUrl/api/resource/Channel%20Partner/$name';
       final jsonBody = jsonEncode(body);
       
-      print('--- Update Channel Partner Request ---');
-      print('URL: $url');
-      print('Headers: $headers');
-      print('Body: $jsonBody');
-      
       final response = await http.put(
         Uri.parse(url), 
         headers: headers, 
         body: jsonBody
       ).timeout(const Duration(seconds: 30));
       
-      print('--- Update Channel Partner Response ---');
-      print('Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-      
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final partner = ChannelPartner.fromJson(responseData['data']);
+        // Save to local database
+        final ChannelPartnerDatabase partnerDb = ChannelPartnerDatabase();
+        await partnerDb.upsertChannelPartner(responseData['data']);
+        return partner;
+      } else {
+        print('❌ Update Channel Partner failed. Status: ${response.statusCode}, Body: ${response.body}');
+        throw Exception('Failed to update: ${response.body}');
+      }
     } catch (e) {
       print('❌ Update Channel Partner error: $e');
-      return false;
+      throw e;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchSiteVisitsByChannelPartner(String partnerId) async {
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse('$baseUrl/api/method/homesol_app.api.crm.get_site_visits_by_channel_partner?partner_id=$partnerId');
+      
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['message'] != null) {
+          return List<Map<String, dynamic>>.from(data['message']);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching site visits for channel partner: $e');
+      return [];
     }
   }
 }

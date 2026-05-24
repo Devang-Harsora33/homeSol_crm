@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/channel_partners/channel_partner.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
@@ -7,6 +8,7 @@ import 'package:screen_protector/screen_protector.dart';
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../models/channel_partner.dart';
 import '../../models/lead.dart' as model_lead;
 import '../../models/project.dart';
@@ -29,12 +31,14 @@ class ChannelPartnerDetailPage extends StatefulWidget {
 class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
   ChannelPartner? _partner;
   List<model_lead.Lead> _connectedLeads = [];
+  List<Map<String, dynamic>> _siteVisits = [];
   List<Project> _projects = [];
   Map<String, String> _projectNames = {};
   Map<String, int> _projectLeadCounts = {};
   Map<String, int> _projectSiteVisitCounts = {};
   bool _isLoading = true;
   String? _errorMessage;
+  int _siteVisitsLimit = 5;
 
   @override
   void initState() {
@@ -56,7 +60,8 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       if (refreshLeadsAndProjects) {
         final leads = await LeadService.getLeadsByChannelPartner(widget.partnerId);
         final projects = await ProjectService.fetchProjects();
-        final siteVisits = await SiteVisitService.fetchSiteVisits();
+        final globalSiteVisits = await SiteVisitService.fetchSiteVisits();
+        final partnerSiteVisits = await ChannelPartnerService.fetchSiteVisitsByChannelPartner(widget.partnerId);
         
         final projectMap = <String, String>{};
         for (var project in projects) {
@@ -73,7 +78,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
         // Calculate Site Visit Counts per Project for this Partner's leads
         final siteVisitCounts = <String, int>{};
         final leadIds = leads.map((l) => l.name).toSet();
-        for (var visit in siteVisits) {
+        for (var visit in globalSiteVisits) {
           if (leadIds.contains(visit.lead)) {
             final projectId = visit.project;
             siteVisitCounts[projectId] = (siteVisitCounts[projectId] ?? 0) + 1;
@@ -83,6 +88,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
         setState(() {
           _partner = partner;
           _connectedLeads = leads;
+          _siteVisits = partnerSiteVisits;
           _projects = projects;
           _projectNames = projectMap;
           _projectLeadCounts = leadCounts;
@@ -125,9 +131,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       await SiteVisitService.fetchMySiteVisits(forceRefresh: true);
       await _fetchPartnerDetails(forceRefreshPartner: true);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error refreshing data: $e')),
-      );
+      CustomSnackBar.show(context, message: 'Error refreshing data: $e', isError: true, title: 'Error');
     }
   }
 
@@ -174,7 +178,10 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
           children: [
             _buildHeroProfile(),
             const SizedBox(height: 20),
+            
             _buildGridDetails(),
+            const SizedBox(height: 16),
+            _buildMarketingAndDataSection(),
             const SizedBox(height: 16),
             if (_partner!.fullAddress != null && _partner!.fullAddress!.isNotEmpty)
               ...[
@@ -192,6 +199,27 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
               else
                 ..._connectedLeads.map((lead) => _buildLeadCard(lead)).toList()
             ]),
+            const SizedBox(height: 16),
+            _buildSectionCard("Site Visits", Icons.location_on_rounded, [
+              if (_siteVisits.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                  child: Center(child: Text("No site visits found for this partner", style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic))),
+                )
+              else ...[
+                ..._siteVisits.take(_siteVisitsLimit).map((visit) => _buildPartnerSiteVisitCard(visit)).toList(),
+                if (_siteVisits.length > _siteVisitsLimit)
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => _siteVisitsLimit += 5),
+                      icon: const Icon(Icons.expand_more_rounded, color: kAccent),
+                      label: const Text('See More', style: TextStyle(color: kAccent, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+              ]
+            ]),
+            const SizedBox(height: 16),
+            _buildSectionCard("Station Preferences", Icons.train_rounded, [_buildStationPreferences()]),
             const SizedBox(height: 16),
             _buildSectionCard(
               "Team Members", 
@@ -239,7 +267,198 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
     );
   }
 
+  Widget _buildMarketingAndDataSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.campaign_rounded, size: 18, color: Colors.blue.shade700),
+              ),
+              const SizedBox(width: 12),
+              const Text("Marketing & Support", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.black87, letterSpacing: -0.3)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildSwitchTile(
+            "Digital Marketing", 
+            "Is Digital Marketing Done by CP?", 
+            Icons.ads_click_rounded, 
+            _partner!.doesDigitalmarketing == 1,
+            Colors.purple
+          ),
+          const Divider(height: 24, thickness: 0.5),
+          _buildSwitchTile(
+            "AOP Signed", 
+            "Has the AOP been officially signed?", 
+            Icons.verified_user_rounded, 
+            _partner!.aopSigned == 1,
+            Colors.green
+          ),
+          const Divider(height: 24, thickness: 0.5),
+          _buildSwitchTile(
+            "Calling Data", 
+            "Does the CP provide calling data?", 
+            Icons.contact_phone_rounded, 
+            _partner!.givesCallingdata == 1,
+            Colors.orange
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile(String title, String subtitle, IconData icon, bool isActive, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+              const SizedBox(height: 2),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            ],
+          ),
+        ),
+        Container(
+          width: 44,
+          height: 24,
+          decoration: BoxDecoration(
+            color: isActive ? color : Colors.grey.shade300,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Stack(
+            children: [
+              AnimatedAlign(
+                duration: const Duration(milliseconds: 200),
+                alignment: isActive ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  width: 20,
+                  height: 20,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildHeroProfile() {
+    // Priority Badge Logic
+    Widget? priorityBadge;
+    if (_partner!.type != null) {
+      String label = "";
+      Gradient badgeGradient;
+      Color textColor = Colors.white;
+      IconData badgeIcon;
+      Color borderColor;
+      
+      switch (_partner!.type!.toUpperCase()) {
+        case 'P1':
+          label = "GOLD";
+          badgeGradient = const LinearGradient(
+            colors: [Color(0xFFFFD700), Color(0xFFFDB931), Color(0xFFDAA520)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+          textColor = const Color(0xFF5C4033); // Dark bronze/brown for contrast on gold
+          badgeIcon = Icons.workspace_premium_rounded;
+          borderColor = const Color(0xFFB8860B).withOpacity(0.5);
+          break;
+        case 'P2':
+          label = "SILVER";
+          badgeGradient = const LinearGradient(
+            colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD), Color(0xFF9E9E9E)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+          textColor = const Color(0xFF333333);
+          badgeIcon = Icons.stars_rounded;
+          borderColor = const Color(0xFF757575).withOpacity(0.5);
+          break;
+        case 'P3':
+          label = "BRONZE";
+          badgeGradient = const LinearGradient(
+            colors: [Color(0xFFCD7F32), Color(0xFFB87333), Color(0xFF8B4513)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+          textColor = Colors.white;
+          badgeIcon = Icons.military_tech_rounded;
+          borderColor = const Color(0xFF5D4037).withOpacity(0.5);
+          break;
+        default:
+          label = "";
+          badgeGradient = const LinearGradient(colors: [Colors.grey, Colors.grey]);
+          badgeIcon = Icons.badge;
+          borderColor = Colors.transparent;
+      }
+
+      if (label.isNotEmpty) {
+        priorityBadge = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            gradient: badgeGradient,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: (badgeGradient.colors[0]).withOpacity(0.4), 
+                blurRadius: 10, 
+                offset: const Offset(0, 4)
+              )
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(badgeIcon, size: 12, color: textColor),
+              const SizedBox(width: 4),
+              Text(
+                label, 
+                style: TextStyle(
+                  fontSize: 10, 
+                  fontWeight: FontWeight.w900, 
+                  color: textColor, 
+                  letterSpacing: 0.8,
+                  shadows: [
+                    if (textColor == Colors.white)
+                      Shadow(color: Colors.black.withOpacity(0.3), blurRadius: 2, offset: const Offset(0, 1))
+                  ]
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
@@ -250,33 +469,72 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       ),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: CircleAvatar(
-              radius: 46,
-              backgroundColor: Colors.white,
-              child: Text(
-                (_partner!.firmName?.isNotEmpty ?? false) ? _partner!.firmName![0].toUpperCase() : 'C',
-                style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: kAccent),
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: CircleAvatar(
+                  radius: 46,
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    (_partner!.firmName?.isNotEmpty ?? false) ? _partner!.firmName![0].toUpperCase() : 'C',
+                    style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: kAccent),
+                  ),
+                ),
               ),
-            ),
+              if (priorityBadge != null)
+                Transform.translate(
+                  offset: const Offset(10, 5),
+                  child: priorityBadge,
+                ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Text(
             _partner!.firmName ?? 'N/A', 
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.5), 
             textAlign: TextAlign.center
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          
+          // Quality Ratings
+          if (_partner!.cpQuality != null)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                // Quality is 0 to 1, or 1 to 5? LeadDetailView assumes 0 to 1 scale.
+                // Assuming cpQuality is 0.0 to 1.0 based on LeadDetailView: 
+                // int numberOfStars = (_currentLead.customLeadQuality! / 0.2).round();
+                // But typically ratings are 1-5. Let's handle both.
+                int numberOfStars;
+                if (_partner!.cpQuality! <= 1.0) {
+                  numberOfStars = (_partner!.cpQuality! / 0.2).round();
+                } else {
+                  numberOfStars = _partner!.cpQuality!.round();
+                }
+                
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                  child: Icon(
+                    index < numberOfStars ? Icons.star_rounded : Icons.star_outline_rounded,
+                    size: 18, 
+                    color: Colors.amber,
+                  ),
+                );
+              }),
+            ),
+          
+          const SizedBox(height: 12),
           if (_partner!.email != null && _partner!.email!.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.15),
+                color: Colors.white.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
@@ -310,9 +568,11 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
     );
   }
 
+
   Future<void> _launchUrl(String url) async {
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       throw 'Could not launch $url';
     }
@@ -357,7 +617,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
     final relevantProjects = _projects.where((p) => relevantProjectIds.contains(p.id)).toList();
 
     if (relevantProjects.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No projects associated with this partner to share.')));
+      CustomSnackBar.show(context, message: 'No projects associated with this partner to share.', isError: false, title: 'Notice');
       return;
     }
 
@@ -457,17 +717,40 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
             Expanded(child: _buildDetailTile(Icons.verified_rounded, "RERA No.", _partner!.reraNumber)),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _buildDetailTile(Icons.label_important_rounded, "Type", _partner!.type)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildDetailTile(Icons.business_center_rounded, "Firm Type", _partner!.category)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildDetailTile(Icons.home_work_rounded, "Property Preferences", _partner!.propertyPreferences),
       ],
     );
   }
 
   Widget _buildDetailTile(IconData icon, String label, String? value) {
+    bool isPropertyPreference = label == "Property Preferences";
+    List<String> prefs = [];
+    if (isPropertyPreference && value != null && value.isNotEmpty) {
+      prefs = value.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -476,20 +759,65 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
             children: [
               Container(
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: kAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                  color: kAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Icon(icon, size: 14, color: kAccent),
               ),
               const SizedBox(width: 8),
-              Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600), maxLines: 1)),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            value?.isNotEmpty == true ? value! : 'N/A', 
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          if (isPropertyPreference && prefs.isNotEmpty)
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children:
+                  prefs.map((p) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kAccent.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: kAccent.withOpacity(0.1)),
+                      ),
+                      child: Text(
+                        p,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: kAccent,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+            )
+          else
+            Text(
+              value?.isNotEmpty == true ? value! : 'N/A',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+              maxLines: isPropertyPreference ? 5 : 1,
+              overflow: TextOverflow.ellipsis,
+            ),
         ],
       ),
     );
@@ -606,6 +934,129 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
           ),
         ),
         trailing: _buildLeadStatusBadge(lead.customLeadStatus),
+      ),
+    );
+  }
+
+  Widget _buildPartnerSiteVisitCard(Map<String, dynamic> visit) {
+    final status = visit['status']?.toString() ?? 'Scheduled';
+    final visitDateStr = visit['visit_date']?.toString();
+    final visitDate = visitDateStr != null ? DateTime.tryParse(visitDateStr) : null;
+    final projectName = _projectNames[visit['project']] ?? visit['project'] ?? 'No Project';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    projectName,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.black87),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                _buildVisitStatusBadge(status),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.person_rounded, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Lead: ${visit['lead']}",
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.calendar_today_rounded, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 8),
+                Text(
+                  visitDate != null ? DateFormat('dd MMM yyyy, hh:mm a').format(visitDate) : 'No Date',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            if (visit['remark'] != null && visit['remark'].toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.notes_rounded, size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      visit['remark'].toString(),
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVisitStatusBadge(String status) {
+    final normalizedStatus = status.toLowerCase();
+    Color baseColor = Colors.grey.shade600;
+    IconData iconData = Icons.help_outline_rounded;
+
+    if (normalizedStatus == 'scheduled') {
+      baseColor = Colors.blue.shade700;
+      iconData = Icons.schedule_rounded;
+    } else if (normalizedStatus == 'completed' || normalizedStatus == 'visit done' || normalizedStatus == 'revisit done') {
+      baseColor = Colors.green.shade700;
+      iconData = Icons.check_circle_rounded;
+    } else if (normalizedStatus == 'rescheduled') {
+      baseColor = Colors.orange.shade800;
+      iconData = Icons.event_repeat_rounded;
+    } else if (normalizedStatus == 'cancelled' || normalizedStatus == 'canceled') {
+      baseColor = Colors.red.shade700;
+      iconData = Icons.cancel_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: baseColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: baseColor.withOpacity(0.25), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(iconData, size: 12, color: baseColor),
+          const SizedBox(width: 4),
+          Text(
+            status.toUpperCase(),
+            style: TextStyle(
+              color: baseColor,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -929,8 +1380,8 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       updatedPartner.contactPersons?.removeWhere((p) => p.name == person.name);
 
       final success = await ChannelPartnerService.updateChannelPartner(updatedPartner.toJson());
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Team member deleted successfully')));
+      if (success != null) {
+        CustomSnackBar.show(context, message: 'Team member deleted successfully', isError: false, title: 'Notice');
         await _fetchPartnerDetails();
       } else {
         throw Exception('Failed to update Channel Partner');
@@ -940,7 +1391,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
         _errorMessage = e.toString();
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      CustomSnackBar.show(context, message: 'Error: $e', isError: true, title: 'Error');
     }
   }
 
@@ -1029,9 +1480,9 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       print('Payload: ${jsonEncode(updateData)}');
       
       final success = await ChannelPartnerService.updateChannelPartner(updateData);
-      if (success) {
+      if (success != null) {
         print('✅ Channel Partner updated successfully');
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Team member saved successfully')));
+        CustomSnackBar.show(context, message: 'Team member saved successfully', isError: false, title: 'Notice');
         // Optimized: Fetch only the updated partner data from server, skipping leads and projects
         await _fetchPartnerDetails(forceRefreshPartner: true, refreshLeadsAndProjects: false);
       } else {
@@ -1044,7 +1495,7 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      CustomSnackBar.show(context, message: 'Error: $e', isError: true, title: 'Error');
     }
   }
 
@@ -1124,8 +1575,12 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
                     if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url));
                   }),
                   _actionButton(FontAwesomeIcons.whatsapp, 'WhatsApp', const Color(0xFF25D366), () async {
-                    final url = 'https://wa.me/${person.mobile}';
-                    if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url));
+                    String number = person.mobile!.trim().replaceAll(RegExp(r'[^0-9]'), '');
+                    if (number.startsWith('0')) number = number.substring(1);
+                    if (number.length == 10) number = '91$number';
+                    
+                    final url = 'https://wa.me/$number';
+                    if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
                   }),
                 ],
                 if (person.email != null && person.email!.isNotEmpty)
@@ -1254,18 +1709,12 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
 
   Widget _buildFlags() {
     final List<Map<String, dynamic>> flags = [
-      {'label': 'Digital', 'icon': Icons.computer, 'value': _partner!.isDigital},
-      {'label': 'Reference', 'icon': Icons.person_add_alt_1, 'value': _partner!.isReference},
-      {'label': 'Data Calling', 'icon': Icons.phone_callback, 'value': _partner!.isDataCalling},
-      {'label': 'Retail', 'icon': Icons.storefront, 'value': _partner!.isRetail},
-      {'label': 'Under Construction', 'icon': Icons.construction, 'value': _partner!.isUnderConstruction},
-      {'label': 'Rental', 'icon': Icons.vpn_key, 'value': _partner!.isRental},
-      {'label': 'Ready To Move', 'icon': Icons.home_work, 'value': _partner!.isReadyToMove},
-      {'label': 'Calling Support', 'icon': Icons.support_agent, 'value': _partner!.reqCallingSupport},
-      {'label': 'Digital Kit', 'icon': Icons.auto_fix_high, 'value': _partner!.reqDigitalKit},
-      {'label': 'Standees', 'icon': Icons.branding_watermark, 'value': _partner!.reqStandees},
-      {'label': 'SMS Blast', 'icon': Icons.sms, 'value': _partner!.reqSmsBlast},
-      {'label': 'WhatsApp Blast', 'icon': FontAwesomeIcons.whatsapp, 'value': _partner!.reqWhatsappBlast},
+      {'label': 'Commercial', 'icon': Icons.business_rounded, 'value': _partner!.commercial},
+      {'label': 'Luxury', 'icon': Icons.diamond_rounded, 'value': _partner!.luxury},
+      {'label': 'Land', 'icon': Icons.landscape_rounded, 'value': _partner!.land},
+      {'label': 'Redevelopment', 'icon': Icons.architecture_rounded, 'value': _partner!.redevelopment},
+      {'label': 'Residential', 'icon': Icons.home_rounded, 'value': _partner!.residential},
+      {'label': 'Retail', 'icon': Icons.storefront_rounded, 'value': _partner!.retail},
     ];
 
     final activeFlags = flags.where((f) => f['value'] == 1).toList();
@@ -1278,6 +1727,58 @@ class _ChannelPartnerDetailPageState extends State<ChannelPartnerDetailPage> {
       spacing: 10.0,
       runSpacing: 10.0,
       children: activeFlags.map((flag) => _buildFlagBadge(flag['label'], flag['icon'])).toList(),
+    );
+  }
+
+  Widget _buildStationPreferences() {
+    if (_partner!.stationPreferences == null || _partner!.stationPreferences!.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16.0),
+        child: Center(child: Text("No station preferences added", style: TextStyle(color: Colors.grey, fontSize: 13, fontStyle: FontStyle.italic))),
+      );
+    }
+
+    return Column(
+      children: _partner!.stationPreferences!.map((pref) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.train_rounded, color: Colors.blue.shade600, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pref.railwayRoute ?? 'N/A',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${pref.fromStation} ↔ ${pref.toStation}",
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 

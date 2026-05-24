@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/leads/lead_service.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
@@ -160,7 +161,7 @@ class _CreateFollowUpScreenState extends State<CreateFollowUpScreen> {
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedLead == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a lead')));
+      CustomSnackBar.show(context, message: 'Please select a lead', isError: false, title: 'Notice');
       return;
     }
 
@@ -178,14 +179,14 @@ class _CreateFollowUpScreenState extends State<CreateFollowUpScreen> {
 
       final error = await LeadService.createFollowup(body);
       if (error == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Follow-up created successfully')));
+        CustomSnackBar.show(context, message: 'Follow-up created successfully', isError: false, title: 'Notice');
         widget.onFollowUpCreated?.call();
         Navigator.pop(context);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        CustomSnackBar.show(context, message: error, isError: true, title: 'Error');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      CustomSnackBar.show(context, message: 'Error: $e', isError: true, title: 'Error');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

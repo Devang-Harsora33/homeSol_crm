@@ -1,4 +1,5 @@
 import 'package:Homesol/models/channel_partner.dart';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/models/project.dart';
 import 'package:Homesol/services/apis/channel_partners/channel_partner.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
@@ -80,8 +81,9 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
   }
 
   Future<void> _launchUrl(String url) async {
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       throw 'Could not launch $url';
     }
@@ -119,9 +121,7 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
 
     if (relevantProjects.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No projects associated with this partner to share.'))
-        );
+        CustomSnackBar.show(context, message: 'No projects associated with this partner to share.', isError: false, title: 'Notice');
       }
       return;
     }
@@ -243,18 +243,15 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
         if (_selectedFlags.isNotEmpty) {
           for (final flag in _selectedFlags) {
             switch (flag) {
-              case 'Digital': if (partner.isDigital != 1) return false; break;
-              case 'Reference': if (partner.isReference != 1) return false; break;
-              case 'Data Calling': if (partner.isDataCalling != 1) return false; break;
-              case 'Retail': if (partner.isRetail != 1) return false; break;
-              case 'Under Construction': if (partner.isUnderConstruction != 1) return false; break;
-              case 'Rental': if (partner.isRental != 1) return false; break;
-              case 'Ready To Move': if (partner.isReadyToMove != 1) return false; break;
-              case 'Calling Support': if (partner.reqCallingSupport != 1) return false; break;
-              case 'Digital Kit': if (partner.reqDigitalKit != 1) return false; break;
-              case 'Standees': if (partner.reqStandees != 1) return false; break;
-              case 'SMS Blast': if (partner.reqSmsBlast != 1) return false; break;
-              case 'WhatsApp Blast': if (partner.reqWhatsappBlast != 1) return false; break;
+              case 'Commercial': if (partner.commercial != 1) return false; break;
+              case 'Luxury': if (partner.luxury != 1) return false; break;
+              case 'Land': if (partner.land != 1) return false; break;
+              case 'Redevelopment': if (partner.redevelopment != 1) return false; break;
+              case 'Residential': if (partner.residential != 1) return false; break;
+              case 'Retail': if (partner.retail != 1) return false; break;
+              case 'Digital Marketing': if (partner.doesDigitalmarketing != 1) return false; break;
+              case 'AOP Signed': if (partner.aopSigned != 1) return false; break;
+              case 'Calling Data': if (partner.givesCallingdata != 1) return false; break;
             }
           }
         }
@@ -292,10 +289,9 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
     final allCategories = _channelPartners.map((p) => p.category ?? '').where((c) => c.isNotEmpty).toSet().toList()..sort();
     final allTerritories = _channelPartners.map((p) => p.territory ?? '').where((t) => t.isNotEmpty).toSet().toList()..sort();
     final List<String> allFlags = [
-      'Digital', 'Reference', 'Data Calling', 'Retail', 
-      'Under Construction', 'Rental', 'Ready To Move', 
-      'Calling Support', 'Digital Kit', 'Standees', 
-      'SMS Blast', 'WhatsApp Blast'
+      'Commercial', 'Luxury', 'Land', 'Redevelopment', 
+      'Residential', 'Retail', 'Digital Marketing', 
+      'AOP Signed', 'Calling Data'
     ];
 
     final Map<String, List<String>> categories = {
@@ -748,7 +744,13 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
               context,
               MaterialPageRoute(
                   builder: (context) => const ChannelPartnerCreationPage()),
-            ).then((_) => _fetchChannelPartners());
+            ).then((result) {
+              if (result == true) {
+                _fetchChannelPartners(forceRefresh: true);
+              } else {
+                _fetchChannelPartners();
+              }
+            });
           },
           backgroundColor: const Color(0xFF1A1A1A),
           child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
@@ -805,7 +807,10 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
                                             ChannelPartnerService.recordButtonPress(partner.name!, 'WhatsApp Button');
                                           }
                                           if (partner.mobileNumber != null && partner.mobileNumber!.isNotEmpty) {
-                                            _launchUrl('https://wa.me/${partner.mobileNumber}');
+                                            String number = partner.mobileNumber!.trim().replaceAll(RegExp(r'[^0-9]'), '');
+                                            if (number.startsWith('0')) number = number.substring(1);
+                                            if (number.length == 10) number = '91$number';
+                                            _launchUrl('https://wa.me/$number');
                                           }
                                         },
                                         onShare: () => _showShareProjectPicker(partner),
@@ -960,6 +965,89 @@ class _ChannelPartnerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const kAccent = Color(0xFF675D40);
 
+    // Priority Badge Logic
+    Widget? priorityBadge;
+    if (partner.type != null) {
+      String label = "";
+      Gradient badgeGradient;
+      Color textColor = Colors.white;
+      IconData badgeIcon;
+      Color borderColor;
+      
+      switch (partner.type!.toUpperCase()) {
+        case 'P1':
+          label = "GOLD";
+          badgeGradient = const LinearGradient(
+            colors: [Color(0xFFFFD700), Color(0xFFFDB931), Color(0xFFDAA520)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+          textColor = const Color(0xFF5C4033);
+          badgeIcon = Icons.workspace_premium_rounded;
+          borderColor = const Color(0xFFB8860B).withOpacity(0.5);
+          break;
+        case 'P2':
+          label = "SILVER";
+          badgeGradient = const LinearGradient(
+            colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD), Color(0xFF9E9E9E)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+          textColor = const Color(0xFF333333);
+          badgeIcon = Icons.stars_rounded;
+          borderColor = const Color(0xFF757575).withOpacity(0.5);
+          break;
+        case 'P3':
+          label = "BRONZE";
+          badgeGradient = const LinearGradient(
+            colors: [Color(0xFFCD7F32), Color(0xFFB87333), Color(0xFF8B4513)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+          textColor = Colors.white;
+          badgeIcon = Icons.military_tech_rounded;
+          borderColor = const Color(0xFF5D4037).withOpacity(0.5);
+          break;
+        default:
+          label = "";
+          badgeGradient = const LinearGradient(colors: [Colors.grey, Colors.grey]);
+          badgeIcon = Icons.badge;
+          borderColor = Colors.transparent;
+      }
+
+      if (label.isNotEmpty) {
+        priorityBadge = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            gradient: badgeGradient,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: borderColor, width: 0.5),
+            boxShadow: [BoxShadow(color: (badgeGradient.colors[0]).withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 2))],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(badgeIcon, size: 10, color: textColor),
+              const SizedBox(width: 3),
+              Text(
+                label, 
+                style: TextStyle(
+                  fontSize: 9, 
+                  fontWeight: FontWeight.w900, 
+                  color: textColor, 
+                  letterSpacing: 0.5,
+                  shadows: [
+                    if (textColor == Colors.white)
+                      Shadow(color: Colors.black.withOpacity(0.2), blurRadius: 2, offset: const Offset(0, 1))
+                  ]
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(16),
@@ -981,34 +1069,69 @@ class _ChannelPartnerCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  partner.firmName ?? 'N/A',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1A1A1A),
-                    letterSpacing: -0.5,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      partner.firmName ?? 'N/A',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1A1A1A),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    if (partner.cpQuality != null)
+                      Row(
+                        children: List.generate(5, (index) {
+                          int numberOfStars;
+                          if (partner.cpQuality! <= 1.0) {
+                            numberOfStars = (partner.cpQuality! / 0.2).round();
+                          } else {
+                            numberOfStars = partner.cpQuality!.round();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 2.0),
+                            child: Icon(
+                              index < numberOfStars ? Icons.star_rounded : Icons.star_outline_rounded,
+                              size: 14, 
+                              color: Colors.amber,
+                            ),
+                          );
+                        }),
+                      ),
+                  ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: kAccent.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  partner.category ?? 'N/A',
-                  style: const TextStyle(
-                    color: kAccent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: kAccent.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      partner.category ?? 'N/A',
+                      style: const TextStyle(
+                        color: kAccent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                ),
+                  if (priorityBadge != null) ...[
+                    const SizedBox(height: 6),
+                    priorityBadge,
+                  ],
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Wrap(
             spacing: 24,
             runSpacing: 16,
@@ -1033,64 +1156,51 @@ class _ChannelPartnerCard extends StatelessWidget {
           Divider(color: Colors.grey.shade200, thickness: 1, height: 1),
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Row(
-                    children: [
-                      _actionIconButton(
-                        icon: FontAwesomeIcons.phone,
-                        color: Colors.blue.shade700,
-                        onPressed: onCall,
-                      ),
-                      const SizedBox(width: 8),
-                      _actionIconButton(
-                        icon: FontAwesomeIcons.whatsapp,
-                        color: const Color(0xFF25D366),
-                        onPressed: onWhatsApp,
-                      ),
-                      const SizedBox(width: 8),
-                      _actionIconButton(
-                        icon: Icons.share_rounded,
-                        color: kAccent,
-                        onPressed: onShare,
-                      ),
-                      if (showSourcingButton) ...[
-                        const SizedBox(width: 12),
-                        _actionButton(
-                          onPressed: onAddSourcing,
-                          icon: Icons.source_outlined,
-                          label: 'Sourcing',
-                          backgroundColor: const Color(0xFF1A1A1A),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              _actionIconButton(
+                icon: FontAwesomeIcons.phone,
+                color: Colors.blue.shade700,
+                onPressed: onCall,
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today_outlined,
-                          size: 14, color: Colors.grey.shade400),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Created: ${partner.creation != null ? "${partner.creation!.day}/${partner.creation!.month}/${partner.creation!.year}" : "N/A"}',
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              const SizedBox(width: 8),
+              _actionIconButton(
+                icon: FontAwesomeIcons.whatsapp,
+                color: const Color(0xFF25D366),
+                onPressed: onWhatsApp,
+              ),
+              const SizedBox(width: 8),
+              _actionIconButton(
+                icon: Icons.share_rounded,
+                color: kAccent,
+                onPressed: onShare,
+              ),
+              if (showSourcingButton) ...[
+                const SizedBox(width: 12),
+                _actionButton(
+                  onPressed: onAddSourcing,
+                  icon: Icons.source_outlined,
+                  label: 'Sourcing',
+                  backgroundColor: const Color(0xFF1A1A1A),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Creation Date Info
+          Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              Icon(Icons.calendar_today_outlined,
+                  size: 14, color: Colors.grey.shade500),
+              const SizedBox(width: 6),
+              Text(
+                'Created: ${partner.creation != null ? "${partner.creation!.day.toString().padLeft(2, '0')}/${partner.creation!.month.toString().padLeft(2, '0')}/${partner.creation!.year}" : "N/A"}',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),

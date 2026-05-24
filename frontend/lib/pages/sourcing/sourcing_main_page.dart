@@ -22,6 +22,8 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
   String? _currentUserDesignation;
   
   bool _isRefreshing = false;
+  Key _sourcingListKey = UniqueKey();
+  Key _cpListKey = UniqueKey();
 
   @override
   void initState() {
@@ -177,7 +179,12 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
                       children: const [
                         Icon(Icons.business_center_rounded, size: 16),
                         SizedBox(width: 6),
-                        Text('Sourcing'),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Sourcing'),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -188,7 +195,12 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
                       children: const [
                         Icon(Icons.handshake_rounded, size: 16),
                         SizedBox(width: 6),
-                        Text('Channel Partners'),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Channel Partners'),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -213,6 +225,7 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
           Expanded(
             child: (_currentUserDesignation?.trim().toLowerCase() == 'property developer')
                 ? SourcingListPage(
+                    key: _sourcingListKey,
                     developerId: widget.developerId,
                     showAddButton: false,
                     searchQuery: _searchQuery,
@@ -222,12 +235,14 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
                     controller: _tabController,
                     children: [
                       SourcingListPage(
+                        key: _sourcingListKey,
                         developerId: widget.developerId,
                         showAddButton: false, // Handled by global FAB now
                         searchQuery: _searchQuery,
                         isStandaloneView: false,
                       ),
                       ChannelPartnerListPage(
+                        key: _cpListKey,
                         searchQuery: _searchQuery,
                         isStandaloneView: false,
                       ),
@@ -242,9 +257,19 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
           heroTag: null,
           onPressed: () async {
             if (_tabController.index == 0) {
-               await Navigator.push(context, MaterialPageRoute(builder: (context) => const SourcingCreatePage()));
+               final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const SourcingCreatePage()));
+               if (result == true) {
+                 setState(() {
+                   _sourcingListKey = UniqueKey();
+                 });
+               }
             } else {
-               await Navigator.push(context, MaterialPageRoute(builder: (context) => const ChannelPartnerCreationPage()));
+               final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ChannelPartnerCreationPage()));
+               if (result == true) {
+                 setState(() {
+                   _cpListKey = UniqueKey();
+                 });
+               }
             }
           },
           backgroundColor: const Color(0xFF1A1A1A),

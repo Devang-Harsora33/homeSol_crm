@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:Homesol/utils/custom_snackbar.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../components/notification_card.dart';
@@ -163,20 +164,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
     if (storyId != null && storyId.isNotEmpty) {
       // Navigate to story detail
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Opening story: $storyId'),
-          backgroundColor: const Color(0xFFddbe6c),
-        ),
-      );
+      CustomSnackBar.show(context, message: 'Opening story: $storyId', isError: false, title: 'Notice');
     } else {
       // Navigate to developer page
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Opening developer: $developerName'),
-          backgroundColor: const Color(0xFFddbe6c),
-        ),
-      );
+      CustomSnackBar.show(context, message: 'Opening developer: $developerName', isError: false, title: 'Notice');
     }
   }
 }
