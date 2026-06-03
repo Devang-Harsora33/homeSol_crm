@@ -14,6 +14,7 @@
   "whatsapp_number",
   "interested_project",
   "next_follow_up",
+  "campaign_discussed",
   "column_break_pciy",
   "visit_status",
   "visit_type",
@@ -37,11 +38,8 @@
   "offered_coffee",
   "met_the_owner",
   "market_conditions",
-  "asked_about_price_trends",
-  "considering_redevelopment",
-  "concerned_about_interest_rates",
-  "compared_micro_markets",
-  "strictly_rera_registered"
+  "market_outlook",
+  "current_demand"
  ],
  "fields": [
   {
@@ -64,7 +62,7 @@
    "fieldname": "visit_status",
    "fieldtype": "Select",
    "label": "Visit Status",
-   "options": "\nVisit Done\nRevisit Done\nRevisit Scheduled"
+   "options": "\nVisit Done\nVisit Scheduled"
   },
   {
    "default": "Now",
@@ -140,9 +138,9 @@
   },
   {
    "fieldname": "interested_project",
-   "fieldtype": "Link",
+   "fieldtype": "Table MultiSelect",
    "label": "Interested Project",
-   "options": "Property Projects"
+   "options": "Sourcing Interested Project Table"
   },
   {
    "fieldname": "otp_verification_tab",
@@ -221,46 +219,31 @@
    "label": "Market Conditions"
   },
   {
-   "allow_on_submit": 1,
-   "default": "0",
-   "fieldname": "asked_about_price_trends",
-   "fieldtype": "Check",
-   "label": "Did the client ask about recent price trends in the area?"
+   "fieldname": "campaign_discussed",
+   "fieldtype": "Link",
+   "label": "Campaign Discussed",
+   "options": "CP Campaign"
   },
   {
    "allow_on_submit": 1,
    "default": "0",
-   "fieldname": "considering_redevelopment",
-   "fieldtype": "Check",
-   "label": "Is the client considering redevelopment properties?"
+   "fieldname": "market_outlook",
+   "fieldtype": "Int",
+   "label": "Market Out Look"
   },
   {
    "allow_on_submit": 1,
-   "default": "0",
-   "fieldname": "concerned_about_interest_rates",
-   "fieldtype": "Check",
-   "label": "Are they concerned about current home loan interest rates?"
-  },
-  {
-   "allow_on_submit": 1,
-   "default": "0",
-   "fieldname": "compared_micro_markets",
-   "fieldtype": "Check",
-   "label": "Did they compare this locality to a neighboring micro-market?"
-  },
-  {
-   "allow_on_submit": 1,
-   "default": "0",
-   "fieldname": "strictly_rera_registered",
-   "fieldtype": "Check",
-   "label": "Is the client strictly looking for RERA-registered projects?"
+   "description": "(eg: 1 BHK, 2BHK) ",
+   "fieldname": "current_demand",
+   "fieldtype": "Data",
+   "label": "Current Demand Of Residence Type"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-06 02:37:41.480301",
+ "modified": "2026-06-02 10:41:16.282928",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Sales Fields Service",

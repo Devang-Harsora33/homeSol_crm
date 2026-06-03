@@ -40,13 +40,16 @@ def get_my_leads():
 
     return leads
 
+
 @frappe.whitelist()
 def get_team_leads():
     user = frappe.session.user
     
     users_to_fetch = [user]
-    
+    allowed_project_ids = [] 
+
     employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    team_member = None 
 
     if employee:
         team_member = frappe.db.get_value(
@@ -57,7 +60,7 @@ def get_team_leads():
         )
 
         if team_member and team_member.role == "Team Lead":
-            # Get all team members
+            # 1. Get all team members belonging to this team leader's parent group
             team_employees = frappe.get_all(
                 "Sales Team Member", 
                 filters={"parent": team_member.parent}, 
@@ -65,21 +68,42 @@ def get_team_leads():
             )
             emp_ids = [e.employee for e in team_employees]
 
-            # Get user emails for those employees
+            # 2. Get user emails for those employees
             linked_users = frappe.get_all(
                 "Employee", 
                 filters={"name": ["in", emp_ids]}, 
                 fields=["user_id"]
             )
             users_to_fetch = [u.user_id for u in linked_users if u.user_id]
+            
+            # --- FIX: Fetch projects directly from the Sales Team Child Table ---
+            tl_projects = frappe.get_all(
+                "Sales Team Project",
+                filters={"parent": team_member.parent}, 
+                fields=["projects"]
+            )
+            allowed_project_ids = [p.projects for p in tl_projects if p.projects]
 
-    # --- 2. Fetch Leads with EXACTLY ALL FIELDS ---
+    # --- 4. Build the Lead Filters ---
+    lead_filters = {
+        "lead_owner": ["in", users_to_fetch]
+    }
+    
+    # Enforce isolation boundaries for Team Leads
+    if user != "Administrator" and team_member and team_member.role == "Team Lead":
+        
+        # If the team lead has zero projects assigned, block visibility to prevent data leaks
+        if not allowed_project_ids:
+            return [] 
+        
+        # Filter down to only show leads matching their permitted projects
+        lead_filters["custom_interested_project"] = ["in", allowed_project_ids]
+
+    # --- 5. Fetch Leads ---
     leads = frappe.get_list(
         "Lead",
-        filters={
-            "lead_owner": ["in", users_to_fetch]
-        },
-        fields=['*'],  # Fetch all fields
+        filters=lead_filters,
+        fields=['*'],  
         order_by="creation desc"
     )
 
@@ -750,8 +774,8 @@ def trigger_otp_sales_service(mobile_number, service_name=None):
         # New Unsaved Document -> Use Mobile Number as key
         cache_key = f"sales_service_otp:{mobile_number}"
 
-    # Generate 6-digit Random OTP
-    otp = str(random.randint(100000, 999999))
+    # Generate 4-digit Random OTP
+    otp = str(random.randint(1000, 9999))
 
     # Store OTP in Cache (Expires in 10 minutes)
     frappe.cache().set_value(cache_key, otp, expires_in_sec=600)
@@ -936,3 +960,155 @@ def get_campaigns_by_project(project_id):
 
     # Wrapping in a "data" key to match standard Frappe REST API structures
     return {"data": campaigns}
+
+
+
+@frappe.whitelist(methods=['GET'])
+def get_cp_connections(cp_name):
+    if not cp_name:
+        return {"error": "Channel Partner name is required"}
+
+    # 1. Fetch Core CP Info + Creation Date
+    cp = frappe.db.get_value(
+        "Channel Partner", 
+        cp_name, 
+        ["name", "firm_name", "owner", "mobile_number", "creation"], 
+        as_dict=True
+    )
+
+    if not cp:
+        return {"error": "Channel Partner not found"}
+
+    # 2. Fetch Leads
+    leads = frappe.get_all(
+        "Lead",
+        filters={"custom_channel_partner": cp_name},
+        fields=[
+            "name", 
+            "lead_name", 
+            "custom_lead_status", 
+            "custom_interested_project", 
+            "creation",
+            "lead_owner", 
+            "custom_attended_by", 
+            "custom_sales_manager"
+        ],
+        order_by="creation desc"
+    )
+
+    # 3. Fetch Site Visits & Attach to Leads
+    lead_ids = [l.name for l in leads]
+    site_visits_map = {}
+
+    if lead_ids:
+        site_visits = frappe.get_all(
+            "Site Visit",
+            filters={"lead": ["in", lead_ids]},
+            fields=["name", "lead", "project", "visit_date", "status", "presence_of_cp", "remark"],
+            order_by="visit_date desc"
+        )
+        for sv in site_visits:
+            if sv.lead not in site_visits_map:
+                site_visits_map[sv.lead] = []
+            site_visits_map[sv.lead].append(sv)
+
+    for lead in leads:
+        lead["site_visits"] = site_visits_map.get(lead.name, [])
+
+    # 4. Fetch CP Campaigns
+    campaigns = frappe.get_all(
+        "CP Campaign",
+        filters={"channel_partner": cp_name},
+        fields=["name", "project", "campaign_type", "start_date", "end_date", "status"],
+        order_by="start_date desc"
+    )
+    
+    # Create a quick dictionary to map campaigns by their name/ID
+    campaign_map = {c.name: c for c in campaigns}
+
+    # 5. Fetch Internal Sourcing Visits
+    visits = frappe.get_all(
+        "Sales Fields Service",
+        filters={"sales_partner": cp_name},
+        fields=[
+            "name", 
+            "owner", 
+            "visit_date", 
+            "visit_status", 
+            "interested_project", 
+            "cp_interest",
+            "contact_person_met",
+            "campaign_discussed", # Added this to fetch the linked campaign
+            "creation"
+        ],
+        order_by="visit_date desc"
+    )
+
+    # 6. Dynamically Calculate Active Projects, Collect Users, & Attach Campaigns to Visits
+    active_projects = set()
+    internal_emails = set()
+    
+    if cp.owner:
+        internal_emails.add(cp.owner)
+
+    for lead in leads:
+        if lead.custom_interested_project:
+            active_projects.add(lead.custom_interested_project)
+        if lead.lead_owner: internal_emails.add(lead.lead_owner)
+        if lead.custom_attended_by: internal_emails.add(lead.custom_attended_by)
+        if lead.custom_sales_manager: internal_emails.add(lead.custom_sales_manager)
+            
+    for visit in visits:
+        if visit.interested_project:
+            active_projects.add(visit.interested_project)
+        if visit.owner: internal_emails.add(visit.owner)
+        
+        # Attach the full campaign details directly inside the visit object
+        if visit.campaign_discussed and visit.campaign_discussed in campaign_map:
+            visit["campaign_details"] = campaign_map[visit.campaign_discussed]
+        else:
+            visit["campaign_details"] = None
+
+    # 7. Build the Connections List (Map Emails to Human Names)
+    internal_emails = [e for e in internal_emails if e] 
+    
+    user_map = {}
+    if internal_emails:
+        users = frappe.get_all("User", filters={"email": ["in", internal_emails]}, fields=["email", "full_name"])
+        user_map = {u.email: u.full_name for u in users}
+
+    creator_email = cp.owner
+    creator_data = {
+        "email": creator_email,
+        "name": user_map.get(creator_email, creator_email)
+    }
+
+    network_connections = []
+    for email in internal_emails:
+        if email != creator_email:
+            network_connections.append({
+                "email": email,
+                "name": user_map.get(email, email)
+            })
+
+    return {
+        "status": "success",
+        "data": {
+            "profile": cp,
+            "onboarded_on": cp.creation,
+            "connections": {
+                "creator": creator_data,
+                "network": network_connections
+            },
+            "metrics": {
+                "total_leads": len(leads),
+                "total_visits": len(visits),
+                "total_campaigns": len(campaigns),
+                "active_projects_count": len(active_projects)
+            },
+            "active_projects": list(active_projects),
+            "campaigns": campaigns,      # Global list of all campaigns for this CP
+            "recent_leads": leads[:5],   
+            "recent_visits": visits[:5]  # Visits now include a nested 'campaign_details' object
+        }
+    }

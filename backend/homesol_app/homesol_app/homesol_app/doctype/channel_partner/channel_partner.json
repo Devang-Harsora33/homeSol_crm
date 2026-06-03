@@ -20,6 +20,8 @@
   "cp_preferences_section",
   "property_preferences",
   "station_preferences",
+  "campaigns_by_cp_section",
+  "campaigns_matrix_html",
   "location_section",
   "location",
   "get_current_location",
@@ -278,12 +280,22 @@
    "fieldtype": "Select",
    "label": "Team Size",
    "options": "1 - 5\n5 - 10\n10 - 20\n20 - 50\n50+"
+  },
+  {
+   "fieldname": "campaigns_by_cp_section",
+   "fieldtype": "Section Break",
+   "label": "Campaigns By CP"
+  },
+  {
+   "fieldname": "campaigns_matrix_html",
+   "fieldtype": "HTML",
+   "label": "Campaigns Matrix"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-06 12:48:57.323128",
+ "modified": "2026-05-27 01:28:07.224429",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Channel Partner",

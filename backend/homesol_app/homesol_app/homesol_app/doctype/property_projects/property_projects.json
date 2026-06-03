@@ -65,7 +65,8 @@
   "column_break_twcm",
   "total_salebale_units",
   "units_section",
-  "inventory_matrix_html"
+  "inventory_matrix_html",
+  "parking_matrix_html"
  ],
  "fields": [
   {
@@ -110,7 +111,7 @@
    "fieldname": "property_type",
    "fieldtype": "Select",
    "label": "Property Type",
-   "options": "Residential\nCommercial\nMixed Use"
+   "options": "Residential\nCommercial\nMixed Use\nRedevelopment"
   },
   {
    "fieldname": "description",
@@ -147,14 +148,18 @@
    "label": "Location Name"
   },
   {
+   "default": "Mumbai",
    "fieldname": "city",
-   "fieldtype": "Data",
-   "label": "City"
+   "fieldtype": "Select",
+   "label": "City",
+   "options": "Agra\nAhmedabad\nAjmer\nAligarh\nAmritsar\nAsansol\nAurangabad\nBareilly\nBelagavi\nBengaluru\nBhavnagar\nBhilai\nBhiwandi\nBhopal\nBhubaneswar\nBikaner\nBilaspur\nBokaro\nChandigarh\nChennai\nCoimbatore\nCuttack\nDehradun\nDelhi\nDhanbad\nDurgapur\nErode\nFaridabad\nFirozabad\nGandhinagar\nGaya\nGhaziabad\nGorakhpur\nGuntur\nGurugram\nGuwahati\nGwalior\nHubli-Dharwad\nHyderabad\nIndore\nJabalpur\nJaipur\nJalandhar\nJalgaon\nJammu\nJamnagar\nJamshedpur\nJhansi\nJodhpur\nKakinada\nKalaburagi\nKalyan-Dombivli\nKannur\nKanpur\nKochi\nKolhapur\nKolkata\nKollam\nKota\nKozhikode\nKurnool\nLucknow\nLudhiana\nMadurai\nMalegaon\nMangaluru\nMeerut\nMira-Bhayandar\nMoradabad\nMumbai\nMysuru\nNagpur\nNanded\nNashik\nNellore\nNoida\nPatna\nPimpri-Chinchwad\nPrayagraj\nPuducherry\nPune\nRaipur\nRajahmundry\nRajkot\nRanchi\nRourkela\nSaharanpur\nSalem\nSangli\nSiliguri\nSolapur\nSrinagar\nSurat\nThane\nThiruvananthapuram\nThrissur\nTiruchirappalli\nTirunelveli\nTiruppur\nUdaipur\nUjjain\nVadodara\nVaranasi\nVasai-Virar\nVellore\nVijayawada\nVisakhapatnam\nWarangal"
   },
   {
+   "default": "Maharashtra",
    "fieldname": "state",
-   "fieldtype": "Data",
-   "label": "State"
+   "fieldtype": "Select",
+   "label": "State",
+   "options": "Andaman and Nicobar Islands\nAndhra Pradesh\nArunachal Pradesh\nAssam\nBihar\nChandigarh\nChhattisgarh\nDadra and Nagar Haveli and Daman and Diu\nDelhi\nGoa\nGujarat\nHaryana\nHimachal Pradesh\nJammu and Kashmir\nJharkhand\nKarnataka\nKerala\nLadakh\nLakshadweep\nMadhya Pradesh\nMaharashtra\nManipur\nMeghalaya\nMizoram\nNagaland\nOdisha\nPuducherry\nPunjab\nRajasthan\nSikkim\nTamil Nadu\nTelangana\nTripura\nUttar Pradesh\nUttarakhand\nWest Bengal"
   },
   {
    "fieldname": "column_break_gndg",
@@ -393,12 +398,17 @@
    "fieldname": "campaign_summary_html",
    "fieldtype": "HTML",
    "label": "Campaign Summary"
+  },
+  {
+   "fieldname": "parking_matrix_html",
+   "fieldtype": "HTML",
+   "label": "Parking Matrix"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-23 22:25:35.801976",
+ "modified": "2026-06-01 18:12:56.911299",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Property Projects",

@@ -15,7 +15,8 @@
   "visit_date",
   "status",
   "visit_scheduled_datetime",
-  "presence_of_cp"
+  "presence_of_cp",
+  "visit_duration"
  ],
  "fields": [
   {
@@ -65,7 +66,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "\nScheduled\nVisit Done\nRevisit Done\nCancelled",
+   "options": "\nVisit Scheduled\nRevisit Scheduled\nVisit Done\nRevisit Done\nCancelled",
    "reqd": 1
   },
   {
@@ -78,12 +79,18 @@
    "fieldname": "presence_of_cp",
    "fieldtype": "Check",
    "label": "Presence Of CP"
+  },
+  {
+   "description": "(Time Duration)",
+   "fieldname": "visit_duration",
+   "fieldtype": "Data",
+   "label": "Visit Duration"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-20 17:31:25.884761",
+ "modified": "2026-06-02 16:41:44.205660",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Site Visit",

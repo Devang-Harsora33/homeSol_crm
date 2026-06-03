@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:{project}_{floor_number}_{flat_no}",
+ "autoname": "format:{project}_{wing}_{floor_number}_{flat_no}",
  "creation": "2026-03-23 16:09:16.982755",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -14,7 +14,8 @@
   "carpet_area",
   "unit_status",
   "client_name",
-  "payment_method"
+  "payment_method",
+  "wing"
  ],
  "fields": [
   {
@@ -74,12 +75,17 @@
    "fieldtype": "Select",
    "label": "Payment Method",
    "options": "Home Loan\nFull Payment\nInstallment"
+  },
+  {
+   "fieldname": "wing",
+   "fieldtype": "Data",
+   "label": "Wing"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-18 13:56:38.089901",
+ "modified": "2026-06-03 00:13:14.194465",
  "modified_by": "Administrator",
  "module": "Homesol App",
  "name": "Property Unit",
