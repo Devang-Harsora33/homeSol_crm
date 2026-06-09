@@ -45,12 +45,24 @@ def get_my_leads():
 def get_team_leads():
     user = frappe.session.user
     
-    users_to_fetch = [user]
-    allowed_project_ids = [] 
+    # ---------------------------------------------------------
+    # QUERY 1: Always get the User's Personal Leads
+    # ---------------------------------------------------------
+    personal_leads = frappe.get_all(
+        "Lead",
+        filters={"lead_owner": user},
+        fields=['*'],  
+        order_by="creation desc",
+        ignore_permissions=True
+    )
 
+    team_leads = []
+
+    # ---------------------------------------------------------
+    # QUERY 2: If they are a Team Lead, get matching Team Leads
+    # ---------------------------------------------------------
     employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
-    team_member = None 
-
+    
     if employee:
         team_member = frappe.db.get_value(
             "Sales Team Member", 
@@ -60,54 +72,54 @@ def get_team_leads():
         )
 
         if team_member and team_member.role == "Team Lead":
-            # 1. Get all team members belonging to this team leader's parent group
+            # 1. Get all subordinate team members (excluding the leader to avoid duplicates)
             team_employees = frappe.get_all(
                 "Sales Team Member", 
-                filters={"parent": team_member.parent}, 
+                filters={
+                    "parent": team_member.parent, 
+                    "employee": ["!=", employee]
+                }, 
                 fields=["employee"]
             )
-            emp_ids = [e.employee for e in team_employees]
-
-            # 2. Get user emails for those employees
-            linked_users = frappe.get_all(
-                "Employee", 
-                filters={"name": ["in", emp_ids]}, 
-                fields=["user_id"]
-            )
-            users_to_fetch = [u.user_id for u in linked_users if u.user_id]
+            emp_ids = [e.employee for e in team_employees if e.employee]
             
-            # --- FIX: Fetch projects directly from the Sales Team Child Table ---
-            tl_projects = frappe.get_all(
-                "Sales Team Project",
-                filters={"parent": team_member.parent}, 
-                fields=["projects"]
-            )
-            allowed_project_ids = [p.projects for p in tl_projects if p.projects]
+            if emp_ids:
+                # 2. Convert Employee IDs to User Emails
+                linked_users = frappe.get_all(
+                    "Employee", 
+                    filters={"name": ["in", emp_ids]}, 
+                    fields=["user_id"]
+                )
+                team_user_ids = [u.user_id for u in linked_users if u.user_id]
+                
+                if team_user_ids:
+                    # 3. Fetch allowed projects from the child table
+                    tl_projects = frappe.get_all(
+                        "Sales Team Project",
+                        filters={"parent": team_member.parent}, 
+                        fields=["projects"]
+                    )
+                    allowed_project_ids = [p.projects for p in tl_projects if p.projects]
 
-    # --- 4. Build the Lead Filters ---
-    lead_filters = {
-        "lead_owner": ["in", users_to_fetch]
-    }
+                    # 4. Fetch the Team's leads ONLY if they match allowed projects
+                    if allowed_project_ids:
+                        team_leads = frappe.get_all(
+                            "Lead",
+                            filters={
+                                "lead_owner": ["in", team_user_ids],
+                                "custom_interested_project": ["in", allowed_project_ids]
+                            },
+                            fields=['*'],  
+                            order_by="creation desc",
+                            ignore_permissions=True
+                        )
+
+    all_leads = personal_leads + team_leads
     
-    # Enforce isolation boundaries for Team Leads
-    if user != "Administrator" and team_member and team_member.role == "Team Lead":
-        
-        # If the team lead has zero projects assigned, block visibility to prevent data leaks
-        if not allowed_project_ids:
-            return [] 
-        
-        # Filter down to only show leads matching their permitted projects
-        lead_filters["custom_interested_project"] = ["in", allowed_project_ids]
+    # Sort the combined list by creation date (newest first)
+    all_leads.sort(key=lambda x: str(x.get('creation', '')), reverse=True)
 
-    # --- 5. Fetch Leads ---
-    leads = frappe.get_list(
-        "Lead",
-        filters=lead_filters,
-        fields=['*'],  
-        order_by="creation desc"
-    )
-
-    return leads
+    return all_leads
 
 @frappe.whitelist(methods=['GET'])
 def get_leads_by_developer(developer_id):
