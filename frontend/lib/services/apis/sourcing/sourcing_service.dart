@@ -5,6 +5,7 @@ import '../../../models/sourcing.dart';
 import 'package:Homesol/services/databases/sourcing_database.dart';
 import 'package:Homesol/services/connectivity_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:Homesol/utils/error_logger.dart';
 
 class SourcingService {
   static String get baseUrl => AuthService.baseUrl;
@@ -46,7 +47,14 @@ class SourcingService {
         return Sourcing.fromJson(sourcingJson);
       }).toList();
 
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SourcingService',
+        action: 'getSourcingByDeveloper',
+        message: 'DeveloperID: $developerId | Error: $e',
+        stackTrace: stack.toString(),
+      );
       print('Exception in getSourcingByDeveloper: $e');
       return [];
     }
@@ -76,7 +84,14 @@ class SourcingService {
         return Sourcing.fromJson(sourcingJson);
       }).toList();
 
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SourcingService',
+        action: 'getMySources',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       print('Exception in getMySources: $e');
       return [];
     }
@@ -92,12 +107,21 @@ class SourcingService {
         headers: headers,
       ).timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return null;
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final List<dynamic> jsonData = responseData['data'] ?? [];
         return jsonData.map((json) => json['name'].toString()).toSet();
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SourcingService',
+        action: 'fetchAllSourceNames',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       print('Error in fetchAllSourceNames: $e');
     }
     return null;
@@ -107,13 +131,14 @@ class SourcingService {
     if (!ConnectivityService.isOnline) return null;
     try {
       final headers = await _getHeaders();
-      // Filters for developer - assuming interested_project or a similar field
-      // We'll try to use the same logic as the custom API but via resource API for pagination safety
-      final String filters = json.encode([["interested_project", "=", developerId]]);
+      // Filters for developer - searching within the child table 'interested_project'
+      final String filters = json.encode([["interested_project", "project", "=", developerId]]);
       final response = await http.get(
         Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service?fields=["name"]&filters=$filters&limit_page_length=none'),
         headers: headers,
       ).timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return null;
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -136,6 +161,8 @@ class SourcingService {
       final Uri uri = Uri.parse('$baseUrl/api/method/homesol_app.api.get_sourcing_by_developer?developer_id=$developerId');
       final headers = await _getHeaders();
       final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return;
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -160,7 +187,19 @@ class SourcingService {
 
         for (var sourceJson in message) {
           if (sourceJson is Map<String, dynamic>) {
-            await sourcingDb.upsertSourcing(sourceJson);
+            final name = sourceJson['name']?.toString();
+            // If the list API response doesn't include the child table, fetch the full document
+            if ((!sourceJson.containsKey('interested_project') || sourceJson['interested_project'] == null) && name != null) {
+              final fullSourcing = await getSourcingDetail(name);
+              if (fullSourcing != null) {
+                sourceJson = fullSourcing.toJson();
+              } else {
+                await sourcingDb.upsertSourcing(sourceJson);
+              }
+            } else {
+              await sourcingDb.upsertSourcing(sourceJson);
+            }
+            
             if (sourceJson.containsKey('modified') && sourceJson['modified'] != null) {
               final currentModified = DateTime.parse(sourceJson['modified'].toString().replaceAll(' ', 'T') + 'Z');
               if (currentModified.isAfter(latestModifiedDate)) {
@@ -180,7 +219,14 @@ class SourcingService {
         }
         await prefs.setString(syncKey, formattedTimestamp);
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SourcingService',
+        action: 'syncSourcingByDeveloper',
+        message: 'DeveloperID: $developerId | Error: $e',
+        stackTrace: stack.toString(),
+      );
       print('Error in syncSourcingByDeveloper: $e');
     }
   }
@@ -195,6 +241,8 @@ class SourcingService {
       final Uri uri = Uri.parse('$baseUrl/api/method/homesol_app.api.get_my_sources?filters=$filters');
       final headers = await _getHeaders();
       final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return;
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -218,7 +266,19 @@ class SourcingService {
 
         for (var sourceJson in message) {
           if (sourceJson is Map<String, dynamic>) {
-            await sourcingDb.upsertSourcing(sourceJson);
+            final name = sourceJson['name']?.toString();
+            // If the list API response doesn't include the child table, fetch the full document
+            if ((!sourceJson.containsKey('interested_project') || sourceJson['interested_project'] == null) && name != null) {
+              final fullSourcing = await getSourcingDetail(name);
+              if (fullSourcing != null) {
+                sourceJson = fullSourcing.toJson(); // use full json for modified date tracking
+              } else {
+                await sourcingDb.upsertSourcing(sourceJson);
+              }
+            } else {
+              await sourcingDb.upsertSourcing(sourceJson);
+            }
+            
             if (sourceJson.containsKey('modified') && sourceJson['modified'] != null) {
               final currentModified = DateTime.parse(sourceJson['modified'].toString().replaceAll(' ', 'T') + 'Z');
               if (currentModified.isAfter(latestModifiedDate)) {
@@ -238,7 +298,14 @@ class SourcingService {
         }
         await prefs.setString(_lastSyncTimestampKey, formattedTimestamp);
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SourcingService',
+        action: 'syncMySources',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       print('Error in syncMySources: $e');
     }
   }
@@ -261,6 +328,8 @@ class SourcingService {
           Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service/$name'),
           headers: headers,
         ).timeout(const Duration(seconds: 20));
+
+        if (AuthService.checkResponse(response)) return null;
 
         if (response.statusCode == 200) {
           final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -293,6 +362,8 @@ class SourcingService {
         body: jsonEncode(sourcing.toJson()),
       ).timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return null;
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final newSourcing = Sourcing.fromJson(responseData['data']);
@@ -313,6 +384,8 @@ class SourcingService {
         body: jsonEncode(sourcing.toJson()),
       ).timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return null;
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final updatedSourcing = Sourcing.fromJson(responseData['data']);
@@ -324,21 +397,41 @@ class SourcingService {
   }
 
   static Future<bool> updateSourcingFields(String name, Map<String, dynamic> fields) async {
-    if (!ConnectivityService.isOnline) return false;
+    if (!ConnectivityService.isOnline) {
+      print('SourcingService: Cannot update fields, device is offline.');
+      return false;
+    }
     try {
       final headers = await _getHeaders();
+      final url = '$baseUrl/api/resource/Sales%20Fields%20Service/$name';
+      final body = jsonEncode(fields);
+      
+      print('SourcingService: Updating fields for $name');
+      print('SourcingService: URL: $url');
+      print('SourcingService: Payload: $body');
+
       final response = await http.put(
-        Uri.parse('$baseUrl/api/resource/Sales%20Fields%20Service/$name'),
+        Uri.parse(url),
         headers: headers,
-        body: jsonEncode(fields),
+        body: body,
       ).timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return false;
+
       if (response.statusCode == 200) {
+        print('SourcingService: Successfully updated fields for $name');
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         await SourcingDatabase().upsertSourcing(responseData['data']);
         return true;
+      } else {
+        print('SourcingService: Failed to update fields. Status: ${response.statusCode}');
+        print('SourcingService: Response body: ${response.body}');
+        return false;
       }
-    } catch (_) {}
+    } catch (e, stack) {
+      print('SourcingService: Exception in updateSourcingFields: $e');
+      print('SourcingService: Stack trace: $stack');
+    }
     return false;
   }
 
@@ -351,6 +444,8 @@ class SourcingService {
         headers: headers,
       ).timeout(const Duration(seconds: 20));
       
+      if (AuthService.checkResponse(response)) return false;
+
       if (response.statusCode == 202 || response.statusCode == 200) {
         await SourcingDatabase().deleteSourcing(name);
         return true;
@@ -369,6 +464,8 @@ class SourcingService {
         body: jsonEncode({'docstatus': status}),
       ).timeout(const Duration(seconds: 20));
       
+      if (AuthService.checkResponse(response)) return "Session Expired";
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         await SourcingDatabase().upsertSourcing(responseData['data']);
@@ -399,6 +496,8 @@ class SourcingService {
         body: jsonEncode({'mobile_number': mobileNumber}),
       ).timeout(const Duration(seconds: 20));
 
+      if (AuthService.checkResponse(response)) return null;
+
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -418,6 +517,8 @@ class SourcingService {
           'user_otp': otp,
         }),
       ).timeout(const Duration(seconds: 20));
+
+      if (AuthService.checkResponse(response)) return false;
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

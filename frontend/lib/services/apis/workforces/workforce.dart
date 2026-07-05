@@ -20,12 +20,40 @@ class WorkforceService {
     return headers;
   }
 
-  static Future<String?> _getEmployeeId() async {
+  static Future<String?> getTrueEmployeeId() async {
     final profile = await AuthService.getMyProfile();
     if (profile == null) return null;
-    // In Frappe, 'name' is the primary identifier (e.g., EMP-00001)
-    // We prioritize 'name' but fallback to 'employee' if 'name' is somehow empty
-    return profile.name.isNotEmpty ? profile.name : profile.employee;
+    
+    // In Frappe, to query standard doctypes like 'Employee Checkin', we need the actual
+    // Employee document name (e.g., HR-EMP-00001), not the user's email.
+    try {
+      final cookie = await AuthService.getCookie();
+      final userId = profile.userId.isNotEmpty ? profile.userId : profile.name;
+      
+      final filters = jsonEncode([['user_id', '=', userId]]);
+      final empUrl = Uri.parse('$baseUrl/api/resource/Employee').replace(
+        queryParameters: {
+          'fields': jsonEncode(["name"]),
+          'filters': filters,
+          'limit_page_length': '1',
+        }
+      );
+      
+      final res = await http.get(empUrl, headers: {'Cookie': cookie ?? ''});
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['data'] != null && data['data'].isNotEmpty) {
+          return data['data'][0]['name'];
+        }
+      }
+    } catch (_) {}
+    
+    // Fallback if querying Employee fails
+    return profile.employee.isNotEmpty ? profile.employee : profile.name;
+  }
+
+  static Future<String?> _getEmployeeId() async {
+    return await getTrueEmployeeId();
   }
 
   // --- ATTENDANCE ---

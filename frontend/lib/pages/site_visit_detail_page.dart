@@ -1,10 +1,16 @@
 import 'package:Homesol/models/site_visit.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
+import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:intl/intl.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+const Color goldAccent = Color(0xFF675D40);
+const Color kBackgroundColor = Color(0xFFF5F7FA);
+const Color matteBlack = Color(0xFF1A1A1A);
 
 class SiteVisitDetailPage extends StatefulWidget {
   final SiteVisit siteVisit;
@@ -16,25 +22,33 @@ class SiteVisitDetailPage extends StatefulWidget {
 }
 
 class _SiteVisitDetailPageState extends State<SiteVisitDetailPage> {
+  late SiteVisit _currentSiteVisit;
   String _leadName = 'Loading Lead...';
   String _projectName = 'Loading Project...';
+  String _leadPhone = '';
   bool _isLoadingNames = true;
 
   @override
   void initState() {
     super.initState();
+    _currentSiteVisit = widget.siteVisit;
     _fetchNames();
   }
 
   Future<void> _fetchNames() async {
     try {
+      final freshVisit = await SiteVisitService.fetchSiteVisit(widget.siteVisit.name);
       final lead = await LeadService.fetchLead(widget.siteVisit.lead);
       final project = await ProjectService.fetchProject(widget.siteVisit.project);
 
       if (mounted) {
         setState(() {
+          if (freshVisit != null) {
+            _currentSiteVisit = freshVisit;
+          }
           _leadName = lead?.leadName ?? lead?.firstName ?? widget.siteVisit.lead;
           _projectName = project?.projectName ?? widget.siteVisit.project;
+          _leadPhone = lead?.mobileNo ?? lead?.customerPhone ?? '';
           _isLoadingNames = false;
         });
       }
@@ -52,105 +66,102 @@ class _SiteVisitDetailPageState extends State<SiteVisitDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Light grey background helps white cards pop
     return Scaffold(
-      backgroundColor: Colors.grey[100], 
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverAppBar(context),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate(
-                AnimationConfiguration.toStaggeredList(
-                  duration: const Duration(milliseconds: 375),
-                  childAnimationBuilder: (widget) => SlideAnimation(
-                    verticalOffset: 50.0,
-                    child: FadeInAnimation(child: widget),
-                  ),
-                  children: [
-                    _buildSectionTitle('Project Info'),
-                    _buildInfoCard(context),
-                    const SizedBox(height: 20),
-                  
-                  ],
+      backgroundColor: kBackgroundColor,
+      body: Stack(
+        children: [
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              _buildSliverAppBar(),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildSectionHeader('Visit Information'),
+                    _buildMainInfoCard(),
+                    const SizedBox(height: 32),
+                    _buildSectionHeader('Additional Details'),
+                    _buildDetailsCard(),
+                    const SizedBox(height: 32),
+                    if (_currentSiteVisit.remark.isNotEmpty) ...[
+                      _buildSectionHeader('Remarks'),
+                      _buildRemarkCard(),
+                      const SizedBox(height: 30),
+                    ],
+                  ]),
                 ),
               ),
-            ),
+            ],
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _buildFloatingBottomBar(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.grey[600],
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-
-  SliverAppBar _buildSliverAppBar(BuildContext context) {
+  Widget _buildSliverAppBar() {
     return SliverAppBar(
       expandedHeight: 280.0,
       floating: false,
       pinned: true,
+      backgroundColor: matteBlack,
+      elevation: 0,
       stretch: true,
-      backgroundColor: Colors.black,
-      systemOverlayStyle: SystemUiOverlayStyle.light,
-      iconTheme: const IconThemeData(color: Colors.white),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+        onPressed: () => Navigator.pop(context),
+      ),
       flexibleSpace: FlexibleSpaceBar(
-        stretchModes: const [StretchMode.zoomBackground, StretchMode.blurBackground],
+        stretchModes: const [StretchMode.zoomBackground],
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // 1. Background Image
-            Image.network(
-              'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80',
-              fit: BoxFit.cover,
-            ),
-            // 2. Gradient Overlay for readability
             Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color.fromRGBO(0, 0, 0, 0.8),
-                    Color.fromRGBO(0, 0, 0, 0.2),
-                    Color.fromRGBO(0, 0, 0, 0.6),
-                  ],
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [Color(0xFF3A3A3A), matteBlack],
+                  center: Alignment.topCenter,
+                  radius: 1.2,
                 ),
               ),
             ),
-            // 3. Key Header Info
-            Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildStatusChip(widget.siteVisit.status),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.siteVisit.name, // The ID
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  const SizedBox(height: 40),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: goldAccent.withOpacity(0.5), width: 2),
+                      boxShadow: [
+                        BoxShadow(color: goldAccent.withOpacity(0.2), blurRadius: 20, spreadRadius: 5),
+                      ],
+                    ),
+                    child: const CircleAvatar(
+                      radius: 40,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.location_on_rounded, size: 40, color: goldAccent),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                
+                  const SizedBox(height: 20),
+                  Text(
+                    _isLoadingNames ? '...' : _projectName,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildStatusBadge(_currentSiteVisit.status),
                 ],
               ),
             ),
@@ -160,149 +171,265 @@ class _SiteVisitDetailPageState extends State<SiteVisitDetailPage> {
     );
   }
 
-  Widget _buildStatusChip(String status) {
+  Widget _buildStatusBadge(String status) {
     Color color;
     switch (status.toLowerCase()) {
-      case 'scheduled': color = Colors.blue; break;
-      case 'completed': color = Colors.green; break;
-      case 'cancelled': color = Colors.red; break;
-      default: color = Colors.orange;
+      case 'visit scheduled':
+      case 'scheduled':
+        color = Colors.blue;
+        break;
+      case 'visit done':
+      case 'completed':
+        color = Colors.green;
+        break;
+      case 'revisit scheduled':
+        color = Colors.indigo;
+        break;
+      case 'revisit done':
+        color = Colors.teal;
+        break;
+      case 'cancelled':
+        color = Colors.red;
+        break;
+      default:
+        color = Colors.orange;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: Color.fromRGBO(color.red, color.green, color.blue, 0.2),
+        color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color, width: 1),
+        border: Border.all(color: color.withOpacity(0.5), width: 1),
       ),
       child: Text(
-        status,
-        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+        status.toUpperCase(),
+        style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2),
       ),
     );
   }
 
-  Widget _buildInfoCard(BuildContext context) {
-    return _ModernCard(
-      child: Column(
-        children: [
-          _buildModernRow(Icons.person_outline, 'Lead Name', _isLoadingNames ? 'Loading...' : _leadName),
-          const Divider(height: 1, indent: 50),
-          
-          _buildModernRow(Icons.apartment_rounded, 'Project', _isLoadingNames ? 'Loading...' : _projectName), // Changed to apartment icon
-          const Divider(height: 1, indent: 50),
-          
-          _buildModernRow(Icons.event_available_outlined, 'Visit Date', widget.siteVisit.visitDate), // Changed to event icon
-          const Divider(height: 1, indent: 50),
-          
-          _buildModernRow(Icons.flag_outlined, 'Status', widget.siteVisit.status), // Changed to flag icon
-          
-          if (widget.siteVisit.status == 'Scheduled') ...[
-            const Divider(height: 1, indent: 50),
-            _buildModernRow(
-              Icons.schedule_rounded, // Specific schedule icon
-              'Scheduled For', 
-              widget.siteVisit.visitScheduledDatetime ?? 'N/A'
-            ),
-          ],
-
-          const Divider(height: 1, indent: 50),
-          _buildModernRow(Icons.notes_outlined, 'Remarks', widget.siteVisit.remark ?? 'No remarks'),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _buildModernRow(IconData icon, String label, String value) {
+  Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start, // Align to top for multi-line text
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 20, color: Colors.grey[700]),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value.isEmpty ? 'N/A' : value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChip(String label, MaterialColor color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color[100]!),
-      ),
+      padding: const EdgeInsets.only(left: 8, bottom: 16),
       child: Text(
-        label,
-        style: TextStyle(color: color[800], fontSize: 13, fontWeight: FontWeight.w500),
+        title.toUpperCase(),
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: matteBlack, letterSpacing: 1.5),
       ),
     );
   }
 
-  void _launchPhone(String phoneNumber) async {
-    final uri = Uri(scheme: 'tel', path: phoneNumber);
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
-  }
-}
-
-class _ModernCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry? padding;
-
-  const _ModernCard({required this.child, this.padding});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildMainInfoCard() {
     return Container(
-      width: double.infinity,
-      padding: padding ?? const EdgeInsets.all(0),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildInfoRow(Icons.person_outline_rounded, 'Lead Name', _isLoadingNames ? 'Loading...' : _leadName),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
+          _buildInfoRow(Icons.apartment_rounded, 'Project Name', _isLoadingNames ? 'Loading...' : _projectName),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
+          Row(
+            children: [
+              Expanded(child: _buildInfoRow(Icons.event_available_rounded, 'Visit Date', _formatDate(_currentSiteVisit.visitDate))),
+              if (_currentSiteVisit.visitDuration != null && _currentSiteVisit.visitDuration!.isNotEmpty) ...[
+                Container(width: 1, height: 40, color: Colors.grey.shade100),
+                const SizedBox(width: 16),
+                Expanded(child: _buildInfoRow(Icons.timer_outlined, 'Duration', _currentSiteVisit.visitDuration)),
+              ],
+            ],
           ),
         ],
       ),
-      child: child,
     );
+  }
+
+  Widget _buildDetailsCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildInfoRow(Icons.badge_outlined, 'Visit ID', _currentSiteVisit.name),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
+          _buildInfoRow(Icons.people_outline_rounded, 'Presence of CP', _currentSiteVisit.presenceOfCp == 1 ? 'Yes' : 'No'),
+          
+          if (_currentSiteVisit.visitScheduledDatetime != null) ...[
+            const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
+            _buildInfoRow(Icons.schedule_rounded, 'Scheduled For', _currentSiteVisit.visitScheduledDatetime),
+          ],
+          const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
+          _buildInfoRow(Icons.person_pin_outlined, 'Owner', _currentSiteVisit.owner),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRemarkCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: goldAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.notes_rounded, size: 16, color: goldAccent),
+              ),
+              const SizedBox(width: 12),
+              const Text('Visit Remarks', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: matteBlack)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _currentSiteVisit.remark,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade700, height: 1.5, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String? value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: kBackgroundColor, borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, size: 18, color: goldAccent),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.bold, letterSpacing: 0.2)),
+              const SizedBox(height: 4),
+              Text(
+                value?.isNotEmpty == true ? value! : 'N/A',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: matteBlack, letterSpacing: -0.2),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFloatingBottomBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200, width: 1)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, -4))
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              _buildSecondaryActionBtn(
+                iconWidget: const FaIcon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366), size: 22),
+                bgColor: const Color(0xFF25D366).withOpacity(0.12),
+                onTap: () {
+                  if (_leadPhone.isNotEmpty) _launchUrl('https://wa.me/$_leadPhone');
+                },
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (_leadPhone.isNotEmpty) _launchUrl('tel:$_leadPhone');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: matteBlack,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.call_rounded, size: 18),
+                        SizedBox(width: 12),
+                        Text(
+                          'CALL CUSTOMER',
+                          style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSecondaryActionBtn({
+    required Widget iconWidget,
+    required Color bgColor,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          height: 52,
+          width: 52,
+          alignment: Alignment.center,
+          child: iconWidget,
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('dd MMM yyyy').format(date);
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }

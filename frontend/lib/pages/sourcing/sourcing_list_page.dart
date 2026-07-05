@@ -7,6 +7,8 @@ import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/models/project.dart';
 import 'package:Homesol/services/apis/channel_partners/channel_partner.dart';
 import 'package:Homesol/services/auth_service.dart';
+import 'package:Homesol/models/sales_team.dart';
+import 'package:Homesol/services/api_service.dart';
 import 'sourcing_create_page.dart';
 import 'sourcing_detail_page.dart';
 import 'package:intl/intl.dart';
@@ -15,14 +17,17 @@ import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:async';
 import 'package:Homesol/services/notification_service.dart';
+import 'package:Homesol/components/sourcing_questionnaire_popup.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:url_launcher/url_launcher.dart';
+import 'package:collection/collection.dart';
 
 class SourcingListPage extends StatefulWidget {
   final String? developerId;
   final bool showAddButton;
   final String searchQuery;
   final bool isStandaloneView;
+  final dynamic initialResult;
 
   const SourcingListPage({
     super.key, 
@@ -30,10 +35,11 @@ class SourcingListPage extends StatefulWidget {
     this.showAddButton = true,
     this.searchQuery = '',
     this.isStandaloneView = true,
+    this.initialResult,
   });
 
   @override
-  State<SourcingListPage> createState() => _SourcingListPageState();
+  State<SourcingListPage> createState() => SourcingListPageState();
 }
 
 const Color goldAccent = Color(0xFF675D40);
@@ -41,7 +47,7 @@ const Color matteBlack = Color(0xFF1A1A1A);
 const Color offWhite = Color(0xFFF9F9F9);
 const Color kBackgroundColor = Color(0xFFF2F2F7);
 
-class _SourcingListPageState extends State<SourcingListPage> {
+class SourcingListPageState extends State<SourcingListPage> {
   Future<List<Sourcing>>? _future;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -53,7 +59,15 @@ class _SourcingListPageState extends State<SourcingListPage> {
   String? _currentUserDesignation;
   Map<String, DateTime> _activeTimers = {};
 
-  int _selectedDays = 15;
+  int _selectedDays = 9999;
+
+  // --- New User Filter State ---
+  String? _selectedUserFilter;
+  List<SalesTeam> _salesTeams = [];
+  String? _currentBrokerId;
+  String? _currentEmployeeId;
+  String? _currentUserEmail;
+  bool _isTeamLead = false;
 
   @override
   void initState() {
@@ -61,6 +75,12 @@ class _SourcingListPageState extends State<SourcingListPage> {
     _load(forceRefresh: true);
     _fetchProfile();
     _loadPersistedTimers();
+
+    if (widget.initialResult != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        handleCreateResult(widget.initialResult);
+      });
+    }
   }
 
   Future<void> _loadPersistedTimers() async {
@@ -100,9 +120,43 @@ class _SourcingListPageState extends State<SourcingListPage> {
   Future<void> _fetchProfile() async {
     try {
       final profile = await AuthService.getMyProfile();
+      final userData = await AuthService.getUserData();
+      final teams = await ApiService.syncSalesTeams();
+      
       if (mounted) {
         setState(() {
           _currentUserDesignation = profile?.designation;
+          _currentEmployeeId = profile?.employee;
+          _currentUserEmail = profile?.userId;
+          _currentBrokerId = userData?['broker_id']?.toString() ?? profile?.employee;
+          _salesTeams = teams;
+          
+          _isTeamLead = false;
+          // 1. Check Team ownership or role
+          for (var team in _salesTeams) {
+            if ((_currentUserEmail != null && team.owner == _currentUserEmail) ||
+                (_currentEmployeeId != null && team.owner == _currentEmployeeId) ||
+                (_currentBrokerId != null && team.owner == _currentBrokerId)) {
+              _isTeamLead = true;
+              break;
+            }
+            for (var m in team.members) {
+              bool isMe = (_currentUserEmail != null && m.userId != null && m.userId == _currentUserEmail) || 
+                          (_currentEmployeeId != null && m.employee == _currentEmployeeId) ||
+                          (_currentBrokerId != null && (m.userId == _currentBrokerId || m.employee == _currentBrokerId));
+              if (isMe && m.role.toLowerCase() == 'team lead') {
+                _isTeamLead = true;
+                break;
+              }
+            }
+            if (_isTeamLead) break;
+          }
+          
+          // 2. Fallback to designation
+          if (!_isTeamLead) {
+            final desig = _currentUserDesignation?.toLowerCase() ?? '';
+            _isTeamLead = desig.contains('lead') || desig.contains('manager') || desig.contains('head');
+          }
         });
       }
     } catch (_) {}
@@ -130,7 +184,7 @@ class _SourcingListPageState extends State<SourcingListPage> {
       final sources = results[0] as List<Sourcing>;
       final projectLocs = results[1] as List<Map<String, dynamic>>;
       final partners = results[2] as List<ChannelPartner>;
-      final apiProjects = results[3] as List<Map<String, String>>;
+      final apiProjects = results[3] as List<Map<String, dynamic>>;
       
       final Map<String, Map<String, double>> locMap = {};
       for (var loc in projectLocs) {
@@ -183,10 +237,10 @@ class _SourcingListPageState extends State<SourcingListPage> {
   }
 
   String _getMeetingType(Sourcing source) {
-    if (source.interestedProject == null || source.location == null) return 'OBM';
-    
-    final projectLoc = _projectLocations[source.interestedProject];
-    if (projectLoc == null) return 'OBM';
+    if (source.interestedProject == null || source.interestedProject!.isEmpty || source.location == null) {
+      print('DEBUG _getMeetingType: source ${source.name} has interestedProject: ${source.interestedProject != null ? source.interestedProject!.length : "null"}, location: ${source.location != null ? "exists" : "null"}. Returning OBM.');
+      return 'OBM';
+    }
 
     try {
       final locData = jsonDecode(source.location!);
@@ -194,14 +248,34 @@ class _SourcingListPageState extends State<SourcingListPage> {
       final sfsLng = double.tryParse(coords[0].toString()) ?? 0.0;
       final sfsLat = double.tryParse(coords[1].toString()) ?? 0.0;
       
-      final distance = _calculateDistance(sfsLat, sfsLng, projectLoc['lat']!, projectLoc['lng']!);
-      return distance < 200 ? 'IBM' : 'OBM';
+      print('DEBUG _getMeetingType: source ${source.name} location: lat $sfsLat, lng $sfsLng');
+
+      for (var sp in source.interestedProject!) {
+        final projectId = sp.project;
+        print('DEBUG _getMeetingType: checking project $projectId');
+        if (projectId != null) {
+          final projectLoc = _projectLocations[projectId];
+          if (projectLoc != null) {
+            final distance = _calculateDistance(sfsLat, sfsLng, projectLoc['lat']!, projectLoc['lng']!);
+            print('DEBUG _getMeetingType: distance to $projectId is $distance meters');
+            if (distance < 300) {
+              return 'IBM';
+            }
+          } else {
+            print('DEBUG _getMeetingType: _projectLocations does not contain $projectId');
+          }
+        }
+      }
+      print('DEBUG _getMeetingType: no project within 300m. Returning OBM.');
+      return 'OBM';
     } catch (e) {
+      print('DEBUG _getMeetingType: Error $e. Returning OBM.');
       return 'OBM';
     }
   }
 
   List<Sourcing> _getDatedSources(List<Sourcing> sources) {
+    if (_selectedDays == 9999) return sources;
     final now = DateTime.now();
     return sources.where((source) {
       if (source.visitDate == null) return false;
@@ -217,12 +291,22 @@ class _SourcingListPageState extends State<SourcingListPage> {
   List<Sourcing> _filteredSources(List<Sourcing> sources) {
     final datedSources = _getDatedSources(sources);
     return datedSources.where((source) {
+      // 1. User Filter (Strict Exact Match)
+      if (_selectedUserFilter != null) {
+        final selVal = _selectedUserFilter!.toLowerCase().trim();
+        final owner = source.owner?.toLowerCase().trim(); // Sourcing creator/owner
+        
+        if (owner != selVal) return false;
+      }
+
+      // 2. Search Query
       final effectiveSearch = widget.isStandaloneView ? _searchQuery : widget.searchQuery;
       final matchesSearch = effectiveSearch.isEmpty ||
           (source.name?.toLowerCase().contains(effectiveSearch.toLowerCase()) ?? false) ||
           (source.contactPersonMet?.toLowerCase().contains(effectiveSearch.toLowerCase()) ?? false) ||
           (source.mobileNumber?.toLowerCase().contains(effectiveSearch.toLowerCase()) ?? false);
       
+      // 3. Status Filter
       bool matchesStatus = _selectedVisitFilters.isEmpty;
       if (!matchesStatus) {
         final meetingType = _getMeetingType(source);
@@ -232,6 +316,22 @@ class _SourcingListPageState extends State<SourcingListPage> {
       
       return matchesSearch && matchesStatus;
     }).toList();
+  }
+
+  Future<void> handleCreateResult(dynamic result) async {
+    if (result == true) {
+      await _load(forceRefresh: true);
+    } else if (result is Map && result['refresh'] == true) {
+      await _load(forceRefresh: true);
+      if (result['openQuestionnaire'] == true) {
+        // Wait 1.5 seconds as requested before showing the 5s countdown popup
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            _showAutoOpenBottomSheet(result['sourcing'], result['minutes']);
+          }
+        });
+      }
+    }
   }
 
   @override
@@ -265,7 +365,6 @@ class _SourcingListPageState extends State<SourcingListPage> {
           }
 
           final sources = snapshot.data ?? [];
-          final datedSources = _getDatedSources(sources);
           final filteredSources = _filteredSources(sources);
 
           return RefreshIndicator(
@@ -277,7 +376,7 @@ class _SourcingListPageState extends State<SourcingListPage> {
               physics: const AlwaysScrollableScrollPhysics(),
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return _buildSearchAndOverview(datedSources, isDark, filteredSources.length, sources.length);
+                  return _buildSearchAndOverview(filteredSources, isDark, filteredSources.length, sources.length);
                 }
 
                 if (filteredSources.isEmpty) {
@@ -322,9 +421,7 @@ class _SourcingListPageState extends State<SourcingListPage> {
               context,
               MaterialPageRoute(builder: (context) => const SourcingCreatePage()),
             );
-            if (result == true) {
-              _load();
-            }
+            handleCreateResult(result);
           },
           backgroundColor: matteBlack,
           child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
@@ -332,8 +429,93 @@ class _SourcingListPageState extends State<SourcingListPage> {
       ) : null,
     );
   }
+  Widget _buildUserFilter() {
+    // Sourcing filter doesn't necessarily need a project dropdown first if they don't have assigned projects in the same way,
+    // but we can list all unique team members from the lead's teams.
+    
+    final mySalesTeams = _salesTeams.where((team) {
+      bool isOwner = (_currentUserEmail != null && team.owner == _currentUserEmail) ||
+                     (_currentBrokerId != null && team.owner == _currentBrokerId);
+      
+      bool isMember = team.members.any((m) => 
+        (_currentUserEmail != null && m.userId != null && m.userId == _currentUserEmail) || 
+        (_currentEmployeeId != null && m.employee != null && m.employee == _currentEmployeeId) ||
+        (_currentBrokerId != null && (m.userId == _currentBrokerId || m.employee == _currentBrokerId))
+      );
+      
+      return isOwner || isMember;
+    }).toList();
 
-  Widget _buildSearchAndOverview(List<Sourcing> datedSources, bool isDark, int shown, int total) {
+    final teamMembers = <Member>[];
+    for (var team in mySalesTeams) {
+      teamMembers.addAll(team.members);
+    }
+    
+    // Deduplicate by employee ID
+    final uniqueMembersMap = <String, Member>{};
+    for (var m in teamMembers) {
+      final key = m.employee;
+      if (!uniqueMembersMap.containsKey(key)) {
+        uniqueMembersMap[key] = m;
+      }
+    }
+    
+    // For sourcing, we ONLY want to see people with the Sourcing designation, 
+    // or people who have sourcing leads (in case designations are empty).
+    // The user requested: "add the user selection feature for the designation Sourcing , in the sourcing , only user selection , only for team lead"
+    final uniqueMembers = uniqueMembersMap.values.where((m) {
+      final desig = (m.designation ?? m.role).toUpperCase();
+      return desig.contains('SOURCING');
+    }).toList();
+    
+    if (uniqueMembers.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            isExpanded: true,
+            hint: const Text('All Team Members'),
+            value: _selectedUserFilter,
+            icon: const Icon(Icons.person_outline, color: goldAccent),
+            dropdownColor: Colors.white,
+            items: [
+              const DropdownMenuItem<String>(
+                value: null, 
+                child: Text('All Team Members', style: TextStyle(fontWeight: FontWeight.bold, color: matteBlack))
+              ),
+              ...uniqueMembers.map((m) {
+                bool isMe = (_currentUserEmail != null && m.userId != null && m.userId == _currentUserEmail) || 
+                            (_currentEmployeeId != null && m.employee != null && m.employee == _currentEmployeeId) ||
+                            (_currentBrokerId != null && (m.userId == _currentBrokerId || m.employee == _currentBrokerId));
+                final value = (m.userId != null && m.userId!.isNotEmpty) ? m.userId : m.employee;
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(isMe ? '${m.employeeName} (Me)' : m.employeeName, style: const TextStyle(color: matteBlack)),
+                );
+              }),
+            ],
+            onChanged: (val) {
+              setState(() {
+                _selectedUserFilter = val;
+              });
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchAndOverview(List<Sourcing> filteredSources, bool isDark, int shown, int total) {
     return Container(
       color: isDark ? Colors.grey[900] : Colors.white,
       child: Column(
@@ -377,6 +559,30 @@ class _SourcingListPageState extends State<SourcingListPage> {
                       ],
                     ),
                   ),
+                  GestureDetector(
+                    onTap: _showReportOptions,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey.shade800 : Colors.white,
+                        borderRadius: BorderRadius.circular(11),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.07),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.assignment_outlined,
+                        size: 19,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => _load(forceRefresh: true),
                     child: Container(
@@ -446,16 +652,21 @@ class _SourcingListPageState extends State<SourcingListPage> {
           if (widget.isStandaloneView)
             const SizedBox(height: 12),
 
-          // ── Time Range Selector ──
+          // ── Time Range & User Filter ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildTimeRangeSelector(),
+            child: Column(
+              children: [
+                _buildTimeRangeSelector(),
+                if (_isTeamLead) _buildUserFilter(),
+              ],
+            ),
           ),
 
           // ── Summary Chart ──
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: _buildSummaryWidgets(datedSources),
+            child: _buildSummaryWidgets(filteredSources),
           ),
         ],
       ),
@@ -583,18 +794,49 @@ class _SourcingListPageState extends State<SourcingListPage> {
                   'Source Overview',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: matteBlack),
                 ),
-                if (_selectedVisitFilters.isNotEmpty)
-                  GestureDetector(
-                    onTap: () => setState(() => _selectedVisitFilters.clear()),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: goldAccent.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                Row(
+                  children: [
+                    if (_selectedVisitFilters.isNotEmpty || _selectedDays != 9999)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: GestureDetector(
+                          onTap: () => setState(() {
+                            _selectedVisitFilters.clear();
+                            _selectedDays = 9999;
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: goldAccent.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text('Clear Filter', style: TextStyle(color: goldAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
                       ),
-                      child: const Text('Clear Filter', style: TextStyle(color: goldAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SourcingCreatePage(),
+                          ),
+                        );
+                        handleCreateResult(result);
+                      },
+                      icon: const Icon(Icons.add_circle_outline, size: 14, color: goldAccent),
+                      label: const Text(
+                        'Create Sourcing',
+                        style: TextStyle(color: goldAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                     ),
-                  ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -923,7 +1165,15 @@ class _SourcingListPageState extends State<SourcingListPage> {
                               if (source.cpInterest != null && source.cpInterest!.isNotEmpty)
                                 _buildInfoChip(Icons.favorite_outline, source.cpInterest!),
                               if (source.interestedProject != null && source.interestedProject!.isNotEmpty)
-                                _buildInfoChip(Icons.apartment_rounded, _projectNames[source.interestedProject!] ?? source.interestedProject!),
+                                _buildInfoChip(
+                                  Icons.apartment_rounded, 
+                                  source.interestedProject!
+                                      .map((ip) {
+                                        final name = _projectNames[ip.project];
+                                        return (name != null && name.isNotEmpty) ? name : (ip.project ?? 'N/A');
+                                      })
+                                      .join(', ')
+                                ),
                               if (source.visitDuration != null && source.visitDuration!.isNotEmpty)
                                 _buildInfoChip(Icons.timer_outlined, source.visitDuration!),
                             ],
@@ -986,26 +1236,15 @@ class _SourcingListPageState extends State<SourcingListPage> {
                                             _saveTimers();
                                             CustomSnackBar.show(context, message: 'Timer started for ${_getFirmName(source.salesPartner)}', isError: false, title: 'Notice');
 
-                                            // System push notification (for when app is killed - real device)
+                                            // System push notification
                                             final int notificationId = source.name.hashCode;
                                             final String firmName = _getFirmName(source.salesPartner);
                                             NotificationService.instance.scheduleTimerNotification(
-                                              notificationId,
-                                              'Meeting Ongoing',
-                                              'It\'s been 30s with $firmName.',
-                                              const Duration(seconds: 30),
+                                              id: notificationId,
+                                              title: 'Meeting Ongoing',
+                                              body: 'It\'s been 30s with $firmName.',
+                                              delay: const Duration(seconds: 30),
                                             );
-
-                                            // Backup: Future.delayed + immediate show (works on emulator + backgrounded app)
-                                            Future.delayed(const Duration(seconds: 30), () {
-                                              if (_activeTimers.containsKey(source.name)) {
-                                                NotificationService.instance.showImmediateNotification(
-                                                  notificationId,
-                                                  'Meeting Ongoing',
-                                                  'It\'s been 30s with $firmName.',
-                                                );
-                                              }
-                                            });
 
                                             // 30 second in-app reminder
                                             Future.delayed(const Duration(seconds: 30), () {
@@ -1063,12 +1302,17 @@ class _SourcingListPageState extends State<SourcingListPage> {
                                             _saveTimers();
                                             
                                             // Cancel the notification if stopped early
-                                            NotificationService.instance.cancelNotification(source.name.hashCode);
+                                            NotificationService.instance.cancelNotification(id: source.name.hashCode);
 
                                             
                                             try {
                                               await SourcingService.updateSourcingFields(source.name!, {
                                                 'visit_duration': '$minutes mins',
+                                                'visit_status': 'Visit Done',
+                                              });
+                                              // Update local state status
+                                              setState(() {
+                                                source.visitStatus = 'Visit Done';
                                               });
                                               // Automatically submit the sourcing
                                               await SourcingService.updateDocStatus(source.name!, 1);
@@ -1082,9 +1326,10 @@ class _SourcingListPageState extends State<SourcingListPage> {
                                           },
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
+                                      if (source.visitStatus == 'Visit Done') const SizedBox(width: 12),
                                     ],
-                                    Expanded(child: _buildQuestionnaireButton(source)),
+                                    if (source.visitStatus == 'Visit Done')
+                                      Expanded(child: _buildQuestionnaireButton(source)),
                                   ],
                                 ),
                               );
@@ -1128,12 +1373,15 @@ class _SourcingListPageState extends State<SourcingListPage> {
         children: [
           Icon(icon, size: 12, color: Colors.grey.shade600),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -1359,7 +1607,7 @@ class _SourcingListPageState extends State<SourcingListPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _QuestionnairePopup(
+      builder: (context) => SourcingQuestionnairePopup(
         source: source,
         initialCalculatedMinutes: calculatedMinutes,
         durationStringGenerator: _calculateDurationString,
@@ -1367,219 +1615,98 @@ class _SourcingListPageState extends State<SourcingListPage> {
       ),
     );
   }
-}
 
-class _QuestionnairePopup extends StatefulWidget {
-  final Sourcing source;
-  final int? initialCalculatedMinutes;
-  final String Function(int) durationStringGenerator;
-  final VoidCallback onSaved;
-
-  const _QuestionnairePopup({
-    required this.source,
-    this.initialCalculatedMinutes,
-    required this.durationStringGenerator,
-    required this.onSaved,
-  });
-
-  @override
-  State<_QuestionnairePopup> createState() => _QuestionnairePopupState();
-}
-
-class _QuestionnairePopupState extends State<_QuestionnairePopup> {
-  bool _isLoading = false;
-  
-  late bool _offeredCoffee;
-  late bool _metTheOwner;
-  late bool _askedAboutPriceTrends;
-  late bool _consideringRedevelopment;
-  late bool _concernedAboutInterestRates;
-  late bool _comparedMicroMarkets;
-  late bool _strictlyReraRegistered;
-  
-  String? _finalDurationStr;
-
-  @override
-  void initState() {
-    super.initState();
-    _offeredCoffee = widget.source.offeredCoffee == 1;
-    _metTheOwner = widget.source.metTheOwner == 1;
-    _askedAboutPriceTrends = widget.source.askedAboutPriceTrends == 1;
-    _consideringRedevelopment = widget.source.consideringRedevelopment == 1;
-    _concernedAboutInterestRates = widget.source.concernedAboutInterestRates == 1;
-    _comparedMicroMarkets = widget.source.comparedMicroMarkets == 1;
-    _strictlyReraRegistered = widget.source.strictlyReraRegistered == 1;
-    
-    if (widget.initialCalculatedMinutes != null) {
-      _finalDurationStr = widget.durationStringGenerator(widget.initialCalculatedMinutes!);
-    } else {
-      _finalDurationStr = widget.source.visitDuration;
-    }
-  }
-
-  Future<void> _save() async {
-    setState(() => _isLoading = true);
-    
-    try {
-      final fieldsToUpdate = {
-        'visit_duration': _finalDurationStr,
-        'offered_coffee': _offeredCoffee ? 1 : 0,
-        'met_the_owner': _metTheOwner ? 1 : 0,
-        'asked_about_price_trends': _askedAboutPriceTrends ? 1 : 0,
-        'considering_redevelopment': _consideringRedevelopment ? 1 : 0,
-        'concerned_about_interest_rates': _concernedAboutInterestRates ? 1 : 0,
-        'compared_micro_markets': _comparedMicroMarkets ? 1 : 0,
-        'strictly_rera_registered': _strictlyReraRegistered ? 1 : 0,
-      };
-
-      final result = await SourcingService.updateSourcingFields(widget.source.name!, fieldsToUpdate);
-      if (result && mounted) {
-        Navigator.pop(context);
-        widget.onSaved();
-        CustomSnackBar.show(context, message: 'Details saved successfully', isError: false, title: 'Notice');
-      } else if (!result && mounted) {
-        throw Exception("Failed to update on server");
-      }
-    } catch (e) {
-      if (mounted) {
-        CustomSnackBar.show(context, message: 'Error saving: $e', isError: true, title: 'Error');
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Widget _buildSwitchRow(String title, bool value, ValueChanged<bool> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: matteBlack),
-            ),
-          ),
-          Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
-            activeColor: goldAccent,
-          ),
-        ],
+  void _showReportOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Generate Sourcing Report',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.today, color: goldAccent),
+                title: const Text('Daily Report (Today)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareReport(isWeekly: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_view_week, color: goldAccent),
+                title: const Text('Weekly Report (Last 7 Days)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareReport(isWeekly: true);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+  void _shareReport({required bool isWeekly}) {
+    final now = DateTime.now();
+    final startDate = isWeekly ? now.subtract(const Duration(days: 7)) : DateTime(now.year, now.month, now.day);
+    final endDate = now;
+
+    final periodSourcing = _allSources.where((s) {
+      if (s.visitDate == null) return false;
+      final sDate = DateTime.tryParse(s.visitDate!);
+      if (sDate == null) return false;
+      return sDate.isAfter(startDate.subtract(const Duration(seconds: 1))) && 
+             sDate.isBefore(endDate.add(const Duration(days: 1)));
+    }).toList();
+
+    final firstMeetings = periodSourcing.where((s) => s.visitType?.toLowerCase() == 'first meeting').toList();
+    final followUpMeetings = periodSourcing.where((s) => s.visitType?.toLowerCase() == 'follow up').toList();
     
-    return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: bottomInset),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(4)),
-            ),
-            
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Sourcing Details',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: matteBlack, letterSpacing: -0.5),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.grey),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_finalDurationStr != null) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: kBackgroundColor,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Visit Duration', style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 4),
-                            Text(_finalDurationStr!, style: const TextStyle(fontSize: 18, color: goldAccent, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                    
-                    const Text('Questionnaire', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: matteBlack)),
-                    const SizedBox(height: 12),
-                    
-                    _buildSwitchRow('Did he offer coffee?', _offeredCoffee, (v) => setState(() => _offeredCoffee = v)),
-                    _buildSwitchRow('Did you meet the owner?', _metTheOwner, (v) => setState(() => _metTheOwner = v)),
-                    _buildSwitchRow('Did the client ask about recent price trends in the area?', _askedAboutPriceTrends, (v) => setState(() => _askedAboutPriceTrends = v)),
-                    _buildSwitchRow('Is the client considering redevelopment properties?', _consideringRedevelopment, (v) => setState(() => _consideringRedevelopment = v)),
-                    _buildSwitchRow('Are they concerned about current home loan interest rates?', _concernedAboutInterestRates, (v) => setState(() => _concernedAboutInterestRates = v)),
-                    _buildSwitchRow('Did they compare this locality to a neighboring micro-market?', _comparedMicroMarkets, (v) => setState(() => _comparedMicroMarkets = v)),
-                    _buildSwitchRow('Is the client strictly looking for RERA-registered projects?', _strictlyReraRegistered, (v) => setState(() => _strictlyReraRegistered = v)),
-                    
-                    const SizedBox(height: 40),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Bottom Save Button
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: goldAccent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 0,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Save Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    final dateRangeStr = isWeekly 
+      ? "${DateFormat('d MMMM').format(startDate)} to ${DateFormat('d MMMM yyyy').format(endDate)}"
+      : DateFormat('d MMMM yyyy').format(now);
+
+    final reportType = isWeekly ? "Weekly Sourcing Report" : "Daily Sourcing Report";
+    final buffer = StringBuffer();
+    buffer.writeln("$reportType: Sanghvi Tirth ($dateRangeStr)");
+    buffer.writeln("");
+    buffer.writeln("• Total CP Meetings: *${periodSourcing.length.toString().padLeft(2, '0')}*");
+    for (int i = 0; i < periodSourcing.length; i++) {
+      buffer.writeln("  ${i + 1}) ${periodSourcing[i].channelPartnerId ?? 'Unknown CP'}");
+    }
+    
+    buffer.writeln("• First Meetings: ${firstMeetings.length.toString().padLeft(2, '0')}");
+    buffer.writeln("• Follow-ups: ${followUpMeetings.length.toString().padLeft(2, '0')}");
+    
+    final coffeeOffered = periodSourcing.where((s) => s.offeredCoffee == 1).length;
+    buffer.writeln("• Coffee/Tea Offered: ${coffeeOffered.toString().padLeft(2, '0')}");
+    
+    final metOwner = periodSourcing.where((s) => s.metTheOwner == 1).length;
+    buffer.writeln("• Met the Owner: ${metOwner.toString().padLeft(2, '0')}");
+
+    final message = Uri.encodeComponent(buffer.toString());
+    final url = "https://wa.me/?text=$message";
+    _launchUrl(url);
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 }
 

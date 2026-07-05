@@ -1138,6 +1138,17 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildStatusBadge(visit.status),
+                          if (visit.visitDuration != null && visit.visitDuration!.isNotEmpty) ...[
+                            const SizedBox(width: 12),
+                            Text(
+                              "(${visit.visitDuration})",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
                           if (visit.remark.isNotEmpty) ...[
                             const SizedBox(width: 12),
                             Expanded(
@@ -1471,11 +1482,15 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
   Widget _buildStatusBadge(String status) {
     Color statusColor;
     switch (status.toLowerCase()) {
+      case 'visit done':
+      case 'revisit done':
       case 'completed':
       case 'done':
       case 'won':
         statusColor = Colors.green;
         break;
+      case 'visit scheduled':
+      case 'revisit scheduled':
       case 'pending':
       case 'planned':
       case 'scheduled':

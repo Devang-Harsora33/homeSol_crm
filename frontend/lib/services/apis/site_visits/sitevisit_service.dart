@@ -5,6 +5,7 @@ import 'package:Homesol/services/databases/site_visit_database.dart';
 import 'package:Homesol/services/connectivity_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:Homesol/utils/error_logger.dart';
 
 class SiteVisitService {
   static String get baseUrl => AuthService.baseUrl;
@@ -25,13 +26,52 @@ class SiteVisitService {
       final uri = Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_all_site_visits');
       final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return [];
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final List<dynamic> jsonData = responseData['message'] ?? [];
         return jsonData.map((json) => json['name'].toString()).toList();
       }
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: 'fetchSiteVisitNamesFromServer',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+    }
     return [];
+  }
+
+  static Future<SiteVisit?> fetchSiteVisit(String name) async {
+    if (!ConnectivityService.isOnline) {
+      return await SiteVisitDatabase.getSiteVisitByName(name);
+    }
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse('${AuthService.baseUrl}/api/resource/Site%20Visit/$name');
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return null;
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final siteVisit = SiteVisit.fromJson(responseData);
+        await SiteVisitDatabase.upsertSiteVisit(siteVisit);
+        return siteVisit;
+      }
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: 'fetchSiteVisit',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+    }
+    return await SiteVisitDatabase.getSiteVisitByName(name);
   }
 
   static Future<List<SiteVisit>> fetchSiteVisits({bool forceRefresh = false}) async {
@@ -40,7 +80,15 @@ class SiteVisitService {
       if (cachedSiteVisits.isNotEmpty && (!forceRefresh || !ConnectivityService.isOnline)) {
         return cachedSiteVisits;
       }
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: 'fetchSiteVisits (local)',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+    }
 
     if (ConnectivityService.isOnline) {
       return await _syncSiteVisits(forceRefresh: forceRefresh);
@@ -61,6 +109,8 @@ class SiteVisitService {
             headers: headers,
           )
           .timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return await SiteVisitDatabase.getAllSiteVisits();
 
       if (response.statusCode == 200) {
         // Deletion
@@ -87,9 +137,17 @@ class SiteVisitService {
         final formattedTimestamp = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}.${now.microsecond.toString().padLeft(6, '0')}';
         await prefs.setString(_lastSyncTimestampKey, formattedTimestamp);
 
-        return visits;
+        return await SiteVisitDatabase.getAllSiteVisits();
       }
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: '_syncSiteVisits',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+    }
     return await SiteVisitDatabase.getAllSiteVisits();
   }
 
@@ -100,6 +158,8 @@ class SiteVisitService {
       final url = Uri.parse('${AuthService.baseUrl}/api/resource/Site%20Visit');
       final response = await http.post(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return 'Session Expired';
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         if (responseData.containsKey('message')) {
@@ -109,7 +169,41 @@ class SiteVisitService {
         return null;
       }
       return 'Failed to create site visit. Status: ${response.statusCode}';
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: 'createSiteVisit',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+      return 'An error occurred: $e';
+    }
+  }
+
+  static Future<String?> updateSiteVisit(String name, Map<String, dynamic> body) async {
+    if (!ConnectivityService.isOnline) return 'Internet connection required to update a site visit.';
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse('${AuthService.baseUrl}/api/resource/Site%20Visit/$name');
+      final response = await http.put(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return 'Session Expired';
+
+      if (response.statusCode == 200) {
+        // Fetch fresh data immediately to update local cache
+        await fetchSiteVisit(name);
+        return null;
+      }
+      return 'Failed to update site visit. Status: ${response.statusCode}';
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: 'updateSiteVisit',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       return 'An error occurred: $e';
     }
   }
@@ -118,7 +212,15 @@ class SiteVisitService {
     try {
       final cachedSiteVisits = await SiteVisitDatabase.getAllSiteVisits();
       if (cachedSiteVisits.isNotEmpty && (!forceRefresh || !ConnectivityService.isOnline)) return cachedSiteVisits;
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: 'fetchMySiteVisits (local)',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+    }
     return await _syncMySiteVisits(forceRefresh: forceRefresh);
   }
 
@@ -126,7 +228,15 @@ class SiteVisitService {
     try {
       final cachedSiteVisits = await SiteVisitDatabase.getAllSiteVisits();
       if (cachedSiteVisits.isNotEmpty && (!forceRefresh || !ConnectivityService.isOnline)) return cachedSiteVisits;
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: 'fetchDeveloperSiteVisits (local)',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+    }
     return await _syncDeveloperSiteVisits(developerId, forceRefresh: forceRefresh);
   }
 
@@ -144,19 +254,39 @@ class SiteVisitService {
 
       final response = await http.get(Uri.parse(url), headers: await _getHeaders()).timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return await SiteVisitDatabase.getAllSiteVisits();
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         if (responseData.containsKey('message') && responseData['message'] is List) {
           final List<dynamic> jsonData = responseData['message'];
           final siteVisits = jsonData.map((json) => SiteVisit.fromJson(json)).toList();
+          
+          if (forceRefresh) {
+            final Set<String> fetchedNames = siteVisits.map((e) => e.name).toSet();
+            final List<SiteVisit> localSiteVisits = await SiteVisitDatabase.getAllSiteVisits();
+            for (final sv in localSiteVisits) {
+              if (!fetchedNames.contains(sv.name)) {
+                await SiteVisitDatabase.deleteSiteVisit(sv.name);
+              }
+            }
+          }
           for (final siteVisit in siteVisits) await SiteVisitDatabase.upsertSiteVisit(siteVisit);
           final now = DateTime.now();
           final formattedTimestamp = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}.${now.microsecond.toString().padLeft(6, '0')}';
           await prefs.setString(_lastSyncTimestampKey, formattedTimestamp);
-          return siteVisits;
+          return await SiteVisitDatabase.getAllSiteVisits();
         }
       }
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: '_syncDeveloperSiteVisits',
+        message: 'DeveloperID: $developerId | Error: $e',
+        stackTrace: stack.toString(),
+      );
+    }
     return await SiteVisitDatabase.getAllSiteVisits();
   }
 
@@ -172,19 +302,40 @@ class SiteVisitService {
 
       final response = await http.post(uri, headers: headers, body: filters.isNotEmpty ? jsonEncode(filters) : null).timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return await SiteVisitDatabase.getAllSiteVisits();
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         if (responseData.containsKey('message') && responseData['message'] is List) {
           final List<dynamic> jsonData = responseData['message'];
           final siteVisits = jsonData.map((json) => SiteVisit.fromJson(json)).toList();
+          
+          if (forceRefresh) {
+            final Set<String> fetchedNames = siteVisits.map((e) => e.name).toSet();
+            final List<SiteVisit> localSiteVisits = await SiteVisitDatabase.getAllSiteVisits();
+            for (final sv in localSiteVisits) {
+              if (!fetchedNames.contains(sv.name)) {
+                await SiteVisitDatabase.deleteSiteVisit(sv.name);
+              }
+            }
+          }
+          
           for (final siteVisit in siteVisits) await SiteVisitDatabase.upsertSiteVisit(siteVisit);
           final now = DateTime.now();
           final formattedTimestamp = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}.${now.microsecond.toString().padLeft(6, '0')}';
           await prefs.setString(_lastSyncTimestampKey, formattedTimestamp);
-          return siteVisits;
+          return await SiteVisitDatabase.getAllSiteVisits();
         }
       }
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'SiteVisitService',
+        action: '_syncMySiteVisits',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+    }
     return await SiteVisitDatabase.getAllSiteVisits();
   }
 }

@@ -44,6 +44,9 @@ class Ticket {
     );
   }
 
+  String get userId => raisedBy;
+  String get title => category;
+
   Map<String, dynamic> toJson() {
     return {
       'name': id,

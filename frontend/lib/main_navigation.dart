@@ -5,7 +5,9 @@ import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:device_info_plus/device_info_plus.dart';
 import 'models/sales_team.dart';
 import 'models/profile.dart';
 import 'pages/developers_page.dart';
@@ -15,11 +17,14 @@ import 'pages/more_page.dart';
 import 'pages/attendance/attendance_history_page.dart';
 import 'pages/sourcing/sourcing_main_page.dart';
 import 'components/curved_navigation_bar.dart';
+import 'pages/admin/team_lead_dashboard_page.dart';
+import 'pages/admin/admin_stats_page.dart';
 import 'services/analytics_service.dart';
 import 'services/api_service.dart';
 import 'services/apis/user/user_service.dart';
 import 'services/auth_service.dart';
 import 'services/shift_service.dart';
+import 'services/apis/workforces/workforce.dart';
 import 'pages/loader_video_screen.dart';
 import 'models/project.dart';
 import 'models/developer.dart';
@@ -54,10 +59,7 @@ class _MainNavigationState extends State<MainNavigation> {
   DateTime? _initialLastPunchTime;
   Map<String, dynamic>? _userShift;
 
-  bool _isLoadingData = false; // New flag for loading state
-
-  // Completer to signal that the user has chosen to skip the loader
-  final Completer<void> _skipCompleter = Completer<void>();
+  bool _isLoadingData = true; // Start with loading state for initial fetch
 
   @override
   void initState() {
@@ -68,13 +70,16 @@ class _MainNavigationState extends State<MainNavigation> {
     _refreshData();
   }
   
+  void _handleSkipLoader() {
+    if (mounted) {
+      setState(() {
+        _isInitializing = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
-    // If the completer is not completed, ensure it's completed on dispose
-    // to prevent any lingering futures from keeping the widget alive.
-    if (!_skipCompleter.isCompleted) {
-      _skipCompleter.completeError('MainNavigation disposed before skip or min duration');
-    }
     super.dispose();
   }
 
@@ -98,7 +103,10 @@ class _MainNavigationState extends State<MainNavigation> {
 
     final dest = (_designation ?? '').trim().toLowerCase();
 
-    if (dest == 'property developer') {
+    if (dest == 'admin') {
+      pages.add(const DevelopersPage());
+      pages.add(const AdminStatsPage());
+    } else if (dest == 'property developer') {
       // Show leads (CRM) and sourcing for this developer
       pages.add(CRMPage(developerId: _developerId));
       pages.add(SourcingMainPage(developerId: _developerId));
@@ -119,23 +127,17 @@ class _MainNavigationState extends State<MainNavigation> {
       pages.add(const DevelopersPage());
     }
 
-    if (dest != 'property developer') {
+    if (dest != 'property developer' && dest != 'lead caller' && dest != 'admin') {
       pages.add(AttendanceHistoryPage());
     }
 
     pages.add(MorePage(
       onNavigateToTab: setCurrentIndex,
-      designation: _designation, // Pass designation to MorePage
+      designation: _designation, 
+      developerId: _developerId,
     ));
 
     return pages;
-  }
-
-  // Handler for when the user clicks the "Skip" button on the loader
-  void _handleSkipLoader() {
-    if (!_skipCompleter.isCompleted) {
-      _skipCompleter.complete();
-    }
   }
 
   Future<void> _refreshData() async {
@@ -183,15 +185,18 @@ class _MainNavigationState extends State<MainNavigation> {
       ]);
 
       // Process results into local variables
-      final projects = results[0] as List<Project>;
-      final developers = results[1] as List<Developer>;
+      final rawProjects = results[0] as List<Project>;
+      final rawDevelopers = results[1] as List<Developer>;
+      // Deduplicate projects and developers by ID
+      final projects = {for (var p in rawProjects) p.id: p}.values.toList();
+      final developers = {for (var d in rawDevelopers) d.id: d}.values.toList();
       final profile = results[2] as dynamic;
       final shifts = results[3] as List<dynamic>;
       final salesTeams = results[4] as List<SalesTeam>;
       final fullProfile = results.length > 5 ? results[5] as Profile? : null;
       final assets = results.length > 6 ? results[6] as List<AppAsset> : <AppAsset>[];
 
-      List<Project> filteredProjects = [];
+      final Map<String, Project> filteredProjectsMap = {};
       String? employeeId = profile?.name;
       String? designation = (fullProfile?.designation ?? '').trim();
       String? developerId;
@@ -203,7 +208,7 @@ class _MainNavigationState extends State<MainNavigation> {
             for (final devProj in dev.projectsList) {
               try {
                 final p = projects.firstWhere((element) => element.id == devProj.project);
-                filteredProjects.add(p);
+                filteredProjectsMap[p.id] = p;
               } catch (_) {}
             }
             break;
@@ -218,7 +223,7 @@ class _MainNavigationState extends State<MainNavigation> {
                   Project foundProject = projects.firstWhere(
                     (p) => p.id == teamProject.projects,
                   );
-                  filteredProjects.add(foundProject);
+                  filteredProjectsMap[foundProject.id] = foundProject;
                 } catch (e) {
                   print('Error finding project: ${teamProject.projects}. It might not be synced correctly.');
                 }
@@ -227,6 +232,8 @@ class _MainNavigationState extends State<MainNavigation> {
           }
         }
       }
+
+      List<Project> filteredProjects = filteredProjectsMap.values.toList();
 
       Map<String, dynamic>? userShift;
       if (profile != null) {
@@ -239,23 +246,66 @@ class _MainNavigationState extends State<MainNavigation> {
 
       String attendanceStatus = 'OUT';
       DateTime? lastPunchTime;
-      if (employeeId != null && designation.toLowerCase() != 'property developer') {
+      if (employeeId != null && designation.toLowerCase() != 'property developer' && designation.toLowerCase() != 'lead caller') {
         try {
           final cookie = await AuthService.getCookie();
-          final filters = jsonEncode([
-            ['employee', '=', employeeId]
-          ]);
-          final logUrl = Uri.parse(
-              '${AuthService.baseUrl}/api/resource/Employee Checkin?filters=$filters&order_by=time desc&limit=1');
-          final logRes = await http.get(logUrl, headers: {'Cookie': cookie ?? ''}).timeout(const Duration(seconds: 5));
+          final realEmployeeId = await WorkforceService.getTrueEmployeeId();
+              
+          final logUrl = Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_team_checkins?days=0');
+          var logRes = await http.get(logUrl, headers: {'Cookie': cookie ?? ''}).timeout(const Duration(seconds: 5));
 
           if (logRes.statusCode == 200) {
-            final logData = jsonDecode(logRes.body);
-            if (logData['data'] != null && logData['data'].isNotEmpty) {
-              final lastLog = logData['data'][0];
-              attendanceStatus = lastLog['log_type'] ?? 'OUT';
-              lastPunchTime =
-                  lastLog['time'] != null ? DateTime.parse(lastLog['time']) : null;
+            var logData = jsonDecode(logRes.body);
+            final checkins = logData['message'] as List?;
+            
+            if (checkins != null && checkins.isNotEmpty) {
+              String currentDeviceId = '';
+              try {
+                final deviceInfo = DeviceInfoPlugin();
+                if (Platform.isAndroid) {
+                  AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+                  currentDeviceId = androidInfo.id;
+                } else if (Platform.isIOS) {
+                  IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+                  currentDeviceId = iosInfo.identifierForVendor ?? '';
+                }
+              } catch (_) {}
+              
+              // Find the check-in for this specific employee
+              final myCheckins = checkins.where((log) => 
+                (log['owner'] != null && fullProfile?.userId != null && fullProfile!.userId.isNotEmpty && log['owner'] == fullProfile.userId) ||
+                (log['employee'] != null && log['employee'] == fullProfile?.name) ||
+                (log['employee'] != null && log['employee'] == realEmployeeId) ||
+                (log['employee'] != null && log['employee'] == employeeId) ||
+                (log['employee_name'] != null && fullProfile?.employeeName != null && log['employee_name'] == fullProfile?.employeeName) ||
+                (log['employee_name'] != null && fullProfile?.firstName != null && fullProfile!.firstName.isNotEmpty && 
+                 log['employee_name'].toString().toLowerCase().contains(fullProfile.firstName.toLowerCase()) &&
+                 (fullProfile.lastName == null || fullProfile.lastName!.isEmpty || log['employee_name'].toString().toLowerCase().contains(fullProfile.lastName!.toLowerCase()))) ||
+                (currentDeviceId.isNotEmpty && log['device_id'] == currentDeviceId)
+              ).toList();
+              
+              if (myCheckins.isNotEmpty) {
+                // Sort by time descending to get the latest
+                myCheckins.sort((a, b) => b['time'].toString().compareTo(a['time'].toString()));
+                
+                final lastLog = myCheckins.first;
+                final lastLogTime = lastLog['time'] != null ? DateTime.parse(lastLog['time']) : null;
+                
+                bool isToday = false;
+                if (lastLogTime != null) {
+                  final now = DateTime.now();
+                  if (lastLogTime.year == now.year &&
+                      lastLogTime.month == now.month &&
+                      lastLogTime.day == now.day) {
+                    isToday = true;
+                  }
+                }
+
+                if (isToday) {
+                  attendanceStatus = lastLog['log_type'] ?? 'OUT';
+                  lastPunchTime = lastLogTime;
+                }
+              }
             }
           }
         } catch (e) {
@@ -293,26 +343,8 @@ class _MainNavigationState extends State<MainNavigation> {
         setState(() => _errorMessage = "Failed to load page data: $e");
       }
     } finally {
-      stopwatch.stop();
-      final elapsed = stopwatch.elapsed;
-      const minDuration = Duration(seconds: 6); // Minimum display duration for loader
-
-      // Wait until either the minDuration has passed OR the user clicks skip
-      if (_isInitializing) {
-        if (elapsed < minDuration) {
-          await Future.any([
-            Future.delayed(minDuration - elapsed),
-            _skipCompleter.future, // Wait for skip signal
-          ]);
-        }
-        // If the skip completer was used, ensure it's completed
-        if (!_skipCompleter.isCompleted) {
-          _skipCompleter.complete();
-        }
-      }
-      
       if (mounted) {
-        // After all data is loaded and min duration/skip is handled, navigate
+        // After all data is loaded, navigate or update state
         _navigateAfterLoading();
       }
     }
@@ -323,9 +355,8 @@ class _MainNavigationState extends State<MainNavigation> {
 
     if (!mounted) return;
 
-    // Set _isInitializing to false to show the actual UI
+    // Set _isLoadingData to false to show the actual UI
     setState(() {
-      _isInitializing = false;
       _isLoadingData = false; // Reset loading flag
       _pages = _buildPages(); // Rebuild pages one last time after data is loaded
     });
@@ -351,7 +382,9 @@ class _MainNavigationState extends State<MainNavigation> {
     final dest = (_designation ?? '').trim().toLowerCase();
 
     final List<String> pageNames = ['home'];
-    if (dest == 'property developer' && _developerId != null) {
+    if (dest == 'admin') {
+      pageNames.addAll(['developers', 'stats']);
+    } else if (dest == 'property developer' && _developerId != null) {
       pageNames.addAll(['crm', 'sourcing']);
     } else if (dest == 'sourcing') {
       pageNames.add('sourcing');
@@ -361,9 +394,11 @@ class _MainNavigationState extends State<MainNavigation> {
       pageNames.add('crm');
     }
     
-    pageNames.add('developers');
-    if (dest != 'property developer') {
-      pageNames.add('attendance');
+    if (dest != 'admin') {
+      pageNames.add('developers');
+      if (dest != 'property developer' && dest != 'lead caller') {
+        pageNames.add('attendance');
+      }
     }
     pageNames.add('more');
 
@@ -375,9 +410,9 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
-      // Pass the skip handler to the LoaderVideoScreen
       return LoaderVideoScreen(onSkip: _handleSkipLoader);
     }
+
     if (_errorMessage != null) {
       return Scaffold(
         body: Center(
@@ -402,7 +437,9 @@ class _MainNavigationState extends State<MainNavigation> {
     final dest = (_designation ?? '').trim().toLowerCase();
 
     final List<IconData> icons = [Icons.home];
-    if (dest == 'property developer' && _developerId != null) {
+    if (dest == 'admin') {
+      icons.addAll([Icons.apartment, Icons.bar_chart]);
+    } else if (dest == 'property developer' && _developerId != null) {
       icons.addAll([Icons.timeline, Icons.source_outlined]);
     } else if (dest == 'sourcing') {
       icons.add(Icons.source_outlined);
@@ -411,28 +448,42 @@ class _MainNavigationState extends State<MainNavigation> {
     } else {
       icons.add(Icons.timeline);
     }
-    icons.add(Icons.apartment);
-    if (dest != 'property developer') {
-      icons.add(Icons.calendar_today);
+    if (dest != 'admin') {
+      icons.add(Icons.apartment);
+      if (dest != 'property developer' && dest != 'lead caller') {
+        icons.add(Icons.calendar_today);
+      }
     }
     icons.add(Icons.more_horiz);
 
+    int safeIndex = _currentIndex;
+    if (safeIndex >= icons.length) {
+      safeIndex = icons.length - 1;
+    }
+    if (safeIndex < 0) safeIndex = 0;
+
     final items = List<Widget>.generate(icons.length, (i) {
-      final selected = i == _currentIndex;
+      final selected = i == safeIndex;
       return Icon(icons[i], size: 24, color: selected ? selectedIconColor : unselectedIconColor);
     });
 
+    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
-      extendBody: true, // <-- THIS IS THE MAGIC LINE! It lets the body go under the nav bar.
+      extendBody: true, // Required for curved nav bar to look correct
       backgroundColor: Colors.transparent,
-      body: IndexedStack(index: _currentIndex, children: _pages),
-      bottomNavigationBar: CurvedNavigationBar(
-        index: _currentIndex,
-        items: items,
-        onTap: setCurrentIndex,
-        backgroundColor: Colors.transparent,
-        color: navBarColor,
-        buttonBackgroundColor: navButtonColor,
+      body: IndexedStack(index: safeIndex, children: _pages),
+      bottomNavigationBar: Offstage(
+        offstage: isKeyboardOpen,
+        child: CurvedNavigationBar(
+          key: ValueKey(icons.length),
+          index: safeIndex,
+          items: items,
+          onTap: setCurrentIndex,
+          backgroundColor: Colors.transparent,
+          color: navBarColor,
+          buttonBackgroundColor: navButtonColor,
+        ),
       ),
     );
   }

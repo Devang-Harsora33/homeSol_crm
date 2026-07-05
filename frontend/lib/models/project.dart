@@ -38,8 +38,11 @@ class Configuration {
   final double carpetArea;
   final double price;
 
-  Configuration(
-      {required this.name, required this.carpetArea, required this.price});
+  Configuration({
+    required this.name,
+    required this.carpetArea,
+    required this.price,
+  });
 
   factory Configuration.fromJson(Map<String, dynamic> json) {
     return Configuration(
@@ -63,8 +66,11 @@ class ProjectTimeline {
   final String targetDate;
   final String status;
 
-  ProjectTimeline(
-      {required this.milestone, required this.targetDate, required this.status});
+  ProjectTimeline({
+    required this.milestone,
+    required this.targetDate,
+    required this.status,
+  });
 
   factory ProjectTimeline.fromJson(Map<String, dynamic> json) {
     return ProjectTimeline(
@@ -94,10 +100,7 @@ class ProjectDocument {
     );
   }
   Map<String, dynamic> toJson() {
-    return {
-      'document_name': documentName,
-      'file': file,
-    };
+    return {'document_name': documentName, 'file': file};
   }
 }
 
@@ -112,10 +115,7 @@ class ProjectBrochure {
     );
   }
   Map<String, dynamic> toJson() {
-    return {
-      'brochure_name': brochureName,
-      'file': file,
-    };
+    return {'brochure_name': brochureName, 'file': file};
   }
 }
 
@@ -236,31 +236,38 @@ class Project {
       contractor: json['contractor'] ?? '',
       electricalContractor: json['electrical_contractor'] ?? '',
       reraLiasoning: json['rera_liasoning'] ?? '',
-      documents: (json['documents'] as List<dynamic>?)
+      documents:
+          (json['documents'] as List<dynamic>?)
               ?.map((e) => ProjectDocument.fromJson(e))
               .toList() ??
           [],
-      brochures: (json['brochure'] as List<dynamic>?)
+      brochures:
+          (json['brochure'] as List<dynamic>?)
               ?.map((e) => ProjectBrochure.fromJson(e))
               .toList() ??
           [],
-      configurations: (json['configurations'] as List<dynamic>?)
+      configurations:
+          (json['configurations'] as List<dynamic>?)
               ?.map((e) => Configuration.fromJson(e))
               .toList() ??
           [],
-      galleryImages: (json['gallery_images'] as List<dynamic>?)
+      galleryImages:
+          (json['gallery_images'] as List<dynamic>?)
               ?.map((e) => ProjectImage.fromJson(e))
               .toList() ??
           [],
-      amenities: (json['amenities'] as List<dynamic>?)
+      amenities:
+          (json['amenities'] as List<dynamic>?)
               ?.map((e) => ProjectAmenity.fromJson(e))
               .toList() ??
           [],
-      brokerageSlabs: (json['brokerage_slabs'] as List<dynamic>?)
+      brokerageSlabs:
+          (json['brokerage_slabs'] as List<dynamic>?)
               ?.map((e) => BrokerageSlab.fromJson(e))
               .toList() ??
           [],
-      projectTimeline: (json['project_timeline'] as List<dynamic>?)
+      projectTimeline:
+          (json['project_timeline'] as List<dynamic>?)
               ?.map((e) => ProjectTimeline.fromJson(e))
               .toList() ??
           [],
@@ -277,4 +284,15 @@ class Project {
     if (parts.isNotEmpty) return parts.join(', ');
     return location ?? '';
   }
+
+  // Alias getters to match UI expectations (snake_case or different names)
+  String get location_name => locationName;
+  String get priceRange => '₹${priceRangeMin}L - ₹${priceRangeMax}L';
+  List<ProjectImage> get images => galleryImages;
+
+  // Developer ID alias
+  String get developerId => developer;
+
+  // Location coordinates placeholder (if needed)
+  Map<String, double>? get locationCoordinates => null;
 }

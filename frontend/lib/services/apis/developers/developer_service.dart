@@ -60,6 +60,8 @@ class DeveloperService {
         headers: headers,
       );
 
+      if (AuthService.checkResponse(response)) return [];
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['data'] is List) {
@@ -110,6 +112,8 @@ class DeveloperService {
       final response = await http
           .get(uri, headers: headers)
           .timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return [];
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = json.decode(response.body);
@@ -263,6 +267,8 @@ class DeveloperService {
             headers: {'Content-Type': 'application/json'},
           )
           .timeout(const Duration(seconds: 10));
+
+      if (AuthService.checkResponse(response)) return null;
 
       print('✅ Developer by ID response status: ${response.statusCode}');
 

@@ -17,12 +17,93 @@ import 'databases/developer_database.dart';
 import 'databases/channel_partner_database.dart';
 import 'databases/asset_database.dart';
 
+import 'package:flutter/material.dart';
+import 'dart:async';
+import '../main.dart';
+import '../components/auth_wrapper.dart';
+
+const Color goldAccent = Color(0xFF675D40);
+
 class AuthService {
+  static bool _isSessionExpiredShowing = false;
+
+  /// Checks if the response indicates a session expiration and handles logout if so.
+  /// Returns true if session is expired.
+  static bool checkResponse(http.Response response) {
+    if (_isSessionExpiredShowing) return true;
+
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map && data['session_expired'] == 1) {
+        _isSessionExpiredShowing = true;
+        _handleGlobalLogout();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  static void _handleGlobalLogout() {
+    final context = MyApp.navigatorKey.currentContext;
+    if (context == null) {
+      // Fallback if context is not available yet
+      logout();
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.timer_off_rounded, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Session Expired', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Your session has expired. Please log in again to continue.',
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24),
+              CircularProgressIndicator(color: goldAccent),
+              SizedBox(height: 16),
+              Text(
+                'Logging you out in 3 seconds...',
+                style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Wait 3 seconds then logout
+    Timer(const Duration(seconds: 3), () async {
+      await logout();
+      _isSessionExpiredShowing = false;
+      
+      // Navigate to root (AuthWrapper will handle showing Login)
+      if (MyApp.navigatorKey.currentState != null) {
+        MyApp.navigatorKey.currentState!.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AuthWrapper(child: SizedBox())),
+          (route) => false,
+        );
+      }
+    });
+  }
   static String? _testBaseUrl;
   static String? _testCookie;
   static Map<String, dynamic>? _testUserData;
 
-  static String get baseUrl => _testBaseUrl ?? dotenv.env['BASE_URL'] ?? 'https://erp.homesolindia.com';
+  static String get baseUrl => _testBaseUrl ?? dotenv.env['BASE_URL'] ?? 'https://frappe.homesolindia.com';
 
   static const String cookieKey = 'auth_cookie';
   static const String userKey = 'user_data';

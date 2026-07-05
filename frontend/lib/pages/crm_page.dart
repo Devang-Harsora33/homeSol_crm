@@ -1,5 +1,4 @@
 
-import 'dart:convert';
 import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/apis/developers/developer_service.dart';
@@ -8,22 +7,24 @@ import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
 import 'package:Homesol/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:screen_protector/screen_protector.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lead.dart' as model_lead;
 import '../models/sales_team.dart';
-import '../services/databases/lead_database.dart';
 import '../models/project.dart';
 import '../models/site_visit.dart';
 import '../models/follow_up.dart';
 import '../components/lead_detail_view.dart';
 import '../services/auth_service.dart';
-import 'crm/lead_creation_page.dart';
-import 'create_site_visit_page.dart';
+import 'crm/lead_creation_page.dart' hide FirstWhereOrNullExtension;
+import 'create_site_visit_page.dart' hide FirstWhereOrNullExtension;
+import 'site_visit_detail_page.dart';
+import 'crm/follow_up_detail_page.dart';
 import 'create_followup_page.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; 
 import 'package:fl_chart/fl_chart.dart';
 import '../components/project_share_bottom_sheet.dart';
+import 'package:intl/intl.dart';
+import 'package:collection/collection.dart';
 
 class CRMPage extends StatefulWidget {
   final String? developerId;
@@ -48,6 +49,8 @@ class _CRMPageState extends State<CRMPage> {
   bool isLoading = false;
   String? errorMessage;
   String? currentBrokerId;
+  String? currentEmployeeId;
+  String? currentUserEmail;
   String? currentDesignation;
 
   // Filter state
@@ -67,20 +70,149 @@ class _CRMPageState extends State<CRMPage> {
   final Set<String> _selectedDeadReasons = <String>{};
   final Set<String> _selectedVisitFilters = <String>{};
   final Set<String> _selectedFollowUpFilters = <String>{};
-  int _selectedDays = 15;
+  int _selectedDays = 9999;
+  String? _selectedUserFilter;
+  String? _selectedProjectFilterForUser;
+  final Map<String, String> _resolvedNames = {};
 
   @override
   void initState() {
     super.initState();
-    ScreenProtector.preventScreenshotOn();
+    // ScreenProtector.preventScreenshotOn();
     _initializeData();
   }
 
   @override
   void dispose() {
-    ScreenProtector.preventScreenshotOff();
+    // ScreenProtector.preventScreenshotOff();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _showReportOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Generate Report',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.today, color: goldAccent),
+                title: const Text('Daily Report (Today)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareReport(isWeekly: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_view_week, color: goldAccent),
+                title: const Text('Weekly Report (Last 7 Days)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareReport(isWeekly: true);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _shareReport({required bool isWeekly}) {
+    final now = DateTime.now();
+    final startDate = isWeekly ? now.subtract(const Duration(days: 7)) : DateTime(now.year, now.month, now.day);
+    final endDate = now;
+
+    final filteredLeadNames = _filteredLeads.map((l) => l.name).toSet();
+    final periodVisits = siteVisits.where((v) {
+      if (v.visitDate == null) return false;
+      final vDate = DateTime.tryParse(v.visitDate!);
+      if (vDate == null) return false;
+      return vDate.isAfter(startDate.subtract(const Duration(seconds: 1))) && 
+             vDate.isBefore(endDate.add(const Duration(days: 1))) &&
+             filteredLeadNames.contains(v.lead);
+    }).toList();
+
+    // Categories
+    final visitDone = periodVisits.where((v) => v.status.toLowerCase() == 'visit done').toList();
+    final revisitDone = periodVisits.where((v) => v.status.toLowerCase() == 'revisit done').toList();
+    
+    // Direct vs CP for visits
+    final directVisits = <String>[];
+    final cpVisits = <String>[];
+    for (var v in visitDone) {
+      final lead = leads.firstWhereOrNull((l) => l.name == v.lead);
+      if (lead == null) continue;
+      final isCP = (lead.source?.toLowerCase().contains('cp') ?? false) || lead.customChannelPartner != null;
+      if (isCP) {
+        cpVisits.add(lead.customChannelPartner ?? lead.customerName);
+      } else {
+        directVisits.add(lead.customerName);
+      }
+    }
+
+    final revisits = revisitDone.map((v) {
+      final lead = leads.firstWhereOrNull((l) => l.name == v.lead);
+      return lead?.customerName ?? 'Unknown';
+    }).toList();
+
+    final warmLeadsCount = _filteredLeads.where((l) => (l.customLeadQuality ?? 0) >= 4).length;
+    final opportunitiesCount = _filteredLeads.where((l) => l.customLeadStatus?.toLowerCase() == 'prospect').length;
+    final bookings = _filteredLeads.where((l) => l.customLeadStatus?.toLowerCase() == 'won').map((l) => l.customerName).toList();
+
+    final dateRangeStr = isWeekly 
+      ? "${DateFormat('d MMMM').format(startDate)} to ${DateFormat('d MMMM yyyy').format(endDate)}"
+      : DateFormat('d MMMM yyyy').format(now);
+
+    final reportType = isWeekly ? "Weekly Report" : "Daily Report";
+    final buffer = StringBuffer();
+    buffer.writeln("$reportType: Sanghvi Tirth ($dateRangeStr)");
+    buffer.writeln("");
+    buffer.writeln("• Total Visits: *${visitDone.length.toString().padLeft(2, '0')}*");
+    for (int i = 0; i < visitDone.length; i++) {
+      final lead = leads.firstWhereOrNull((l) => l.name == visitDone[i].lead);
+      buffer.writeln("  ${i + 1}) ${lead?.customerName ?? 'Unknown'}");
+    }
+    
+    buffer.writeln("• Warm Leads: ${warmLeadsCount.toString().padLeft(2, '0')}");
+    buffer.writeln("• Opportunities: ${opportunitiesCount.toString().padLeft(2, '0')}");
+    
+    buffer.writeln("• Revisits: *${revisits.length.toString().padLeft(2, '0')}*");
+    for (int i = 0; i < revisits.length; i++) {
+      buffer.writeln("  ${i + 1}) ${revisits[i]}");
+    }
+
+    buffer.writeln("• Direct Walk-ins: *${directVisits.length.toString().padLeft(2, '0')}*");
+    for (int i = 0; i < directVisits.length; i++) {
+      buffer.writeln("  ${i + 1}) ${directVisits[i]}");
+    }
+
+    buffer.writeln("• CP Visits: *${cpVisits.length.toString().padLeft(2, '0')}*");
+    for (int i = 0; i < cpVisits.length; i++) {
+      buffer.writeln("  ${i + 1}) ${cpVisits[i]}");
+    }
+
+    buffer.writeln("• Bookings: *${bookings.length.toString().padLeft(2, '0')}*");
+    for (int i = 0; i < bookings.length; i++) {
+      buffer.writeln("  ${i + 1}) ${bookings[i]}");
+    }
+
+    final message = Uri.encodeComponent(buffer.toString());
+    _launchUrl("https://wa.me/?text=$message");
   }
 
   Future<void> _launchUrl(String url) async {
@@ -259,18 +391,20 @@ class _CRMPageState extends State<CRMPage> {
     await _getBrokerId();
     await _loadProjects(forceRefresh: true);
     await _loadLeads(forceRefresh: true);
-    await _loadSiteVisits(); // Load site visits
-    await _loadFollowUps(); // Load follow ups
+    await _loadSiteVisits(forceRefresh: true); // Load site visits
+    await _loadFollowUps(forceRefresh: true); // Load follow ups
     await _loadCampaigns(); // Load campaigns
     await _loadTerritories(); // Load territories
     await _loadSalesTeams(); // Load sales teams
+    await _resolveOwnerNames(); // Resolve names for lead owners
   }
 
-  Future<void> _loadSiteVisits() async {
+  Future<void> _loadSiteVisits({bool forceRefresh = false}) async {
     try {
       final fetchedSiteVisits = (currentDesignation?.toLowerCase() == 'property developer' && widget.developerId != null)
-          ? await SiteVisitService.fetchDeveloperSiteVisits(widget.developerId!, forceRefresh: true)
-          : await SiteVisitService.fetchMySiteVisits(forceRefresh: true);
+          ? await SiteVisitService.fetchDeveloperSiteVisits(widget.developerId!, forceRefresh: forceRefresh)
+          : await SiteVisitService.fetchMySiteVisits(forceRefresh: forceRefresh);
+      if (!mounted) return;
       setState(() {
         siteVisits = fetchedSiteVisits;
       });
@@ -279,9 +413,10 @@ class _CRMPageState extends State<CRMPage> {
     }
   }
 
-  Future<void> _loadFollowUps() async {
+  Future<void> _loadFollowUps({bool forceRefresh = false}) async {
     try {
-      final fetchedFollowUps = await LeadService.fetchMyFollowups(forceRefresh: true);
+      final fetchedFollowUps = await LeadService.fetchMyFollowups(forceRefresh: forceRefresh);
+      if (!mounted) return;
       setState(() {
         followUps = fetchedFollowUps;
       });
@@ -293,6 +428,7 @@ class _CRMPageState extends State<CRMPage> {
   Future<void> _loadCampaigns() async {
     try {
       final fetchedCampaigns = await LeadService.fetchCampaigns(forceRefresh: true);
+      if (!mounted) return;
       setState(() {
         campaigns = fetchedCampaigns;
       });
@@ -304,6 +440,7 @@ class _CRMPageState extends State<CRMPage> {
   Future<void> _loadTerritories() async {
     try {
       final fetchedTerritories = await LeadService.fetchTerritories(forceRefresh: true);
+      if (!mounted) return;
       setState(() {
         territories = fetchedTerritories;
       });
@@ -315,6 +452,7 @@ class _CRMPageState extends State<CRMPage> {
   Future<void> _loadSalesTeams() async {
     try {
       final fetchedSalesTeams = await ApiService.syncSalesTeams(forceRefresh: true);
+      if (!mounted) return;
       setState(() {
         salesTeams = fetchedSalesTeams;
       });
@@ -323,10 +461,48 @@ class _CRMPageState extends State<CRMPage> {
     }
   }
 
+  Future<void> _resolveOwnerNames() async {
+    final Set<String> uniqueOwners = leads
+        .map((l) => l.leadOwner?.toLowerCase().trim())
+        .where((o) => o != null && o.isNotEmpty)
+        .cast<String>()
+        .toSet();
+
+    // Prioritize resolving those that aren't already resolved in _resolvedNames
+    final List<String> toResolve = uniqueOwners
+        .where((o) => !_resolvedNames.containsKey(o))
+        .toList();
+
+    if (toResolve.isEmpty) return;
+
+    print('🔍 [CRM_PAGE] Resolving names for ${toResolve.length} owners from Frappe: $toResolve');
+
+    for (var email in toResolve) {
+      try {
+        final fullName = await ApiService.fetchUserFullName(email);
+        if (fullName != null && fullName.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _resolvedNames[email] = fullName;
+            });
+          }
+          print('✅ Resolved $email to $fullName');
+        } else {
+          print('⚠️ No full name found for $email');
+          // Still mark as "tried" to avoid repeated attempts
+          _resolvedNames[email] = email.split('@').first;
+        }
+      } catch (e) {
+        print('❌ Error resolving name for $email: $e');
+      }
+    }
+  }
+
   Future<void> _getBrokerId() async {
     try {
       final userData = await AuthService.getUserData();
       if (userData != null && userData['broker_id'] != null) {
+        if (!mounted) return;
         setState(() {
           currentBrokerId = userData['broker_id'].toString();
         });
@@ -334,10 +510,15 @@ class _CRMPageState extends State<CRMPage> {
       
       final profile = await AuthService.getMyProfile();
       if (profile != null) {
+        if (!mounted) return;
         setState(() {
           currentDesignation = profile.designation;
+          currentEmployeeId = profile.employee;
+          currentUserEmail = profile.userId;
+          // Ensure currentBrokerId is set to something useful if null
+          currentBrokerId ??= profile.employee;
         });
-        print('Current User Designation: $currentDesignation');
+        print('Current User: ${profile.employeeName} | ID: ${profile.employee} | Email: ${profile.userId}');
       }
     } catch (e) {
       print('Error getting broker ID/Designation: $e');
@@ -357,6 +538,7 @@ class _CRMPageState extends State<CRMPage> {
               devProjects.add(p);
             } catch (_) {}
           }
+          if (!mounted) return;
           setState(() {
             projects = devProjects;
           });
@@ -364,6 +546,7 @@ class _CRMPageState extends State<CRMPage> {
         }
       }
       final fetchedProjects = await ProjectService.syncProjects(forceRefresh: forceRefresh);
+      if (!mounted) return;
       setState(() {
         projects = fetchedProjects;
       });
@@ -373,6 +556,7 @@ class _CRMPageState extends State<CRMPage> {
   }
 
   Future<void> _loadLeads({bool forceRefresh = false}) async {
+    if (!mounted) return;
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -382,6 +566,7 @@ class _CRMPageState extends State<CRMPage> {
       if (widget.developerId != null) {
         // Fetch leads for a specific developer from API
         final fetchedLeads = await LeadService.fetchLeadsByDeveloper(widget.developerId!);
+        if (!mounted) return;
         setState(() {
           leads = fetchedLeads;
           isLoading = false;
@@ -393,6 +578,7 @@ class _CRMPageState extends State<CRMPage> {
       // LeadService.fetchMyLeads handles local caching, connectivity checks, and sync
       final fetchedLeads = await LeadService.fetchMyLeads(forceRefresh: forceRefresh);
 
+      if (!mounted) return;
       setState(() {
         leads = fetchedLeads;
         isLoading = false;
@@ -402,6 +588,7 @@ class _CRMPageState extends State<CRMPage> {
          print('   Lead $i: ${fetchedLeads[i].name} - ${fetchedLeads[i].customerName}');
        }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         errorMessage = e.toString();
         isLoading = false;
@@ -414,12 +601,96 @@ class _CRMPageState extends State<CRMPage> {
   List<model_lead.Lead> get _filteredLeads {
     List<model_lead.Lead> filtered = leads;
 
+    // Project Filter (from Summary section)
+    if (_selectedProjectFilterForUser != null) {
+      final selProjId = _selectedProjectFilterForUser!.toLowerCase();
+      // Also get the project name for this ID to be more robust
+      final selProjName = projects.where((p) => p.id == _selectedProjectFilterForUser).firstOrNull?.projectName.toLowerCase();
+      
+      filtered = filtered.where((l) {
+        return l.projectId.any((id) {
+          final pid = id.toLowerCase();
+          return pid == selProjId || (selProjName != null && pid == selProjName);
+        });
+      }).toList();
+    }
+
+    // User Filter
+    if (_selectedUserFilter != null) {
+      final selVal = _selectedUserFilter!.toLowerCase().trim();
+      
+      // Find the member to get their name and real email (if synced)
+      String? selEmail;
+      String? selName = _resolvedNames[selVal]; // Check resolved names first
+      
+      if (selName == null) {
+        for (var team in salesTeams) {
+          for (var m in team.members) {
+            if (m.employee.toLowerCase() == selVal || m.userId?.toLowerCase() == selVal) {
+              selEmail = m.userId?.toLowerCase().trim();
+              selName = m.employeeName.toLowerCase().trim();
+              break;
+            }
+          }
+          if (selName != null) break;
+        }
+      }
+
+      print('🔍 [DEBUG_FILTER] Selecting User: $selVal | Resolved Name: $selName | selEmail: $selEmail');
+
+      filtered = filtered.where((l) {
+        final owner = l.leadOwner?.toLowerCase().trim();
+
+        bool isMatched = false;
+        
+        // 1. Strict exact match against the explicit email (if we have it)
+        if (selEmail != null && selEmail.isNotEmpty) {
+          isMatched = owner == selEmail;
+        } 
+        // 2. Strict match against the selected value (ID)
+        else if (owner == selVal) {
+          isMatched = true;
+        }
+        // 3. Mandatory Fallback (Triggered if ERP permissions block Employee doctype read)
+        else {
+           // We are missing the email locally. The backend stores emails (neha@...), but we only have ID (hr-emp...).
+           bool matchPrefix(String? field) {
+             if (field == null || !field.contains('@')) return false;
+             final prefix = field.split('@').first;
+             // Match prefix against ID or First Name
+             if (prefix == selVal) return true;
+             
+             final firstName = selName?.split(' ').first;
+             if (firstName != null && prefix == firstName) return true;
+             
+             // Check if prefix matches the full name without spaces
+             final nameNoSpaces = selName?.replaceAll(' ', '');
+             if (nameNoSpaces != null && nameNoSpaces.contains(prefix)) return true;
+             
+             return false;
+           }
+           
+           isMatched = matchPrefix(owner);
+        }
+        
+        if (owner?.contains('neha') == true || owner?.contains('suraj') == true) {
+          print('🔍 [DEBUG_FILTER] Lead: ${l.name}, Owner: "$owner" | Matched: $isMatched');
+        }
+
+        return isMatched;
+      }).toList();
+      
+      print('🔍 [DEBUG_FILTER] Filtered result: ${filtered.length} leads');
+    }
+
     // Days Filter
-    final now = DateTime.now();
-    filtered = filtered.where((lead) {
-      if (lead.createdAt == null) return false;
-      return now.difference(lead.createdAt!).inDays <= _selectedDays;
-    }).toList();
+    if (_selectedDays != 9999) {
+      final now = DateTime.now();
+      filtered = filtered.where((lead) {
+        if (lead.createdAt == null) return false;
+        return now.difference(lead.createdAt!).inDays <= _selectedDays;
+      }).toList();
+    }
 
     // Text search
     print('🔍 [FILTER] Starting with ${filtered.length} leads');
@@ -458,21 +729,17 @@ class _CRMPageState extends State<CRMPage> {
 
     // Project filter
     if (_selectedProjects.isNotEmpty) {
+      final selectedProjectIds = _selectedProjects.map((id) => id.toLowerCase()).toSet();
+      final selectedProjectNames = _selectedProjects
+          .map((id) => projects.where((p) => p.id == id).firstOrNull?.projectName.toLowerCase())
+          .where((name) => name != null)
+          .cast<String>()
+          .toSet();
+
       filtered = filtered.where((lead) {
-        return lead.projectId.any((projectId) {
-          // Check if the project ID is in selected projects
-          if (_selectedProjects.contains(projectId)) return true;
-
-          // Also check if the project name is in selected projects
-          final projectName = projects
-              .where((p) => p.id == projectId)
-              .map((p) => p.projectName)
-              .firstOrNull;
-          if (projectName != null && _selectedProjects.contains(projectName)) {
-            return true;
-          }
-
-          return false;
+        return lead.projectId.any((id) {
+          final pid = id.toLowerCase();
+          return selectedProjectIds.contains(pid) || selectedProjectNames.contains(pid);
         });
       }).toList();
     }
@@ -627,23 +894,11 @@ class _CRMPageState extends State<CRMPage> {
         
         for (final filter in _selectedVisitFilters) {
           switch (filter) {
-            case 'Scheduled':
-              if (leadVisits.any((v) => v.status.toLowerCase() == 'scheduled')) return true;
+            case 'Visit Scheduled':
+              if (leadVisits.any((v) => v.status.toLowerCase() == 'visit scheduled' || v.status.toLowerCase() == 'scheduled')) return true;
               break;
-            case 'Rescheduled':
-              if (leadVisits.any((v) => v.status.toLowerCase() == 'rescheduled')) return true;
-              if (leadVisits.where((v) => v.status.toLowerCase() == 'scheduled').length > 1) return true;
-              break;
-            case 'Site Visits Done':
-              if (leadVisits.any((v) => v.status.toLowerCase() == 'visit done')) return true;
-              break;
-            case 'Revisits Done':
-              if (leadVisits.any((v) => v.status.toLowerCase() == 'revisit done')) return true;
-              break;
-            case 'Cancelled Visits':
-              if (leadVisits.any((v) => 
-                v.status.toLowerCase() == 'cancelled' || v.status.toLowerCase() == 'canceled'
-              )) return true;
+            case 'Visit Done':
+              if (leadVisits.any((v) => v.status.toLowerCase() == 'visit done' || v.status.toLowerCase() == 'site visits done')) return true;
               break;
           }
         }
@@ -680,6 +935,12 @@ class _CRMPageState extends State<CRMPage> {
       }).toList();
     }
 
+    filtered.sort((a, b) {
+      final aDate = a.createdAt ?? DateTime(1970);
+      final bDate = b.createdAt ?? DateTime(1970);
+      return bDate.compareTo(aDate);
+    });
+
     return filtered;
   }
 
@@ -698,7 +959,8 @@ class _CRMPageState extends State<CRMPage> {
         _selectedVisited.isNotEmpty ||
         _selectedDeadReasons.isNotEmpty ||
         _selectedVisitFilters.isNotEmpty ||
-        _selectedFollowUpFilters.isNotEmpty;
+        _selectedFollowUpFilters.isNotEmpty ||
+        _selectedUserFilter != null;
   }
 
   void _clearAllFilters() {
@@ -719,7 +981,9 @@ class _CRMPageState extends State<CRMPage> {
       _selectedDeadReasons.clear();
       _selectedVisitFilters.clear();
       _selectedFollowUpFilters.clear();
-      _selectedDays = 15;
+      _selectedDays = 9999;
+      _selectedUserFilter = null;
+      _selectedProjectFilterForUser = null;
     });
   }
 
@@ -774,6 +1038,9 @@ class _CRMPageState extends State<CRMPage> {
     final contentBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
 
     final projectNames = projects.map((p) => p.projectName).toList();
+    final Map<String, String> projectNameToId = {for (var p in projects) p.projectName: p.id};
+    final Map<String, String> projectIdToName = {for (var p in projects) p.id: p.projectName};
+
     final List<String> fixedConfigurations = [
       '1BHK', '2BHK', '3BHK', '4BHK', '5BHK', 'Penthouse', 'Studio'
     ];
@@ -799,7 +1066,7 @@ class _CRMPageState extends State<CRMPage> {
 
     final Map<String, List<String>> categories = {
       'Projects': projectNames,
-      'Status': ['Open', 'Prospect', 'Won', 'Lost'],
+      'Status': ['Lead Generated - Open', 'Prospect', 'Won'],
       'Budget': [],
       'Configuration': fixedConfigurations,
       'Date Added': ['Today', 'Last 7 days', 'This month'],
@@ -810,7 +1077,7 @@ class _CRMPageState extends State<CRMPage> {
         'Next Contact': ['Today', 'Tomorrow', 'This Week'],
       },
       'Visited': ['Yes', 'No'],
-      'Visit Status': ['Scheduled', 'Rescheduled', 'Site Visits Done', 'Revisits Done', 'Cancelled Visits'],
+      'Visit Status': ['Visit Scheduled', 'Visit Done'],
       if (currentDesignation?.toLowerCase() != 'property developer') ...{
         'Follow-up Status': ['Open', 'Missed', 'Completed'],
       },
@@ -823,7 +1090,9 @@ class _CRMPageState extends State<CRMPage> {
 
     void updateCheckedItems() {
       switch (currentCategory) {
-        case 'Projects':       checked = Set.from(_selectedProjects); break;
+        case 'Projects':       
+          checked = _selectedProjects.map((id) => projectIdToName[id] ?? id).toSet(); 
+          break;
         case 'Status':         checked = Set.from(_selectedStatuses); break;
         case 'Budget':         break;
         case 'Configuration':  checked = Set.from(_selectedConfigurations); break;
@@ -843,7 +1112,10 @@ class _CRMPageState extends State<CRMPage> {
       setState(() {
         // Persist whatever is currently in "checked" for the current tab
         switch (currentCategory) {
-          case 'Projects':       _selectedProjects.clear(); _selectedProjects.addAll(checked); break;
+          case 'Projects':       
+            _selectedProjects.clear(); 
+            _selectedProjects.addAll(checked.map((name) => projectNameToId[name] ?? name)); 
+            break;
           case 'Status':         _selectedStatuses.clear(); _selectedStatuses.addAll(checked); break;
           case 'Budget':         _budgetMinSlider = localBudgetMin; _budgetMaxSlider = localBudgetMax; break;
           case 'Configuration':  _selectedConfigurations.clear(); _selectedConfigurations.addAll(checked); break;
@@ -1567,7 +1839,13 @@ class _CRMPageState extends State<CRMPage> {
                     children: [
                       _buildHeaderIconButton(
                         icon: Icons.refresh_rounded,
-                        onTap: () => _loadLeads(forceRefresh: true),
+                        onTap: () => _initializeData(),
+                        isDark: isDark,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildHeaderIconButton(
+                        icon: Icons.assignment_outlined,
+                        onTap: _showReportOptions,
                         isDark: isDark,
                       ),
                       const SizedBox(width: 8),
@@ -1585,7 +1863,7 @@ class _CRMPageState extends State<CRMPage> {
               const SizedBox(height: 16),
               Expanded(
                 child: RefreshIndicator(
-                  onRefresh: () => _loadLeads(forceRefresh: true),
+                  onRefresh: _initializeData,
                   color: theme.colorScheme.primary,
                   child: _buildLeadsList(),
                 ),
@@ -1597,7 +1875,200 @@ class _CRMPageState extends State<CRMPage> {
     );
   }
 
-Widget _buildSummaryWidgets(List<model_lead.Lead> filteredLeads) {
+  Widget _buildUserFilter() {
+    // 1. Filter sales teams where current user is a member or lead/owner
+    final mySalesTeams = salesTeams.where((team) {
+      bool isOwner = (currentUserEmail != null && team.owner == currentUserEmail) ||
+                     (currentBrokerId != null && team.owner == currentBrokerId);
+      
+      bool isMember = team.members.any((m) => 
+        (currentUserEmail != null && m.userId != null && m.userId == currentUserEmail) || 
+        (currentEmployeeId != null && m.employee != null && m.employee == currentEmployeeId) ||
+        (currentBrokerId != null && (m.userId == currentBrokerId || m.employee == currentBrokerId))
+      );
+      
+      return isOwner || isMember;
+    }).toList();
+
+    // 2. Get unique projects from MY sales teams
+    final Set<String> projectIdsFromTeams = {};
+    for (var team in mySalesTeams) {
+      for (var p in team.projects) {
+        projectIdsFromTeams.add(p.projects);
+      }
+    }
+    
+    final List<Project> filteredProjects = projects.where((p) => projectIdsFromTeams.contains(p.id)).toList();
+
+    // 1. Get unique leadOwner values from the CURRENT leads list
+    final Set<String> ownersInLeads = leads
+        .map((l) => l.leadOwner?.toLowerCase().trim())
+        .where((o) => o != null && o.isNotEmpty)
+        .cast<String>()
+        .toSet();
+
+    // 2. Map each unique owner to a Member object for the dropdown
+    final List<Member> uniqueMembers = [];
+    for (var ownerId in ownersInLeads) {
+      String? displayName;
+      
+      // a. Try to get name from resolvedNames (Frappe lookup)
+      if (_resolvedNames.containsKey(ownerId)) {
+        displayName = _resolvedNames[ownerId];
+      }
+      
+      // b. Try to find a matching member in ANY sales team to get their name
+      if (displayName == null) {
+        for (var team in salesTeams) {
+          for (var m in team.members) {
+            if (m.userId?.toLowerCase().trim() == ownerId || m.employee.toLowerCase().trim() == ownerId) {
+              displayName = m.employeeName;
+              break;
+            }
+          }
+          if (displayName != null) break;
+        }
+      }
+      
+      // c. Fallback to email prefix
+      displayName ??= ownerId.split('@').first;
+      
+      uniqueMembers.add(Member(
+        name: ownerId,
+        employee: ownerId,
+        employeeName: displayName,
+        userId: ownerId,
+        role: 'Sales',
+        owner: 'Administrator',
+        creation: DateTime.now(),
+        modified: DateTime.now(),
+        modifiedBy: 'Administrator',
+        docstatus: 0,
+        idx: 0,
+        parent: '',
+        parentfield: '',
+        parenttype: '',
+        doctype: 'Sales Team Member',
+      ));
+    }
+    
+    // Determine if current user is a Team Lead or Manager
+    bool isTeamLead = false;
+    for (var team in salesTeams) {
+      if ((currentUserEmail != null && team.owner == currentUserEmail) ||
+          (currentEmployeeId != null && team.owner == currentEmployeeId) ||
+          (currentBrokerId != null && team.owner == currentBrokerId)) {
+        isTeamLead = true;
+        break;
+      }
+      for (var m in team.members) {
+        bool isMe = (currentUserEmail != null && m.userId != null && m.userId == currentUserEmail) || 
+                    (currentEmployeeId != null && m.employee == currentEmployeeId) ||
+                    (currentBrokerId != null && (m.userId == currentBrokerId || m.employee == currentBrokerId));
+        if (isMe && (m.role.toLowerCase() == 'team lead' || m.role.toLowerCase() == 'manager')) {
+          isTeamLead = true;
+          break;
+        }
+      }
+      if (isTeamLead) break;
+    }
+    
+    if (!isTeamLead && currentDesignation != null) {
+      final desig = currentDesignation!.toLowerCase();
+      if (desig.contains('lead') || desig.contains('manager') || desig.contains('head')) {
+        isTeamLead = true;
+      }
+    }
+
+    return Column(
+      children: [
+        // Project Selection Dropdown
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                hint: const Text('Select Project First'),
+                value: _selectedProjectFilterForUser,
+                icon: const Icon(Icons.apartment_rounded, color: goldAccent),
+                dropdownColor: Colors.white,
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null, 
+                    child: Text('All My Projects', style: TextStyle(fontWeight: FontWeight.bold, color: matteBlack))
+                  ),
+                  ...filteredProjects.map((p) => DropdownMenuItem<String>(
+                    value: p.id,
+                    child: Text(p.projectName, style: const TextStyle(color: matteBlack)),
+                  )),
+                ],
+                onChanged: (val) {
+                  setState(() {
+                    _selectedProjectFilterForUser = val;
+                    _selectedUserFilter = null; // Reset user filter when project changes
+                  });
+                },
+              ),
+            ),
+          ),
+        ),
+        
+        // User Selection Dropdown (Only shown if members are available AND user is a Team Lead or similar)
+        if (uniqueMembers.isNotEmpty && isTeamLead)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
+                ],
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  hint: Text(_selectedProjectFilterForUser == null ? 'Select Project to filter users' : 'All Sales Persons'),
+                  value: _selectedUserFilter,
+                  icon: const Icon(Icons.person_outline, color: goldAccent),
+                  dropdownColor: Colors.white,
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null, 
+                      child: Text('All Sales Persons', style: TextStyle(fontWeight: FontWeight.bold, color: matteBlack))
+                    ),
+                    ...uniqueMembers.map((m) {
+                      bool isMe = (currentUserEmail != null && m.userId != null && m.userId == currentUserEmail) || 
+                                  (currentEmployeeId != null && m.employee != null && m.employee == currentEmployeeId) ||
+                                  (currentBrokerId != null && (m.userId == currentBrokerId || m.employee == currentBrokerId));
+                      // We must use m.userId (email) for strict filtering. If it's missing, use employee ID as fallback for value uniqueness
+                      final value = (m.userId != null && m.userId!.isNotEmpty) ? m.userId : m.employee;
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(isMe ? '${m.employeeName} (Me)' : m.employeeName, style: const TextStyle(color: matteBlack)),
+                      );
+                    }),
+                  ],
+                  onChanged: (val) => setState(() => _selectedUserFilter = val),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+  
+  Widget _buildSummaryWidgets(List<model_lead.Lead> filteredLeads) {
   // --- 1. Calculation Logic (Unchanged) ---
   final totalLeadsCount = filteredLeads.length;
   final filteredLeadNames = filteredLeads.map((l) => l.name).toSet();
@@ -1605,21 +2076,25 @@ Widget _buildSummaryWidgets(List<model_lead.Lead> filteredLeads) {
 
   final totalSiteVisitsDone = currentSiteVisits.where((v) => v.status.toLowerCase() == 'visit done').length;
   final totalRevisitsDone = currentSiteVisits.where((v) => v.status.toLowerCase() == 'revisit done').length;
-  
+  final totalRevisitScheduled = currentSiteVisits.where((v) => v.status.toLowerCase() == 'revisit scheduled').length;
+  final totalCancelled = currentSiteVisits.where((v) => 
+    v.status.toLowerCase() == 'cancelled' || v.status.toLowerCase() == 'canceled'
+  ).length;
+
   final Map<String, int> scheduledCountByLead = {};
   int explicitRescheduled = 0;
   int totalScheduled = 0;
-  
+
   for (var v in currentSiteVisits) {
     final status = v.status.toLowerCase();
-    if (status == 'scheduled') {
+    if (status == 'scheduled' || status == 'visit scheduled') {
       totalScheduled++;
       scheduledCountByLead[v.lead] = (scheduledCountByLead[v.lead] ?? 0) + 1;
     } else if (status == 'rescheduled') {
       explicitRescheduled++;
     }
   }
-  
+
   int totalRescheduled = explicitRescheduled;
   scheduledCountByLead.forEach((lead, count) {
     if (count > 1) {
@@ -1627,19 +2102,14 @@ Widget _buildSummaryWidgets(List<model_lead.Lead> filteredLeads) {
     }
   });
 
-  final totalCancelledSiteVisits = currentSiteVisits.where((v) => 
-    v.status.toLowerCase() == 'cancelled' || v.status.toLowerCase() == 'canceled'
-  ).length;
-
   // --- 2. Chart Data Preparation ---
   final List<PieChartSectionData> chartSections = [
-    if (totalScheduled > 0) _buildChartSection(totalScheduled, Colors.indigo, 'Scheduled'),
-    if (totalRescheduled > 0) _buildChartSection(totalRescheduled, Colors.deepPurple, 'Rescheduled'),
-    if (totalSiteVisitsDone > 0) _buildChartSection(totalSiteVisitsDone, Colors.green, 'Site Visits Done'),
-    if (totalRevisitsDone > 0) _buildChartSection(totalRevisitsDone, Colors.orange, 'Revisits Done'),
-    if (totalCancelledSiteVisits > 0) _buildChartSection(totalCancelledSiteVisits, Colors.red, 'Cancelled Visits'),
+    if (totalScheduled > 0) _buildChartSection(totalScheduled, Colors.indigo, 'Visit Scheduled'),
+    if (totalRevisitScheduled > 0) _buildChartSection(totalRevisitScheduled, Colors.orange, 'Revisit Scheduled'),
+    if (totalSiteVisitsDone > 0) _buildChartSection(totalSiteVisitsDone, Colors.green, 'Visit Done'),
+    if (totalRevisitsDone > 0) _buildChartSection(totalRevisitsDone, Colors.teal, 'Revisit Done'),
+    if (totalCancelled > 0) _buildChartSection(totalCancelled, Colors.red, 'Cancelled'),
   ];
-
   if (chartSections.isEmpty) {
     chartSections.add(_buildChartSection(1, Colors.grey.shade300, 'None'));
   }
@@ -1670,6 +2140,26 @@ Widget _buildSummaryWidgets(List<model_lead.Lead> filteredLeads) {
               const Text(
                 'Visit Overview',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CreateSiteVisitScreen(),
+                    ),
+                  ).then((_) => _initializeData());
+                },
+                icon: const Icon(Icons.add_circle_outline, size: 14, color: goldAccent),
+                label: const Text(
+                  'Create Visit',
+                  style: TextStyle(color: goldAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ],
           ),
@@ -1756,11 +2246,11 @@ Widget _buildSummaryWidgets(List<model_lead.Lead> filteredLeads) {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildLegendRow(Icons.calendar_month_rounded, 'Scheduled', totalScheduled, Colors.indigo),
-                    _buildLegendRow(Icons.event_repeat_rounded, 'Rescheduled', totalRescheduled, Colors.deepPurple),
-                    _buildLegendRow(Icons.home_work_rounded, 'Site Visits Done', totalSiteVisitsDone, Colors.green),
-                    _buildLegendRow(Icons.repeat_rounded, 'Revisits Done', totalRevisitsDone, Colors.orange),
-                    _buildLegendRow(Icons.cancel_rounded, 'Cancelled Visits', totalCancelledSiteVisits, Colors.red),
+                    _buildLegendRow(Icons.calendar_month_rounded, 'Visit Scheduled', totalScheduled, Colors.indigo),
+                    _buildLegendRow(Icons.history_rounded, 'Revisit Scheduled', totalRevisitScheduled, Colors.orange),
+                    _buildLegendRow(Icons.home_work_rounded, 'Visit Done', totalSiteVisitsDone, Colors.green),
+                    _buildLegendRow(Icons.event_available_rounded, 'Revisit Done', totalRevisitsDone, Colors.teal),
+                    _buildLegendRow(Icons.cancel_outlined, 'Cancelled', totalCancelled, Colors.red),
                   ],
                 ),
               ),
@@ -1829,9 +2319,34 @@ Widget _buildFollowUpSummaryWidgets(List<model_lead.Lead> filteredLeads) {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Follow up Overview',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Follow up Overview',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CreateFollowUpScreen(),
+                    ),
+                  ).then((_) => _initializeData());
+                },
+                icon: const Icon(Icons.add_circle_outline, size: 14, color: goldAccent),
+                label: const Text(
+                  'Create Follow-up',
+                  style: TextStyle(color: goldAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Row(
@@ -2203,57 +2718,34 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
         ),
 
         const SizedBox(height: 12),
-        _buildTimeRangeSelector(),
-
-        // ── Quick Action Buttons (non-developer only) ──
-        if (currentDesignation?.toLowerCase() != 'property developer') ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionButton(
-                  icon: const FaIcon(FontAwesomeIcons.house, size: 13),
-                  label: 'Site Visit',
-                  color: kAccent,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CreateSiteVisitScreen(
-                          onSiteVisitCreated: () {
-                            _loadLeads();
-                            _loadSiteVisits();
-                          },
-                        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: _buildTimeRangeSelector()),
+            if (activeFilterCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(left: 8.0, bottom: 12.0),
+                child: GestureDetector(
+                  onTap: _clearAllFilters,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: goldAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Clear All',
+                      style: TextStyle(
+                        color: goldAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildActionButton(
-                  icon: const Icon(Icons.phone_callback_rounded, size: 16),
-                  label: 'Follow Up',
-                  color: const Color(0xFF1A1A1A),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CreateFollowUpScreen(
-                          onFollowUpCreated: () {
-                            _loadLeads();
-                            _loadFollowUps();
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
 
         // ── Active Filter Chips ──
         if (_hasActiveFilters()) ...[
@@ -2285,20 +2777,19 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
                 GestureDetector(
                   onTap: _clearAllFilters,
                   child: Container(
-                    margin: const EdgeInsets.only(left: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    margin: const EdgeInsets.only(left: 4, bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.red.shade200),
+                      color: goldAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.delete_sweep_rounded, size: 13, color: Colors.red.shade600),
-                        const SizedBox(width: 4),
-                        Text('Clear All', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
-                      ],
+                    child: const Text(
+                      'Clear All',
+                      style: TextStyle(
+                        color: goldAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -2323,7 +2814,7 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
         _selectedDeadReasons.length +
         _selectedVisitFilters.length +
         _selectedFollowUpFilters.length +
-        (_selectedDays != 15 ? 1 : 0) +
+        (_selectedDays != 9999 ? 1 : 0) +
         (_budgetMinSlider > 0.0 || _budgetMaxSlider < 100.0 ? 1 : 0) +
         (_searchQuery.isNotEmpty ? 1 : 0);
   }
@@ -2426,6 +2917,48 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildGlobalQuickActions() {
+    final String userDesignation = (currentDesignation ?? '').trim().toLowerCase();
+    if (userDesignation == 'lead caller' || userDesignation == 'property developer') {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildActionButton(
+              icon: const FaIcon(FontAwesomeIcons.house, size: 16, color: Colors.white),
+              label: "Site Visit",
+              color: goldAccent,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CreateSiteVisitScreen()),
+                ).then((_) => _initializeData());
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildActionButton(
+              icon: const FaIcon(FontAwesomeIcons.clockRotateLeft, size: 16, color: Colors.white),
+              label: "Follow Up",
+              color: matteBlack,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CreateFollowUpScreen()),
+                ).then((_) => _initializeData());
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2548,10 +3081,18 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
       itemCount: filteredLeads.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
+          final String userDesignation = (currentDesignation ?? '').trim().toLowerCase();
+          final bool isLeadCaller = userDesignation == 'lead caller';
+          final bool isPropertyDeveloper = userDesignation == 'property developer';
+
           return Column(
             children: [
-              _buildSummaryWidgets(filteredLeads),
-              if (currentDesignation?.toLowerCase() != 'property developer')
+              _buildGlobalQuickActions(),
+              if (!isLeadCaller && !isPropertyDeveloper)
+                _buildUserFilter(),
+              if (!isLeadCaller)
+                _buildSummaryWidgets(filteredLeads),
+              if (!isPropertyDeveloper && !isLeadCaller)
                 _buildFollowUpSummaryWidgets(filteredLeads),
             ],
           );
@@ -2576,6 +3117,11 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
             siteVisits: siteVisits, // Pass siteVisits here
             followUps: followUps, // Pass followUps here
             currentDesignation: currentDesignation,
+            onRefresh: () {
+              _loadLeads(forceRefresh: true);
+              _loadSiteVisits(forceRefresh: true);
+              _loadFollowUps(forceRefresh: true);
+            },
             onCall: () => _showNumberSelectionDialog(context, lead, 'call'),
             onWhatsApp: () =>
                 _showNumberSelectionDialog(context, lead, 'whatsapp'),
@@ -2589,8 +3135,8 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
                   builder: (context) => CreateFollowUpScreen(
                     preselectedLeadId: lead.name,
                     onFollowUpCreated: () {
-                      _loadLeads();
-                      _loadFollowUps();
+                      _loadLeads(forceRefresh: true);
+                      _loadFollowUps(forceRefresh: true);
                     },
                   ),
                 ),
@@ -2610,8 +3156,8 @@ Widget _buildLegendRow(IconData icon, String label, int count, Color color) {
                             ? lead.projectId.first
                             : null),
                     onSiteVisitCreated: () { // Add this callback
-                      _loadLeads();
-                      _loadSiteVisits();
+                      _loadLeads(forceRefresh: true);
+                      _loadSiteVisits(forceRefresh: true);
                     },
                   ),
                 ),
@@ -2634,6 +3180,7 @@ class _LeadCard extends StatelessWidget {
   final VoidCallback onWhatsApp;
   final VoidCallback onSiteVisit;
   final VoidCallback onFollowUp;
+  final VoidCallback onRefresh; // Added onRefresh
   final String? currentDesignation;
 
   const _LeadCard({
@@ -2645,6 +3192,7 @@ class _LeadCard extends StatelessWidget {
     required this.onWhatsApp,
     required this.onSiteVisit,
     required this.onFollowUp,
+    required this.onRefresh, // Required
     this.currentDesignation,
   });
 
@@ -2675,8 +3223,8 @@ class _LeadCard extends StatelessWidget {
     }
 
     relevantVisits.sort((a, b) {
-      final dateTimeA = DateTime.tryParse(a.visitScheduledDatetime ?? '') ?? DateTime(0);
-      final dateTimeB = DateTime.tryParse(b.visitScheduledDatetime ?? '') ?? DateTime(0);
+      final dateTimeA = DateTime.tryParse(a.visitScheduledDatetime ?? a.modified ?? a.creation ?? '') ?? DateTime(0);
+      final dateTimeB = DateTime.tryParse(b.visitScheduledDatetime ?? b.modified ?? b.creation ?? '') ?? DateTime(0);
       return dateTimeB.compareTo(dateTimeA); // Sort in descending order
     });
     return relevantVisits.first;
@@ -2698,6 +3246,178 @@ class _LeadCard extends StatelessWidget {
         
     final latestSiteVisit = _getLatestSiteVisitForLead(lead.name ?? '');
     final latestFollowUp = _getLatestFollowUpForLead(lead.name ?? '');
+    
+    bool hasValidDuration = false;
+    bool isVisitDoneStatus = false;
+    if (latestSiteVisit != null) {
+      final status = latestSiteVisit.status.toLowerCase();
+      isVisitDoneStatus = status == 'visit done' || status == 'revisit done';
+      final dur = latestSiteVisit.visitDuration?.trim() ?? '';
+      hasValidDuration = dur.isNotEmpty && dur != 'N/A' && dur.toLowerCase() != 'null';
+    }
+    final showDynamicDuration = isVisitDoneStatus && hasValidDuration;
+
+    void _showDurationDialog(BuildContext parentContext, SiteVisit visit) {
+      double duration = 15.0;
+      bool isSaving = false;
+      final currentStatus = visit.status.toLowerCase();
+      String nextStatus = visit.status;
+      
+      if (currentStatus.contains('revisit')) {
+        nextStatus = 'Revisit Done';
+      } else if (currentStatus.contains('visit') || currentStatus == 'scheduled' || currentStatus == 'completed') {
+        nextStatus = 'Visit Done';
+      }
+
+      showDialog(
+        context: parentContext,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (builderContext, setDialogState) {
+              return AlertDialog(
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                title: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: kAccent.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.timer_outlined, color: kAccent, size: 28),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Visit Duration',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.black87),
+                    ),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Record the actual time spent during this visit.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                    ),
+                    const SizedBox(height: 32),
+                    Text(
+                      '${duration.toInt()} mins',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: kAccent,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SliderTheme(
+                      data: SliderTheme.of(builderContext).copyWith(
+                        activeTrackColor: kAccent,
+                        inactiveTrackColor: kAccent.withOpacity(0.1),
+                        thumbColor: kAccent,
+                        overlayColor: kAccent.withOpacity(0.1),
+                        trackHeight: 6,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10, elevation: 4),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+                      ),
+                      child: Slider(
+                        value: duration,
+                        min: 5,
+                        max: 120,
+                        divisions: 23, // 5 min increments
+                        onChanged: (v) => setDialogState(() => duration = v),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('5m', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                          Text('2h', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+                actions: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: isSaving ? null : () async {
+                            setDialogState(() => isSaving = true);
+                            
+                            final error = await SiteVisitService.updateSiteVisit(visit.name, {
+                              'visit_duration': '${duration.toInt()} mins',
+                              'status': nextStatus,
+                            });
+                            
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
+                            
+                            if (error == null) {
+                              if (parentContext.mounted) {
+                                CustomSnackBar.show(
+                                  parentContext,
+                                  message: 'Visit marked as $nextStatus with duration ${duration.toInt()} mins',
+                                  isError: false,
+                                  title: 'Success',
+                                );
+                              }
+                              // Call onRefresh to update the UI
+                              onRefresh();
+                            } else {
+                              if (parentContext.mounted) {
+                                CustomSnackBar.show(
+                                  parentContext,
+                                  message: error,
+                                  isError: true,
+                                  title: 'Error',
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kAccent,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: isSaving 
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
 
     // Logic for Visit Done Date
     DateTime? visitDoneDate;
@@ -2749,39 +3469,87 @@ class _LeadCard extends StatelessWidget {
         children: [
           // Row 1: Customer Name and Status
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  (lead.leadName?.isEmpty ?? true) ? 'N/A' : lead.leadName!,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-              const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: _getStatusColor(lead.customLeadStatus ?? '', context)
-                      .withOpacity(0.1),
+                  color: kAccent.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  _titleCase(lead.customLeadStatus ?? 'N/A'),
-                  style: TextStyle(
-                    color: _getStatusColor(lead.customLeadStatus ?? '', context),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                child: Center(
+                  child: Text(
+                    (lead.leadName?.isNotEmpty == true) ? lead.leadName![0].toUpperCase() : '?',
+                    style: const TextStyle(
+                      color: kAccent,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (lead.leadName?.isEmpty ?? true) ? 'N/A' : lead.leadName!,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1A1A1A),
+                        height: 1.2,
+                      ),
+                      softWrap: true,
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (lead.customLeadLostStages != null && lead.customLeadLostStages!.isNotEmpty)
+                            ? Colors.red.withOpacity(0.1)
+                            : _getStatusColor(lead.customLeadStatus ?? '', context).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!(lead.customLeadLostStages != null && lead.customLeadLostStages!.isNotEmpty))
+                            Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _getStatusColor(lead.customLeadStatus ?? '', context),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'STAGE ${_getRomanStage(lead.customLeadStatus)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 7,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          Text(
+                            (lead.customLeadLostStages != null && lead.customLeadLostStages!.isNotEmpty)
+                                ? 'LOST'
+                                : _titleCase(lead.customLeadStatus ?? 'N/A'),
+                            style: TextStyle(
+                              color: (lead.customLeadLostStages != null && lead.customLeadLostStages!.isNotEmpty)
+                                  ? Colors.red
+                                  : _getStatusColor(lead.customLeadStatus ?? '', context),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -2795,7 +3563,10 @@ class _LeadCard extends StatelessWidget {
             children: [
               _leadDetailRow(context, Icons.business_rounded, projectName,
                   color: kAccent),
-              _leadDetailRow(context, Icons.timeline_rounded, lead.customStages ?? 'N/A'),
+              if (lead.customLeadLostStages != null && lead.customLeadLostStages!.isNotEmpty)
+                _leadDetailRow(context, Icons.do_not_disturb_alt, lead.customLeadLostStages!, color: Colors.red)
+              else
+                _leadDetailRow(context, Icons.timeline_rounded, lead.customStages ?? 'N/A'),
               _leadDetailRow(context, Icons.work_outline_rounded, lead.customOccupation ?? 'N/A'),
               if (lead.emailId != null && lead.emailId!.isNotEmpty)
                 _leadDetailRow(context, Icons.email_outlined, lead.emailId!),
@@ -2811,17 +3582,82 @@ class _LeadCard extends StatelessWidget {
                 _leadDetailRow(context, Icons.calendar_month,
                     'Last Visit: ${_formatPostedDate(DateTime.tryParse(latestSiteVisit.visitScheduledDatetime ?? latestSiteVisit.visitDate ?? ''))}',
                     color: kAccent),
-                _leadDetailRow(context, Icons.info_outline,
-                    'Visit Status: ${_titleCase(latestSiteVisit.status)}',
-                    color: _getVisitStatusColor(latestSiteVisit.status),
-                    isBold: true),
-              ],
-              
-              if (latestFollowUp != null && currentDesignation?.toLowerCase() != 'property developer')
-                _leadDetailRow(context, Icons.event_note_rounded,
-                    'Follow up: ${_formatPostedDate(DateTime.tryParse(latestFollowUp.followUpDate ?? ''))} (${latestFollowUp.status})',
-                    color: Colors.orange.shade800),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SiteVisitDetailPage(siteVisit: latestSiteVisit),
+                      ),
+                    ).then((_) => onRefresh());
+                  },
+                  child: _leadDetailRow(context, Icons.info_outline,
+                      'Visit Status: ${_titleCase(latestSiteVisit.status)}',
+                      color: _getVisitStatusColor(latestSiteVisit.status),
+                      isBold: true,
+                  ),
+                ),
+                if (latestSiteVisit.status.toLowerCase() != 'cancelled')
+                  GestureDetector(
+                    onTap: () => _showDurationDialog(context, latestSiteVisit),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: showDynamicDuration
+                            ? Colors.green.shade700.withOpacity(0.1)
+                            : kAccent.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: showDynamicDuration
+                              ? Colors.green.shade700.withOpacity(0.3)
+                              : kAccent.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            showDynamicDuration
+                                ? Icons.timer
+                                : Icons.timer_outlined,
+                            size: 14,
+                            color: showDynamicDuration
+                                ? Colors.green.shade700
+                                : kAccent,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            showDynamicDuration
+                                ? latestSiteVisit.visitDuration!
+                                : 'Log Duration',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: showDynamicDuration
+                                  ? Colors.green.shade700
+                                  : kAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
 
+                if (latestFollowUp != null && currentDesignation?.toLowerCase() != 'property developer')
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FollowUpDetailPage(followUpName: latestFollowUp.name),
+                      ),
+                    ).then((_) => onRefresh());
+                  },
+                  child: _leadDetailRow(context, Icons.event_note_rounded,
+                      'Follow up: ${_formatPostedDate(DateTime.tryParse(latestFollowUp.followUpDate ?? ''))} (${latestFollowUp.status})',
+                      color: Colors.orange.shade800),
+                ),
               if (lead.customTagging != null && lead.customTagging!.isNotEmpty)
                 _leadDetailRow(context, Icons.label_outline_rounded, lead.customTagging!, color: Colors.blueGrey),
             ],
@@ -2884,23 +3720,34 @@ class _LeadCard extends StatelessWidget {
                 ],
 
                 // 4. Site Visit
-                if (currentDesignation?.toLowerCase() != 'property developer') ...[
-                  _actionButton(
-                    onPressed: onSiteVisit,
-                    label: "Site Visit",
-                    icon: FontAwesomeIcons.house,
-                    backgroundColor: kAccent,
-                  ),
-                  const SizedBox(width: 6),
+                Builder(
+                  builder: (context) {
+                    final String dest = (currentDesignation ?? '').trim().toLowerCase();
+                    if (dest != 'property developer' && dest != 'lead caller') {
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _actionButton(
+                            onPressed: onSiteVisit,
+                            label: "Site Visit",
+                            icon: FontAwesomeIcons.house,
+                            backgroundColor: goldAccent,
+                          ),
+                          const SizedBox(width: 6),
 
-                  // 5. Follow Up
-                  _actionButton(
-                    onPressed: onFollowUp,
-                    label: "Follow Up",
-                    icon: FontAwesomeIcons.clockRotateLeft,
-                    backgroundColor: const Color(0xFF1A1A1A),
-                  ),
-                ],
+                          // 5. Follow Up
+                          _actionButton(
+                            onPressed: onFollowUp,
+                            label: "Follow Up",
+                            icon: FontAwesomeIcons.clockRotateLeft,
+                            backgroundColor: const Color(0xFF1A1A1A),
+                          ),
+                        ],
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
               ],
             ),
           ),
@@ -2958,6 +3805,15 @@ class _LeadCard extends StatelessWidget {
   //   return budget.toString();
   // }
 
+  String _getRomanStage(String? status) {
+    switch (status) {
+      case 'Lead Generated - Open': return 'I';
+      case 'Prospect': return 'II';
+      case 'Won': return 'III';
+      default: return 'I';
+    }
+  }
+
   String _titleCase(String s) {
     if (s.isEmpty) return s;
     return s
@@ -2972,7 +3828,7 @@ class _LeadCard extends StatelessWidget {
   }
 
   Widget _leadDetailRow(BuildContext context, IconData icon, String text,
-      {Color color = Colors.black54, bool isBold = false}) {
+      {Color color = Colors.black54, bool isBold = false, Widget? trailing}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -2990,6 +3846,10 @@ class _LeadCard extends StatelessWidget {
             ),
           ),
         ),
+        if (trailing != null) ...[
+          const SizedBox(width: 4),
+          trailing,
+        ],
       ],
     );
   }
@@ -2997,6 +3857,7 @@ class _LeadCard extends StatelessWidget {
   Color _getStatusColor(String status, BuildContext context) {
   switch (status.toLowerCase()) {
     case 'open':
+    case 'lead generated - open':
       return Colors.blueGrey.shade600; 
 
     case 'prospect':
@@ -3017,13 +3878,23 @@ class _LeadCard extends StatelessWidget {
 
   Color _getVisitStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'scheduled':
+      case 'visit scheduled':
         return Colors.blue.shade700;
-      case 'completed':
+      case 'visit done':
         return Colors.green.shade700;
-      case 'rescheduled':
+      case 'revisit scheduled':
+        return Colors.indigo.shade700;
+      case 'revisit done':
+        return Colors.teal.shade700;
+      case 'cancelled':
+        return Colors.red.shade700;
+      case 'scheduled': // Backward compatibility
+        return Colors.blue.shade700;
+      case 'completed': // Backward compatibility
+        return Colors.green.shade700;
+      case 'rescheduled': // Backward compatibility
         return Colors.orange.shade700;
-      case 'canceled':
+      case 'canceled': // Backward compatibility
         return Colors.red.shade700;
       default:
         return Colors.grey.shade600;

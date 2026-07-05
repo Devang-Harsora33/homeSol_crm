@@ -42,27 +42,62 @@ class SiteVisitDatabase {
 
   static Future<void> upsertSiteVisit(SiteVisit siteVisit) async {
     final db = await database;
+
+    // Fetch existing data to avoid overwriting rich details with partial list data
+    final existingResults = await db.query(
+      tableName,
+      where: 'id = ?',
+      whereArgs: [siteVisit.name],
+    );
+
+    Map<String, dynamic> dataToSave = {
+      'name': siteVisit.name,
+      'owner': siteVisit.owner,
+      'creation': siteVisit.creation,
+      'modified': siteVisit.modified,
+      'modified_by': siteVisit.modifiedBy,
+      'docstatus': siteVisit.docstatus,
+      'idx': siteVisit.idx,
+      'lead': siteVisit.lead,
+      'project': siteVisit.project,
+      'remark': siteVisit.remark,
+      'visit_date': siteVisit.visitDate,
+      'status': siteVisit.status,
+      'visit_scheduled_datetime': siteVisit.visitScheduledDatetime,
+      'presence_of_cp': siteVisit.presenceOfCp,
+      'visit_duration': siteVisit.visitDuration,
+      'doctype': siteVisit.doctype,
+    };
+
+    if (existingResults.isNotEmpty) {
+      try {
+        final existingData = jsonDecode(existingResults.first['data'] as String) as Map<String, dynamic>;
+        
+        // Preserve rich fields if new data is null or empty
+        if ((siteVisit.visitDuration == null || siteVisit.visitDuration!.isEmpty) && 
+            existingData['visit_duration'] != null) {
+          dataToSave['visit_duration'] = existingData['visit_duration'];
+        }
+        
+        if (siteVisit.presenceOfCp == null && existingData['presence_of_cp'] != null) {
+          dataToSave['presence_of_cp'] = existingData['presence_of_cp'];
+        }
+
+        if ((siteVisit.visitScheduledDatetime == null || siteVisit.visitScheduledDatetime!.isEmpty) && 
+            existingData['visit_scheduled_datetime'] != null) {
+          dataToSave['visit_scheduled_datetime'] = existingData['visit_scheduled_datetime'];
+        }
+      } catch (e) {
+        print('Error merging site visit data: $e');
+      }
+    }
+
     await db.insert(
       tableName,
       {
         'id': siteVisit.name,
         'modified': siteVisit.modified,
-        'data': jsonEncode({
-          'name': siteVisit.name,
-          'owner': siteVisit.owner,
-          'creation': siteVisit.creation,
-          'modified': siteVisit.modified,
-          'modified_by': siteVisit.modifiedBy,
-          'docstatus': siteVisit.docstatus,
-          'idx': siteVisit.idx,
-          'lead': siteVisit.lead,
-          'project': siteVisit.project,
-          'remark': siteVisit.remark,
-          'visit_date': siteVisit.visitDate,
-          'status': siteVisit.status,
-          'visit_scheduled_datetime': siteVisit.visitScheduledDatetime,
-          'doctype': siteVisit.doctype,
-        }),
+        'data': jsonEncode(dataToSave),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

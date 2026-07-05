@@ -1,11 +1,7 @@
-import 'dart:async';
-import 'package:Homesol/utils/custom_snackbar.dart';
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../services/notification_manager.dart';
 import '../../components/notification_card.dart';
-import '../../services/notification_service.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../utils/custom_snackbar.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -15,159 +11,159 @@ class NotificationsPage extends StatefulWidget {
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
-  final List<Map<String, dynamic>> _notifications = [];
-  late StreamSubscription<RemoteMessage> _notificationSubscription;
-  static const String _notificationsKey = 'saved_notifications';
-
   @override
   void initState() {
     super.initState();
-    _loadSavedNotifications();
-    _setupNotificationListener();
-    _checkForInitialMessage();
-  }
-
-  Future<void> _checkForInitialMessage() async {
-    // Check if app was opened from a notification
-    final RemoteMessage? initialMessage = await FirebaseMessaging.instance
-        .getInitialMessage();
-    if (initialMessage != null) {
-      final payload = NotificationService.instance.parseNotificationPayload(
-        initialMessage,
-      );
-      setState(() {
-        _notifications.insert(0, payload);
-      });
-      await _saveNotifications();
-    }
-  }
-
-  Future<void> _loadSavedNotifications() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedNotifications = prefs.getString(_notificationsKey);
-      if (savedNotifications != null) {
-        final List<dynamic> decoded = json.decode(savedNotifications);
-        setState(() {
-          _notifications.clear();
-          _notifications.addAll(decoded.cast<Map<String, dynamic>>());
-        });
-      }
-    } catch (e) {
-      print('Error loading saved notifications: $e');
-    }
-  }
-
-  Future<void> _saveNotifications() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_notificationsKey, json.encode(_notifications));
-    } catch (e) {
-      print('Error saving notifications: $e');
-    }
-  }
-
-  void _setupNotificationListener() {
-    _notificationSubscription = NotificationService.instance.foregroundMessages
-        .listen((RemoteMessage message) {
-          final payload = NotificationService.instance.parseNotificationPayload(
-            message,
-          );
-          setState(() {
-            _notifications.insert(0, payload);
-          });
-          _saveNotifications(); // Save to persistent storage
-        });
-  }
-
-  @override
-  void dispose() {
-    _notificationSubscription.cancel();
-    super.dispose();
+    // Force a fresh load from storage
+    NotificationManager.instance.refresh();
+    // Mark all as read when entering the page
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationManager.instance.markAllAsRead();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Notifications',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
-        actions: [
-          if (_notifications.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear_all),
-              onPressed: () async {
-                setState(() {
-                  _notifications.clear();
-                });
-                await _saveNotifications(); // Clear from storage too
-              },
-            ),
-        ],
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: _notifications.isEmpty
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await NotificationManager.instance.refresh();
+        },
+        child: AnimatedBuilder(
+          animation: NotificationManager.instance,
+          builder: (context, _) {
+            final notifications = NotificationManager.instance.notifications;
+            
+            if (notifications.isEmpty) {
+              return ListView(
                 children: [
-                  Icon(Icons.notifications_none, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No notifications yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'You\'ll see new story notifications here',
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                  _buildEmptyState(context),
                 ],
-              ),
-            )
-          : ListView.builder(
+              );
+            }
+            
+            return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: _notifications.length,
+              itemCount: notifications.length,
               itemBuilder: (context, index) {
-                final notification = _notifications[index];
-                return NotificationCard(
-                  title: notification['title'] ?? 'New Story',
-                  body: notification['body'] ?? 'A new story has been uploaded',
-                  developerName: notification['developer_name'] ?? 'Developer',
-                  developerLogo: notification['developer_logo'],
-                  createdAt:
-                      notification['created_at'] ??
-                      DateTime.now().toIso8601String(),
-                  onTap: () {
-                    // Navigate to story detail or developer page
-                    _handleNotificationTap(notification);
+                final notification = notifications[index];
+                return Dismissible(
+                  key: Key('notification_${notification['id']}_${notification['created_at']}'),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    color: Colors.redAccent,
+                    child: const Icon(Icons.delete_outline, color: Colors.white),
+                  ),
+                  onDismissed: (direction) {
+                    NotificationManager.instance.removeNotification(index);
                   },
+                  child: NotificationCard(
+                    title: notification['title'] ?? 'New Notification',
+                    body: notification['body'] ?? '',
+                    developerName: notification['developer_name'] ?? 'HomeSol',
+                    developerLogo: notification['developer_logo'],
+                    createdAt: notification['created_at'] ?? DateTime.now().toIso8601String(),
+                    onTap: () => _handleNotificationTap(context, notification),
+                  ),
                 );
               },
-            ),
+            );
+          },
+        ),
+      ),
     );
   }
 
-  void _handleNotificationTap(Map<String, dynamic> notification) {
-    // Handle notification tap - navigate to relevant page
+  Widget _buildEmptyState(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.05),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.notifications_none_rounded,
+              size: 64,
+              color: theme.colorScheme.primary.withOpacity(0.3),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'All caught up!',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'You don\'t have any new notifications.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showClearAllDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear all notifications?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              NotificationManager.instance.clearAll();
+              Navigator.pop(context);
+            },
+            child: const Text('Clear All', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleNotificationTap(BuildContext context, Map<String, dynamic> notification) {
     final storyId = notification['story_id'];
     final developerName = notification['developer_name'];
 
     if (storyId != null && storyId.isNotEmpty) {
-      // Navigate to story detail
-      CustomSnackBar.show(context, message: 'Opening story: $storyId', isError: false, title: 'Notice');
+       CustomSnackBar.show(context, message: 'Opening story details...', isError: false, title: 'Notice');
     } else {
-      // Navigate to developer page
-      CustomSnackBar.show(context, message: 'Opening developer: $developerName', isError: false, title: 'Notice');
+       CustomSnackBar.show(context, message: 'Opening developer: $developerName', isError: false, title: 'Notice');
     }
   }
 }

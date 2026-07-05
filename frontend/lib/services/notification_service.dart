@@ -1,11 +1,67 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../firebase_options.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'database_helper.dart';
+
+// Top-level function for consistency across isolates
+Map<String, dynamic> parseRemoteMessage(RemoteMessage message) {
+  final data = message.data;
+  final notification = message.notification;
+  
+  return {
+    'id': message.messageId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+    'type': data['type'] ?? 'general',
+    'story_id': data['story_id'] ?? '',
+    'created_at': data['created_at'] ?? DateTime.now().toIso8601String(),
+    'developer_name': data['developer_name'] ?? 'HomeSol India',
+    'developer_logo': data['developer_logo'] ?? '',
+    'title': notification?.title ?? data['title'] ?? 'New Notification',
+    'body': notification?.body ?? data['body'] ?? 'You have a new message',
+  };
+}
+
+// Helper to save notification directly to SQLite Database
+Future<void> saveNotificationToDatabase(RemoteMessage message) async {
+  try {
+    final payload = parseRemoteMessage(message);
+    await DatabaseHelper.instance.insertNotification(payload);
+    debugPrint('[NotificationService] Notification saved to Database: ${payload['title']}');
+  } catch (e) {
+    debugPrint('[NotificationService] Error saving to Database: $e');
+  }
+}
+
+// Helper to save generic notification data to SQLite Database
+Future<void> saveGenericNotificationToDatabase({
+  required String title,
+  required String body,
+  String type = 'general',
+  String? id,
+}) async {
+  try {
+    final payload = {
+      'id': id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      'type': type,
+      'story_id': '',
+      'created_at': DateTime.now().toIso8601String(),
+      'developer_name': 'HomeSol India',
+      'developer_logo': '',
+      'title': title,
+      'body': body,
+    };
+    await DatabaseHelper.instance.insertNotification(payload);
+    debugPrint('[NotificationService] Generic notification saved to Database: $title');
+  } catch (e) {
+    debugPrint('[NotificationService] Error saving generic to Database: $e');
+  }
+}
 
 class NotificationService {
   NotificationService._();
@@ -28,183 +84,264 @@ class NotificationService {
       );
     }
 
-    await _requestPermissions();
     await _initializeLocalNotifications();
+    await _requestPermissions();
+    
+    // Set foreground notification options for iOS
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
+
+    // Initialize timezones more reliably
     tz.initializeTimeZones();
-    debugPrint('[NotificationService] initialize() complete');
+    try {
+      final String timeZoneName = 'Asia/Kolkata'; // Default
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+      debugPrint('[NotificationService] Timezone set to: $timeZoneName');
+    } catch (e) {
+      debugPrint('[NotificationService] Error setting timezone: $e');
+    }
 
-    // Handle foreground messages (when app is open)
+    // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _handleForegroundMessage(message);
+      debugPrint('[NotificationService] Foreground message: ${message.messageId}');
+      saveNotificationToDatabase(message).then((_) {
+        _handleForegroundMessage(message);
+      });
     });
 
-    // Handle background messages (when app is in background/closed)
+    // Handle when app is opened from notification
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      _foregroundMessagesController.add(message);
+      debugPrint('[NotificationService] Message opened app: ${message.messageId}');
+      saveNotificationToDatabase(message).then((_) {
+        _foregroundMessagesController.add(message);
+      });
     });
+    
+    debugPrint('[NotificationService] initialize() complete');
   }
 
   Future<void> _initializeLocalNotifications() async {
-    debugPrint('[NotificationService] _initializeLocalNotifications() called');
     const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('notification_icon');
 
-    const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
-
-    final bool? result = await _localNotifications.initialize(
-      settings: initializationSettings,
+    const DarwinInitializationSettings initializationSettingsDarwin =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
     );
-    debugPrint('[NotificationService] _initializeLocalNotifications() result=$result');
+
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsDarwin,
+    );
+
+    await _localNotifications.initialize(
+      settings: initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse details) {
+        debugPrint('[NotificationService] Local notification tapped: ${details.payload}');
+      },
+    );
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final plugin = _localNotifications.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      
+      await plugin?.createNotificationChannel(const AndroidNotificationChannel(
+        'story_notifications',
+        'Story Notifications',
+        importance: Importance.max,
+        enableVibration: true,
+        playSound: true,
+      ));
+
+      await plugin?.createNotificationChannel(const AndroidNotificationChannel(
+        'timer_reminders',
+        'Timer Reminders',
+        importance: Importance.max,
+        enableVibration: true,
+        playSound: true,
+      ));
+      
+      debugPrint('[NotificationService] Android channels initialized');
+    }
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
-    // Show local notification when app is in foreground
     _showLocalNotification(message);
     _foregroundMessagesController.add(message);
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
     final notification = message.notification;
-    final data = message.data;
-
     if (notification != null) {
-      final AndroidNotificationDetails androidPlatformChannelSpecifics =
-          AndroidNotificationDetails(
-            'story_notifications',
-            'Story Notifications',
-            channelDescription: 'Notifications for new stories from developers',
-            importance: Importance.max,
-            priority: Priority.high,
-            showWhen: true,
-            icon: 'ic_homesol_notification', // HomeSol logo as small icon
-            largeIcon: const DrawableResourceAndroidBitmap('@drawable/logo'),
-          );
+      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'story_notifications',
+        'Story Notifications',
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: 'notification_icon',
+      );
 
-      final NotificationDetails platformChannelSpecifics = NotificationDetails(
-        android: androidPlatformChannelSpecifics,
+      final NotificationDetails details = NotificationDetails(
+        android: androidDetails,
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          presentBanner: true,
+          presentList: true,
+        ),
       );
 
       await _localNotifications.show(
-        id: notification.hashCode,
+        id: notification.hashCode & 0x7FFFFFFF, 
         title: notification.title,
         body: notification.body,
-        notificationDetails: platformChannelSpecifics,
-        payload: data.toString(),
+        notificationDetails: details,
+        payload: json.encode(message.data),
       );
     }
   }
 
-  Future<void> scheduleTimerNotification(int id, String title, String body, Duration delay) async {
-    final AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
+  Future<void> scheduleTimerNotification({
+    required int id, 
+    required String title, 
+    required String body, 
+    required Duration delay,
+    bool saveToHistory = true,
+  }) async {
+    final safeId = id & 0x7FFFFFFF; // Ensure 31-bit int for Android
+    
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'timer_reminders',
       'Timer Reminders',
-      channelDescription: 'Notifications for ongoing meeting timers',
       importance: Importance.max,
       priority: Priority.high,
+      icon: 'notification_icon',
       showWhen: true,
-      icon: 'ic_homesol_notification',
-      largeIcon: const DrawableResourceAndroidBitmap('@drawable/logo'),
     );
 
-    final NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        presentBanner: true,
+        presentList: true,
+      ),
     );
 
-    debugPrint('[NotificationService] scheduleTimerNotification called: id=$id, delay=${delay.inSeconds}s');
     try {
-      final scheduledTime = tz.TZDateTime.now(tz.UTC).add(delay);
-      debugPrint('[NotificationService] Scheduling at UTC: $scheduledTime');
+      final scheduledTime = tz.TZDateTime.now(tz.local).add(delay);
+      
+      if (saveToHistory) {
+        // Save to database
+        await saveGenericNotificationToDatabase(
+          id: safeId.toString(),
+          title: title,
+          body: body,
+          type: 'timer',
+        );
+      }
+
       await _localNotifications.zonedSchedule(
-        id: id,
+        id: safeId,
         title: title,
         body: body,
         scheduledDate: scheduledTime,
-        notificationDetails: platformChannelSpecifics,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
-      debugPrint('[NotificationService] Notification scheduled successfully! id=$id');
-    } catch (e, stackTrace) {
-      debugPrint('[NotificationService] ERROR scheduling notification: $e');
-      debugPrint('[NotificationService] StackTrace: $stackTrace');
-    }
-  }
-
-  Future<void> showImmediateNotification(int id, String title, String body) async {
-    debugPrint('[NotificationService] showImmediateNotification called: id=$id');
-    try {
-      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'timer_reminders',
-        'Timer Reminders',
-        channelDescription: 'Notifications for ongoing meeting timers',
-        importance: Importance.max,
-        priority: Priority.high,
-        showWhen: true,
-        icon: 'ic_homesol_notification',
-      );
-      const NotificationDetails details = NotificationDetails(android: androidDetails);
-      await _localNotifications.show(
-        id: id,
-        title: title,
-        body: body,
         notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
-      debugPrint('[NotificationService] showImmediateNotification delivered! id=$id');
+      debugPrint('[NotificationService] Scheduled system notification ID $safeId for $scheduledTime');
+
+      // BACKUP: Manual trigger for short delays (e.g., < 2 minutes)
+      // This ensures delivery even if zonedSchedule is delayed or suppressed by system sleep
+      if (delay.inSeconds > 0 && delay.inSeconds <= 180) {
+        Future.delayed(delay, () {
+          debugPrint('[NotificationService] Backup trigger firing for ID $safeId');
+          // Only show if not already cancelled (basic check)
+          showImmediateNotification(id: safeId, title: title, body: body);
+        });
+      }
     } catch (e) {
-      debugPrint('[NotificationService] ERROR showing immediate notification: $e');
+      debugPrint('[NotificationService] Error scheduling system notification: $e');
+      if (delay.inSeconds < 5) {
+         showImmediateNotification(id: safeId, title: title, body: body);
+      }
     }
   }
 
-  Future<void> cancelNotification(int id) async {
-    await _localNotifications.cancel(id: id);
+  Future<void> showImmediateNotification({required int id, required String title, required String body}) async {
+    final safeId = id & 0x7FFFFFFF;
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'timer_reminders',
+      'Timer Reminders',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: 'notification_icon',
+    );
+    const NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        presentBanner: true,
+        presentList: true,
+      ),
+    );
+
+    // Save to database
+    await saveGenericNotificationToDatabase(
+      id: safeId.toString(),
+      title: title,
+      body: body,
+      type: 'timer',
+    );
+
+    await _localNotifications.show(
+      id: safeId,
+      title: title,
+      body: body,
+      notificationDetails: details,
+    );
+  }
+
+  Future<void> cancelNotification({required int id}) async {
+    await _localNotifications.cancel(id: id & 0x7FFFFFFF);
   }
 
   Future<String?> getToken() async {
     try {
-      final token = await _messaging.getToken();
-      return token;
-    } catch (_) {
+      return await _messaging.getToken();
+    } catch (e) {
       return null;
     }
   }
 
-  Future<void> subscribeToTopic(String topic) async {
-    await _messaging.subscribeToTopic(topic);
-  }
-
-  Future<void> unsubscribeFromTopic(String topic) async {
-    await _messaging.unsubscribeFromTopic(topic);
-  }
-
   Future<void> _requestPermissions() async {
-    await _messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-  }
-
-  // Handle your backend's notification payload structure
-  Map<String, dynamic> parseNotificationPayload(RemoteMessage message) {
-    final data = message.data;
-    return {
-      'type': data['type'] ?? 'story',
-      'story_id': data['story_id'] ?? '',
-      'created_at': data['created_at'] ?? '',
-      'developer_name': data['developer_name'] ?? 'Developer',
-      'developer_logo': data['developer_logo'] ?? '',
-      'title': message.notification?.title ?? 'New Story',
-      'body': message.notification?.body ?? 'A new story has been uploaded',
-    };
-  }
-
-  void dispose() {
-    _foregroundMessagesController.close();
+    await _messaging.requestPermission(alert: true, badge: true, sound: true);
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final plugin = _localNotifications.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await plugin?.requestNotificationsPermission();
+      await plugin?.requestExactAlarmsPermission();
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final plugin = _localNotifications.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      await plugin?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
   }
 }
 
@@ -215,4 +352,5 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
   }
+  await saveNotificationToDatabase(message);
 }

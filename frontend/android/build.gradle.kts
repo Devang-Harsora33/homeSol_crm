@@ -22,6 +22,8 @@ tasks.register<Delete>("clean") {
 
 
 subprojects {
+    project.extra.set("kotlin.jvm.target.validation.mode", "ignore")
+
     project.configurations.all {
         resolutionStrategy {
             force("androidx.browser:browser:1.8.0")
@@ -32,18 +34,18 @@ subprojects {
         }
     }
 
-    // Suppress obsolete Java 8 warnings and other compiler noise
+    // Suppress obsolete Java 8 warnings and other compiler noise, and force Java 17
     project.tasks.withType<JavaCompile>().configureEach {
         options.compilerArgs.add("-Xlint:-options")
         options.compilerArgs.add("-Xlint:-deprecation")
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
     }
 
+    // Force Kotlin to 17
     project.tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         kotlinOptions {
-            // Only set jvmTarget if it's not already finalized or if it's the main app
-            if (project.name == "app") {
-                jvmTarget = "17"
-            }
+            jvmTarget = "17"
         }
     }
 

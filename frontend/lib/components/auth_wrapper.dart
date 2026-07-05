@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../pages/auth/login_page.dart';
+import '../services/tracking_service.dart';
 
 class AuthWrapper extends StatefulWidget {
   final Widget child;
@@ -20,6 +21,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _checkAuthStatus();
+    // Request tracking permission for iOS
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      TrackingService.requestTrackingPermission();
+    });
   }
 
   Future<void> _checkAuthStatus() async {
@@ -65,11 +70,39 @@ class _AuthWrapperState extends State<AuthWrapper> {
     );
     if (_isLoading) {
       print('AuthWrapper: Showing loading screen');
-      return const Scaffold(
-        backgroundColor: Color(0xFF15181D),
+      return Scaffold(
+        backgroundColor: const Color(0xFF15181D),
         body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFddbe6c)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFddbe6c).withOpacity(0.2),
+                      blurRadius: 15,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    'assets/logo/logo.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFddbe6c)),
+              ),
+            ],
           ),
         ),
       );

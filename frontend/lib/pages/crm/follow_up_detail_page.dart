@@ -322,7 +322,9 @@ class _FollowUpDetailPageState extends State<FollowUpDetailPage> {
           labelText: 'Remarks',
           labelStyle: TextStyle(color: Colors.grey.shade600),
         ),
-        maxLines: 3,
+        maxLines: null,
+        minLines: 3,
+        keyboardType: TextInputType.multiline,
         onSaved: (value) => _remarksController.text = value ?? '',
       ),
     );

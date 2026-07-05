@@ -16,13 +16,17 @@ class _LoaderVideoScreenState extends State<LoaderVideoScreen> {
   late VideoPlayerController _controller;
   bool _allowSkipTap = false; // New state to control when taps can skip
   Timer? _skipTapTimer;
+  Timer? _autoSkipTimer; // Timer for 6-second auto-skip
 
   @override
   void initState() {
     super.initState();
 
-    _controller = VideoPlayerController.asset('assets/videos/loader.mp4')
-      ..setLooping(false)
+    _controller = VideoPlayerController.asset(
+      'assets/videos/loader.mp4',
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    )
+      ..setLooping(true) // Loop to cover the 6 seconds
       ..initialize().then((_) {
         if (mounted) {
           setState(() {});
@@ -30,12 +34,19 @@ class _LoaderVideoScreenState extends State<LoaderVideoScreen> {
         }
       });
 
-    // Start a timer to allow skipping after a delay
-    _skipTapTimer = Timer(const Duration(seconds: 1), () {
+    // Start a timer to allow skipping after a small delay (0.5s)
+    _skipTapTimer = Timer(const Duration(milliseconds: 500), () {
       if (mounted) {
         setState(() {
           _allowSkipTap = true;
         });
+      }
+    });
+
+    // Auto-skip after 6 seconds
+    _autoSkipTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) {
+        widget.onSkip?.call();
       }
     });
   }
@@ -43,7 +54,8 @@ class _LoaderVideoScreenState extends State<LoaderVideoScreen> {
   @override
   void dispose() {
     _controller.dispose();
-    _skipTapTimer?.cancel(); // Cancel the timer to prevent memory leaks
+    _skipTapTimer?.cancel();
+    _autoSkipTimer?.cancel(); // Cancel the auto-skip timer
     super.dispose();
   }
 

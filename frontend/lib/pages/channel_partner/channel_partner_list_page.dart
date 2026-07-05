@@ -48,7 +48,7 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
   @override
   void initState() {
     super.initState();
-    ScreenProtector.preventScreenshotOn();
+    // ScreenProtector.preventScreenshotOn();
     _fetchChannelPartners();
     _fetchProfile();
     _searchController.addListener(_filterPartners);
@@ -67,7 +67,7 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
 
   @override
   void dispose() {
-    ScreenProtector.preventScreenshotOff();
+    // ScreenProtector.preventScreenshotOff();
     _searchController.dispose();
     super.dispose();
   }
@@ -817,17 +817,21 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
                                         showSourcingButton: _currentUserDesignation != null && 
                                           (_currentUserDesignation!.toLowerCase() == 'sales and sourcing' || 
                                            _currentUserDesignation!.toLowerCase() == 'sourcing'),
-                                        onAddSourcing: () {
+                                        onAddSourcing: () async {
                                           if (partner.name != null) {
                                             ChannelPartnerService.recordButtonPress(partner.name!, 'Sourcing Button');
                                           }
-                                          Navigator.of(context).push(
+                                          final result = await Navigator.of(context).push(
                                             MaterialPageRoute(
                                               builder: (_) => SourcingCreatePage(
                                                 initialChannelPartner: partner,
                                               ),
                                             ),
                                           );
+                                          if (result is Map && result['refresh'] == true) {
+                                             // Pass back to parent (likely SourcingMainPage) to handle tab switch/refresh/questionnaire
+                                             if (mounted) Navigator.pop(context, result);
+                                          }
                                         },
                                       ),
                                     );

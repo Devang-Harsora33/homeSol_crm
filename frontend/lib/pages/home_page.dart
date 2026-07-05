@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -17,6 +18,10 @@ import '../services/analytics_service.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/shift_service.dart';
+import '../services/apis/workforces/workforce.dart';
+import '../services/notification_manager.dart';
+import 'notifications_page.dart';
+import 'finance/construction_finance_form_page.dart';
 
 class HomePage extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -71,6 +76,13 @@ class _HomePageState extends State<HomePage> {
 
     // Initialize shift data from widget properties
     _userShift = widget.userShift;
+    _attendanceStatus = widget.initialAttendanceStatus;
+    if (widget.initialLastPunchTime != null) {
+      _lastPunchTime = widget.initialLastPunchTime;
+    }
+
+    // Load cached status first so UI doesn't blink
+    _loadCachedAttendanceStatus();
 
     // Fetch and set the initial attendance status from the backend
     _fetchAndSetInitialAttendanceStatus();
@@ -109,65 +121,49 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // --- Start of new method to fetch initial attendance status ---
-  Future<void> _fetchAndSetInitialAttendanceStatus() async {
-    if (widget.employeeId == null || 
-        (widget.designation?.toLowerCase() ?? '') == 'property developer') return; 
+  // --- Start of SharedPreferences Cache logic ---
+  Future<void> _loadCachedAttendanceStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedStatus = prefs.getString('cached_attendance_status');
+    final cachedTime = prefs.getString('cached_last_punch_time');
 
-    try {
-      final cookie = await AuthService.getCookie();
-      final headers = {'Cookie': cookie ?? ''};
-
-      // Fetch last Check-IN
-      final Uri lastInLogUrl = Uri.parse(
-          '${AuthService.baseUrl}/api/resource/Employee Checkin?fields=["time","log_type"]&filters=[["employee","=","${widget.employeeId}"],["log_type","=","IN"]]&order_by=time%20desc&limit_page_length=1');
-      final http.Response inResponse = await http.get(lastInLogUrl, headers: headers);
-      final Map<String, dynamic> inLogData = (inResponse.statusCode == 200) ? json.decode(inResponse.body) : {'data': []};
-      final DateTime? lastInTime = (inLogData['data']?.isNotEmpty ?? false)
-          ? DateTime.tryParse(inLogData['data'][0]['time'])
-          : null;
-
-      // Fetch last Check-OUT
-      final Uri lastOutLogUrl = Uri.parse(
-          '${AuthService.baseUrl}/api/resource/Employee Checkin?fields=["time","log_type"]&filters=[["employee","=","${widget.employeeId}"],["log_type","=","OUT"]]&order_by=time%20desc&limit_page_length=1');
-      final http.Response outResponse = await http.get(lastOutLogUrl, headers: headers);
-      final Map<String, dynamic> outLogData = (outResponse.statusCode == 200) ? json.decode(outResponse.body) : {'data': []};
-      final DateTime? lastOutTime = (outLogData['data']?.isNotEmpty ?? false)
-          ? DateTime.tryParse(outLogData['data'][0]['time'])
-          : null;
-
-      String newAttendanceStatus;
-      DateTime? newLastPunchTime;
-
-      // Determine current status based on the latest IN/OUT log
-      if (lastInTime != null && (lastOutTime == null || lastInTime.isAfter(lastOutTime))) {
-        newAttendanceStatus = 'IN'; // Last action was IN (or IN exists and OUT doesn't)
-        newLastPunchTime = lastInTime;
-      } else if (lastOutTime != null && (lastInTime == null || lastOutTime.isAfter(lastInTime))) {
-        newAttendanceStatus = 'OUT'; // Last action was OUT (or OUT exists and IN doesn't)
-        newLastPunchTime = lastOutTime;
-      } else {
-        // Default to OUT if no logs or logs are ambiguous
-        newAttendanceStatus = 'OUT';
-        newLastPunchTime = null; // No clear last punch time
-      }
-
-      // Update state and recalculate button states
-      if (mounted) {
+    if (cachedStatus != null && mounted) {
+      // Only use cache if the initial status from navigation was the default 'OUT'
+      // This prevents old cache from overriding a fresh 'IN' status fetched during app startup
+      if (widget.initialAttendanceStatus == 'OUT') {
         setState(() {
-          _attendanceStatus = newAttendanceStatus;
-          _lastPunchTime = newLastPunchTime;
+          _attendanceStatus = cachedStatus;
+          if (cachedTime != null) {
+            _lastPunchTime = DateTime.tryParse(cachedTime);
+          }
           final buttonStates = _calculateButtonStates(_userShift, _attendanceStatus);
           _isCheckInButtonEnabled = buttonStates['checkIn']!;
           _isCheckOutButtonEnabled = buttonStates['checkOut']!;
         });
       }
-
-    } catch (e) {
-      print("Silent Error: Fetching initial attendance status (likely offline): $e");
-      // Silently handle - the app will remain in the default 'OUT' status 
-      // and only show an error when the user explicitly tries to check in/out.
     }
+  }
+
+  Future<void> _cacheAttendanceStatus(String status, DateTime? time) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cached_attendance_status', status);
+    if (time != null) {
+      await prefs.setString('cached_last_punch_time', time.toIso8601String());
+    } else {
+      await prefs.remove('cached_last_punch_time');
+    }
+  }
+  // --- End of SharedPreferences Cache logic ---
+
+  // --- Start of new method to fetch initial attendance status ---
+  Future<void> _fetchAndSetInitialAttendanceStatus() async {
+    if (widget.employeeId == null || 
+        (widget.designation?.toLowerCase() ?? '') == 'property developer' || 
+        (widget.designation?.toLowerCase() ?? '') == 'lead caller') return;
+    
+    // We can just rely on the same robust logic in _refreshAttendanceStatus
+    // which now checks specifically for today's logs.
+    await _refreshAttendanceStatus();
   }
   // --- End of new method to fetch initial attendance status ---
 
@@ -199,7 +195,7 @@ class _HomePageState extends State<HomePage> {
     }
     final isCurrentlyCheckedIn = attendanceStatus == 'IN';
     final newCheckInState = !isCurrentlyCheckedIn &&
-        now.isAfter(startTime) &&
+        now.isAfter(startTime.subtract(const Duration(minutes: 60))) &&
         now.isBefore(effectiveEndTime);
     final newCheckOutState = isCurrentlyCheckedIn;
     return {'checkIn': newCheckInState, 'checkOut': newCheckOutState};
@@ -231,8 +227,8 @@ class _HomePageState extends State<HomePage> {
       effectiveEndTime = endTime.add(const Duration(days: 1));
     }
 
-    final checkInEnd = startTime.add(const Duration(minutes: 15));
-    final checkOutEnd = effectiveEndTime.add(const Duration(minutes: 15));
+    final checkInEnd = startTime.add(const Duration(minutes: 60));
+    final checkOutEnd = effectiveEndTime.add(const Duration(minutes: 60));
 
     bool isLate = false;
     if (newType == 'IN' && now.isAfter(checkInEnd)) {
@@ -421,8 +417,9 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: remarkController,
-                      maxLines: 3,
+                      maxLines: null,
                       minLines: 2,
+                      keyboardType: TextInputType.multiline,
                       textCapitalization: TextCapitalization.sentences,
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
@@ -500,9 +497,11 @@ class _HomePageState extends State<HomePage> {
       }
       if (result['success'] && mounted) {
         final optimisticButtonStates = _calculateButtonStates(_userShift, newType);
+        final newLastPunchTime = DateTime.now();
+        _cacheAttendanceStatus(newType, newLastPunchTime);
         setState(() {
           _attendanceStatus = newType;
-          _lastPunchTime = DateTime.now();
+          _lastPunchTime = newLastPunchTime;
           _isCheckInButtonEnabled = optimisticButtonStates['checkIn']!;
           _isCheckOutButtonEnabled = optimisticButtonStates['checkOut']!;
         });
@@ -524,30 +523,75 @@ class _HomePageState extends State<HomePage> {
     if (widget.employeeId == null) return;
     try {
       final cookie = await AuthService.getCookie();
-      final filters = jsonEncode([
-        ['employee', '=', widget.employeeId!]
-      ]);
-      final logUrl = Uri.parse(
-          '${AuthService.baseUrl}/api/resource/Employee Checkin?filters=$filters&order_by=time desc&limit=1');
-      final logRes = await http.get(logUrl, headers: {'Cookie': cookie ?? ''});
+      final realEmployeeId = await WorkforceService.getTrueEmployeeId();
+
+      final logUrl = Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_team_checkins?days=0');
+      var logRes = await http.get(logUrl, headers: {'Cookie': cookie ?? ''});
 
       if (logRes.statusCode == 200) {
-        final logData = jsonDecode(logRes.body);
-        if (mounted) {
-          if (logData['data'] != null && logData['data'].isNotEmpty) {
-            final lastLog = logData['data'][0];
-            final newStatus = lastLog['log_type'] ?? 'OUT';
+        var logData = jsonDecode(logRes.body);
+        final checkins = logData['message'] as List?;
+        
+        if (mounted && checkins != null && checkins.isNotEmpty) {
+          final profile = await AuthService.getMyProfile();
+          String currentDeviceId = '';
+          try {
+            final deviceInfo = DeviceInfoPlugin();
+            if (Platform.isAndroid) {
+              AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+              currentDeviceId = androidInfo.id;
+            } else if (Platform.isIOS) {
+              IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+              currentDeviceId = iosInfo.identifierForVendor ?? '';
+            }
+          } catch (_) {}
+          
+          final myCheckins = checkins.where((log) => 
+            (log['owner'] != null && profile?.userId != null && profile!.userId.isNotEmpty && log['owner'] == profile.userId) ||
+            (log['employee'] != null && log['employee'] == profile?.name) ||
+            (log['employee'] != null && log['employee'] == realEmployeeId) ||
+            (log['employee'] != null && log['employee'] == widget.employeeId) ||
+            (log['employee_name'] != null && profile?.employeeName != null && log['employee_name'] == profile?.employeeName) ||
+            (log['employee_name'] != null && profile?.firstName != null && profile!.firstName.isNotEmpty && 
+             log['employee_name'].toString().toLowerCase().contains(profile.firstName.toLowerCase()) &&
+             (profile.lastName == null || profile.lastName!.isEmpty || log['employee_name'].toString().toLowerCase().contains(profile.lastName!.toLowerCase()))) ||
+            (currentDeviceId.isNotEmpty && log['device_id'] == currentDeviceId)
+          ).toList();
+
+          if (myCheckins.isNotEmpty) {
+            myCheckins.sort((a, b) => b['time'].toString().compareTo(a['time'].toString()));
+            final lastLog = myCheckins.first;
+            
+            final lastLogTime = lastLog['time'] != null
+                ? DateTime.parse(lastLog['time'])
+                : null;
+            
+            // Verify the last log occurred today
+            bool isToday = false;
+            if (lastLogTime != null) {
+              final now = DateTime.now();
+              if (lastLogTime.year == now.year &&
+                  lastLogTime.month == now.month &&
+                  lastLogTime.day == now.day) {
+                isToday = true;
+              }
+            }
+
+            final newStatus = isToday ? (lastLog['log_type'] ?? 'OUT') : 'OUT';
+            final newLastPunchTime = isToday ? lastLogTime : null;
             final buttonStates = _calculateButtonStates(_userShift, newStatus);
+            
+            _cacheAttendanceStatus(newStatus, newLastPunchTime);
             setState(() {
               _attendanceStatus = newStatus;
-              _lastPunchTime = lastLog['time'] != null
-                  ? DateTime.parse(lastLog['time'])
-                  : null;
+              _lastPunchTime = newLastPunchTime;
               _isCheckInButtonEnabled = buttonStates['checkIn']!;
               _isCheckOutButtonEnabled = buttonStates['checkOut']!;
             });
           } else {
              final buttonStates = _calculateButtonStates(_userShift, 'OUT');
+             
+             _cacheAttendanceStatus('OUT', null);
              setState(() {
               _attendanceStatus = 'OUT';
               _lastPunchTime = null;
@@ -585,7 +629,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                   
                   if (widget.employeeId != null && 
-                      (widget.designation?.toLowerCase() ?? '') != 'property developer')
+                      (widget.designation?.toLowerCase() ?? '') != 'property developer' &&
+                      (widget.designation?.toLowerCase() ?? '') != 'lead caller')
                     SliverToBoxAdapter(
                       child: _AttendanceCard(
                         status: _attendanceStatus,
@@ -597,12 +642,42 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     SliverToBoxAdapter(
-                    child: _BannerCarousel(
-                      banners: widget.appAssets
-                          .where((asset) => asset.assetCategory == 'Banner')
-                          .toList(),
+                      child: Builder(
+                        builder: (context) {
+                          final isPropertyDeveloper = (widget.designation?.toLowerCase() ?? '') == 'property developer';
+                          final bannerAssets = widget.appAssets
+                              .where((asset) => asset.assetCategory == 'Banner')
+                              .toList();
+
+                          if (isPropertyDeveloper) {
+                            bannerAssets.insert(0, AppAsset(
+                              name: 'FUND_RAISING',
+                              assetName: 'Fund Raising Application',
+                              assetCategory: 'Banner',
+                              assetFile: '',
+                              fullUrl: '',
+                            ));
+                          }
+
+                          return _BannerCarousel(
+                            banners: bannerAssets,
+                            onBannerTap: (banner) {
+                              if (banner.name == 'FUND_RAISING') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ConstructionFinanceFormPage(
+                                      developerId: widget.developerId ?? '',
+                                      projects: widget.projects ?? [],
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                          );
+                        }
+                      ),
                     ),
-                  ),
                   const SliverToBoxAdapter(child: SizedBox(height: 1)),
                   SliverToBoxAdapter(
                     child: PropertyCardsComponent(
@@ -669,6 +744,80 @@ class _Header extends StatelessWidget {
           ),
           Row(
             children: [
+              AnimatedBuilder(
+                animation: NotificationManager.instance,
+                builder: (context, _) {
+                  final unreadCount = NotificationManager.instance.unreadCount;
+                  final hasUnread = unreadCount > 0;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const NotificationsPage(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: hasUnread 
+                                ? const Color(0xFFddbe6c).withOpacity(0.15) 
+                                : onSurface.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: hasUnread 
+                                ? Border.all(color: const Color(0xFFddbe6c).withOpacity(0.3), width: 1)
+                                : null,
+                          ),
+                          child: Icon(
+                            hasUnread ? Icons.notifications_active : Icons.notifications_outlined,
+                            color: hasUnread ? const Color(0xFFddbe6c) : onSurface.withOpacity(0.9),
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                      if (hasUnread)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFddbe6c),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: theme.scaffoldBackgroundColor, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 18,
+                              minHeight: 18,
+                            ),
+                            child: Text(
+                              unreadCount > 9 ? '9+' : unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
               GestureDetector(
                 onTap: onProfileTap,
                 child: Container(
@@ -805,8 +954,9 @@ class _AttendanceCard extends StatelessWidget {
 
 class _BannerCarousel extends StatefulWidget {
   final List<AppAsset> banners;
+  final void Function(AppAsset)? onBannerTap;
 
-  const _BannerCarousel({required this.banners});
+  const _BannerCarousel({required this.banners, this.onBannerTap});
 
   @override
   State<_BannerCarousel> createState() => _BannerCarouselState();
@@ -865,21 +1015,150 @@ class _BannerCarouselState extends State<_BannerCarousel> {
               final banner = widget.banners[index];
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16.0),
-                  child: CachedNetworkImage(
-                    imageUrl: banner.fullUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey.withOpacity(0.1),
-                      child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey.withOpacity(0.1),
-                      child: const Icon(Icons.error_outline),
-                    ),
+                child: GestureDetector(
+                  onTap: () {
+                    if (widget.onBannerTap != null) {
+                      widget.onBannerTap!(banner);
+                    }
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16.0),
+                    child: banner.name == 'FUND_RAISING'
+                        ? Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Color(0xFF0F172A), // Very dark slate/blue
+                                  Color(0xFF1E293B), // Dark slate
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Stack(
+                              children: [
+                                // Background accent 1
+                                Positioned(
+                                  top: -40,
+                                  right: -30,
+                                  child: Container(
+                                    width: 120,
+                                    height: 120,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                                    ),
+                                  ),
+                                ),
+                                // Background icon
+                                Positioned(
+                                  right: -20,
+                                  bottom: -20,
+                                  child: Transform.rotate(
+                                    angle: -0.2,
+                                    child: Icon(
+                                      Icons.domain_add_rounded,
+                                      size: 140,
+                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                                    ),
+                                  ),
+                                ),
+                                // Content
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.auto_graph_rounded,
+                                            color: Theme.of(context).colorScheme.primary,
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'EXCLUSIVE',
+                                            style: TextStyle(
+                                              color: Theme.of(context).colorScheme.primary,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 1.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Project Finance',
+                                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          color: Colors.white,
+                                          height: 1.1,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Fast-track capital for your next big build.',
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          borderRadius: BorderRadius.circular(30),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'Apply Now',
+                                              style: TextStyle(
+                                                color: Theme.of(context).colorScheme.onPrimary,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Icon(
+                                              Icons.arrow_forward_rounded,
+                                              size: 16,
+                                              color: Theme.of(context).colorScheme.onPrimary,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: banner.fullUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: Colors.grey.withOpacity(0.1),
+                              child: const Center(
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey.withOpacity(0.1),
+                              child: const Icon(Icons.error_outline),
+                            ),
+                          ),
                   ),
                 ),
               );

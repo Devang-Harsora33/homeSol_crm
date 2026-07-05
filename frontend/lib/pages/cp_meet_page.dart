@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/story.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -680,8 +681,52 @@ class _ActionButtons extends StatelessWidget {
   }
 
   void _handleShareAction(BuildContext context) {
-    // TODO: Implement share functionality
-    CustomSnackBar.show(context, message: 'Share functionality coming soon!', isError: false, title: 'Notice');
+    _shareMeetDetails(context, meetSchedule);
+  }
+
+  void _shareMeetDetails(BuildContext context, Story schedule) {
+    final String date = _formatDate(schedule.scheduledTime);
+    final String time = _formatTime(schedule.scheduledTime);
+    final String venue = schedule.venue ?? 'TBA';
+    final String description = schedule.description ?? 'Join us for an exciting HomeSol Channel Partner Meet!';
+    
+    final String shareText = '''
+✨ *HomeSol Channel Partner Meet* ✨
+
+Join us for an exclusive event to share insights and discover upcoming projects!
+
+📅 *Date:* $date
+🕒 *Time:* $time
+📍 *Venue:* $venue
+
+📝 *About:*
+$description
+
+Download the HomeSol Nexus App to register!
+''';
+
+    Share.share(shareText, subject: 'HomeSol CP Meet Invitation');
+  }
+
+  String _formatDate(String? scheduledTime) {
+    if (scheduledTime == null || scheduledTime.isEmpty) return 'TBA';
+    try {
+      final dateTime = DateTime.parse(scheduledTime);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}';
+    } catch (_) { return 'TBA'; }
+  }
+
+  String _formatTime(String? scheduledTime) {
+    if (scheduledTime == null || scheduledTime.isEmpty) return 'TBA';
+    try {
+      final dateTime = DateTime.parse(scheduledTime);
+      final hour = dateTime.hour;
+      final minute = dateTime.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+      final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+      return '$displayHour:$minute $period';
+    } catch (_) { return 'TBA'; }
   }
 
   Widget _getRegisterIcon(BuildContext context) {
@@ -1080,7 +1125,31 @@ class _MeetScheduleCard extends StatelessWidget {
   }
 
   void _handleCardShareAction(BuildContext context) {
-    CustomSnackBar.show(context, message: 'Share functionality coming soon!', isError: false, title: 'Notice');
+    _shareCardMeetDetails(context, meetSchedule);
+  }
+
+  void _shareCardMeetDetails(BuildContext context, Story schedule) {
+    final String date = _formatDate(schedule.scheduledTime);
+    final String time = _formatTime(schedule.scheduledTime);
+    final String venue = schedule.venue ?? 'TBA';
+    final String description = schedule.description ?? 'Join us for an exciting HomeSol Channel Partner Meet!';
+    
+    final String shareText = '''
+✨ *HomeSol Channel Partner Meet* ✨
+
+Join us for an exclusive event to share insights and discover upcoming projects!
+
+📅 *Date:* $date
+🕒 *Time:* $time
+📍 *Venue:* $venue
+
+📝 *About:*
+$description
+
+Download the HomeSol Nexus App to register!
+''';
+
+    Share.share(shareText, subject: 'HomeSol CP Meet Invitation');
   }
 
   Widget _getCardRegisterIcon(BuildContext context, Story meetSchedule) {

@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuites>
-  <testsuite errors="0" failures="0" tests="1" skipped="0" name="C:.Devang.HomeSol.FrappeCRM.HomesolApp.test.widget" timestamp="2026-03-12T06:35:42">
-    <properties>
-      <property name="platform" value="vm"/>
-    </properties>
-    <testcase classname="C:.Devang.HomeSol.FrappeCRM.HomesolApp.test.widget" name="Simple smoke test" time="0.015"/>
-  </testsuite>
-</testsuites>

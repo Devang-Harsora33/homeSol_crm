@@ -680,9 +680,11 @@ class _BookmarkPageState extends State<BookmarkPage>
                                     ?.toString();
 
                                 if (brokerId == null) {
-                                  CustomSnackBar.show(context, message: 
-                                        'Please log in to add enquiry',
-                                      , isError: false, title: 'Notice');
+                                  CustomSnackBar.show(context, 
+                                    message: 'Please log in to add enquiry',
+                                    isError: false, 
+                                    title: 'Notice'
+                                  );
                                   return;
                                 }
 
@@ -741,9 +743,11 @@ class _BookmarkPageState extends State<BookmarkPage>
             ${project.amenities.isNotEmpty ? '🏠 Amenities: ${project.amenities.take(5).map((a) => a.data).join(', ')}' : ''}
             ''';
                         Clipboard.setData(ClipboardData(text: shareText));
-                        CustomSnackBar.show(context, message: 
-                              'Project details copied to clipboard!',
-                            , isError: false, title: 'Notice');
+                        CustomSnackBar.show(context, 
+                          message: 'Project details copied to clipboard!',
+                          isError: false, 
+                          title: 'Notice'
+                        );
                       },
                       child: Container(
                         height: 48,

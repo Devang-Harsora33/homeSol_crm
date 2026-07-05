@@ -59,29 +59,32 @@ def get_team_leads():
     team_leads = []
 
     # ---------------------------------------------------------
-    # QUERY 2: If they are a Team Lead, get matching Team Leads
+    # QUERY 2: Get ALL teams where this employee is a Team Lead
     # ---------------------------------------------------------
     employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
     
     if employee:
-        team_member = frappe.db.get_value(
+        # Fetch every team where the user is officially the Team Lead
+        led_teams = frappe.get_all(
             "Sales Team Member", 
-            {"employee": employee}, 
-            ["parent", "role"], 
-            as_dict=True
+            filters={"employee": employee, "role": "Team Lead"}, 
+            fields=["parent"]
         )
 
-        if team_member and team_member.role == "Team Lead":
-            # 1. Get all subordinate team members (excluding the leader to avoid duplicates)
+        if led_teams:
+            team_names = [t.parent for t in led_teams]
+            
+            # 1. Get all subordinate team members across ALL those teams
             team_employees = frappe.get_all(
                 "Sales Team Member", 
                 filters={
-                    "parent": team_member.parent, 
+                    "parent": ["in", team_names], 
                     "employee": ["!=", employee]
                 }, 
                 fields=["employee"]
             )
-            emp_ids = [e.employee for e in team_employees if e.employee]
+            
+            emp_ids = list(set([e.employee for e in team_employees if e.employee]))
             
             if emp_ids:
                 # 2. Convert Employee IDs to User Emails
@@ -90,29 +93,52 @@ def get_team_leads():
                     filters={"name": ["in", emp_ids]}, 
                     fields=["user_id"]
                 )
-                team_user_ids = [u.user_id for u in linked_users if u.user_id]
+                team_user_ids = list(set([u.user_id for u in linked_users if u.user_id]))
                 
                 if team_user_ids:
-                    # 3. Fetch allowed projects from the child table
+                    # 3. Fetch allowed projects from the child table for ALL his teams
                     tl_projects = frappe.get_all(
                         "Sales Team Project",
-                        filters={"parent": team_member.parent}, 
+                        filters={"parent": ["in", team_names]}, 
                         fields=["projects"]
                     )
-                    allowed_project_ids = [p.projects for p in tl_projects if p.projects]
+                    
+                    # These might be Names (Sukhsagar Heights) OR IDs (PROJ-00139)
+                    raw_project_values = list(set([p.projects for p in tl_projects if p.projects]))
 
-                    # 4. Fetch the Team's leads ONLY if they match allowed projects
-                    if allowed_project_ids:
-                        team_leads = frappe.get_all(
-                            "Lead",
+                    if raw_project_values:
+                        # NEW: Check the Project table to get the true database IDs
+                        actual_projects = frappe.get_all(
+                            "Project", 
                             filters={
-                                "lead_owner": ["in", team_user_ids],
-                                "custom_interested_project": ["in", allowed_project_ids]
+                                "name": ["in", raw_project_values]
                             },
-                            fields=['*'],  
-                            order_by="creation desc",
-                            ignore_permissions=True
+                            or_filters={
+                                "project_name": ["in", raw_project_values]
+                            },
+                            fields=["name"]
                         )
+                        
+                        # Extract the true IDs (e.g., PROJ-00139)
+                        allowed_project_ids = list(set([p.name for p in actual_projects if p.name]))
+
+                        # Fallback: Just in case the raw value IS the ID and wasn't caught
+                        for raw_val in raw_project_values:
+                            if raw_val not in allowed_project_ids:
+                                allowed_project_ids.append(raw_val)
+
+                        # 4. Fetch the Team's leads using the True IDs
+                        if allowed_project_ids:
+                            team_leads = frappe.get_all(
+                                "Lead",
+                                filters={
+                                    "lead_owner": ["in", team_user_ids],
+                                    "custom_interested_project": ["in", allowed_project_ids]
+                                },
+                                fields=['*'],  
+                                order_by="creation desc",
+                                ignore_permissions=True
+                            )
 
     all_leads = personal_leads + team_leads
     
@@ -358,16 +384,16 @@ def get_team_site_visits():
     # 3. Fetch Site Visits for ALL identified users
     visits = frappe.get_all(
         "Site Visit",
-        fields=[
-            "name",           
-            "lead",           
-            "project",        
-            "visit_date",     
-            "status",         
-            "remark",         
-            "creation",       
-            "visit_scheduled_datetime",
-            "owner" # Added owner so you can see WHO did the visit
+        fields=["*"
+            # "name",           
+            # "lead",           
+            # "project",        
+            # "visit_date",     
+            # "status",         
+            # "remark",         
+            # "creation",       
+            # "visit_scheduled_datetime",
+            # "owner" # Added owner so you can see WHO did the visit
         ],
         filters={
             "owner": ["in", users_to_fetch]  # <--- Filters by the whole team list
@@ -406,16 +432,16 @@ def get_site_visits_by_developer(developer_id):
     # 2. Fetch Site Visits linked to any of these projects
     visits = frappe.get_all(
         "Site Visit",
-        fields=[
-            "name",           
-            "lead",           
-            "project",        
-            "visit_date",     
-            "status",         
-            "remark",         
-            "creation",       
-            "visit_scheduled_datetime",
-            "owner"           # Shows which field agent logged the visit
+        fields=["*"
+            # "name",           
+            # "lead",           
+            # "project",        
+            # "visit_date",     
+            # "status",         
+            # "remark",         
+            # "creation",       
+            # "visit_scheduled_datetime",
+            # "owner"           # Shows which field agent logged the visit
         ],
         filters={
             "project": ["in", project_ids]  # <--- Filters by the Developer's projects
@@ -469,16 +495,16 @@ def get_site_visits_by_channel_partner(partner_id):
 
     visits = frappe.get_all(
         "Site Visit",
-        fields=[
-            "name",           
-            "lead",           
-            "project",        
-            "visit_date",     
-            "status",         
-            "remark",         
-            "creation",       
-            "visit_scheduled_datetime",
-            "owner"           # Shows which field agent logged the visit
+        fields=["*"
+            # "name",           
+            # "lead",           
+            # "project",        
+            # "visit_date",     
+            # "status",         
+            # "remark",         
+            # "creation",       
+            # "visit_scheduled_datetime",
+            # "owner"           # Shows which field agent logged the visit
         ],
         filters=visit_filters,
         order_by="visit_date desc",
@@ -1124,3 +1150,100 @@ def get_cp_connections(cp_name):
             "recent_visits": visits[:5]  # Visits now include a nested 'campaign_details' object
         }
     }
+
+
+@frappe.whitelist()
+def get_eligible_transfer_users(project=None):
+    user = frappe.session.user
+    allowed_users = set([user])
+    
+    target_designations = [
+        "Lead Caller", 
+        "Sales Representative", 
+        "Head of Marketing and Sales", 
+        "Sales Manager", 
+        "Sales And Sourcing"
+    ]
+
+    user_roles = frappe.get_roles(user)
+    
+    employee_filters = {
+        "designation": ["in", target_designations], 
+        "status": "Active"
+    }
+
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    is_team_lead = False
+
+    # 1. ALWAYS check for Team Hierarchy First!
+    if employee:
+        team_member = frappe.db.get_value("Sales Team Member", {"employee": employee, "role": "Team Lead"}, ["parent"], as_dict=True)
+        
+        if team_member:
+            is_team_lead = True 
+            team_employees = frappe.get_all("Sales Team Member", filters={"parent": team_member.parent}, fields=["employee"])
+            emp_ids = [e.employee for e in team_employees if e.employee]
+            
+            if emp_ids:
+                employee_filters["name"] = ["in", emp_ids]
+                linked_users = frappe.get_all("Employee", filters=employee_filters, fields=["user_id"])
+                for u in linked_users:
+                    if u.user_id: allowed_users.add(u.user_id)
+
+    # 2. If they are NOT a Team Lead, but are Top-Level Management/Admin
+    if not is_team_lead and ("System Manager" in user_roles or "Sales Manager" in user_roles):
+        all_sales = frappe.get_all("Employee", filters=employee_filters, fields=["user_id"])
+        for u in all_sales:
+            if u.user_id: allowed_users.add(u.user_id)
+
+    # 3. Security Lock: Remove employees already tied up in an active transfer
+    active_transfers = frappe.get_all(
+        "Lead Transfer",
+        filters={"status": "Active", "transfer_type": "Temporary", "docstatus": 1},
+        fields=["from_employee", "to_employee"]
+    )
+    
+    locked_users = set()
+    for t in active_transfers:
+        if t.from_employee: locked_users.add(t.from_employee)
+        if t.to_employee: locked_users.add(t.to_employee)
+        
+    final_users = [u for u in allowed_users if u not in locked_users]
+    
+    return final_users
+
+def validate_lead_assignment(doc, method):
+    """Prevents assigning leads to employees involved in an active temporary transfer"""
+    
+    # 1. VIP PASS: Allow the automated Lead Transfer script to bypass this block
+    if getattr(frappe.flags, "in_lead_transfer", False):
+        return
+
+    # 2. ONLY run this check if the lead owner is actually being changed manually!
+    if doc.lead_owner and (doc.is_new() or doc.has_value_changed("lead_owner")):
+        active_transfer = frappe.db.exists(
+            "Lead Transfer", 
+            {
+                "status": "Active",
+                "transfer_type": "Temporary",
+                "docstatus": 1,
+                "from_employee": doc.lead_owner
+            }
+        ) or frappe.db.exists(
+            "Lead Transfer", 
+            {
+                "status": "Active",
+                "transfer_type": "Temporary",
+                "docstatus": 1,
+                "to_employee": doc.lead_owner
+            }
+        )
+        
+        if active_transfer:
+            t = frappe.get_doc("Lead Transfer", active_transfer)
+            if t.from_employee == doc.lead_owner:
+                frappe.throw(f"<b>Assignment Blocked:</b> {doc.lead_owner} is on temporary leave until {t.valid_till}.")
+            elif t.to_employee == doc.lead_owner:
+                frappe.throw(f"<b>Assignment Blocked:</b> {doc.lead_owner} is covering a temporary lead transfer until {t.valid_till}. Capacity locked.")
+
+

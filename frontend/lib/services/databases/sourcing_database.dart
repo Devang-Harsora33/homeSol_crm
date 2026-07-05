@@ -48,7 +48,6 @@ class SourcingDatabase {
     final db = await database;
     final String name = sourcing['name'] ?? '';
     final String modified = sourcing['modified'] ?? '';
-    final String data = json.encode(sourcing);
 
     List<Map<String, dynamic>> existing = await db.query(
       'sourcing',
@@ -57,6 +56,23 @@ class SourcingDatabase {
     );
 
     if (existing.isNotEmpty) {
+      final existingDataString = existing.first['data'] as String?;
+      if (existingDataString != null && existingDataString.isNotEmpty) {
+        try {
+          final existingJson = json.decode(existingDataString) as Map<String, dynamic>;
+          // Merge missing or empty fields from the existing local JSON to preserve child tables like interested_project
+          for (var key in existingJson.keys) {
+            if (!sourcing.containsKey(key) || 
+                sourcing[key] == null || 
+                sourcing[key] == '' || 
+                (sourcing[key] is List && (sourcing[key] as List).isEmpty)) {
+              sourcing[key] = existingJson[key];
+            }
+          }
+        } catch (_) {}
+      }
+      
+      final String data = json.encode(sourcing);
       await db.update(
         'sourcing',
         {'modified': modified, 'data': data},
@@ -64,6 +80,7 @@ class SourcingDatabase {
         whereArgs: [name],
       );
     } else {
+      final String data = json.encode(sourcing);
       await db.insert(
         'sourcing',
         {'name': name, 'modified': modified, 'data': data},

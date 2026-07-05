@@ -5,6 +5,7 @@ import 'package:Homesol/services/databases/project_database.dart';
 import 'package:Homesol/services/image_cache_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:Homesol/utils/error_logger.dart';
 
 import '../../connectivity_service.dart';
 
@@ -12,9 +13,41 @@ class ProjectService {
   static String get baseUrl => AuthService.baseUrl;
   static List<Project>? _projectsCache;
   static DateTime? _projectsLastFetch;
-  static List<Map<String, String>>? _apiProjectsCache;
+  static List<Map<String, dynamic>>? _apiProjectsCache;
   static DateTime? _apiProjectsLastFetch;
-  static const String _lastSyncTimestampKey = "last_sync_timestamp_projects";
+    static const String _lastSyncTimestampKey = "last_sync_timestamp_projects";
+
+  static http.Client? _testClient;
+  static http.Client get _httpClient => _testClient ?? http.Client();
+
+  static SharedPreferences? _testSharedPreferences;
+  static Future<SharedPreferences> get _sharedPreferences async => _testSharedPreferences ?? await SharedPreferences.getInstance();
+
+  static ProjectDatabase? _testProjectDatabase;
+  static ProjectDatabase get _projectDatabase => _testProjectDatabase ?? ProjectDatabase();
+
+  static void setTestMocks({
+    http.Client? client,
+    SharedPreferences? sharedPreferences,
+    ProjectDatabase? projectDatabase,
+  }) {
+    _testClient = client;
+    _testSharedPreferences = sharedPreferences;
+    _testProjectDatabase = projectDatabase;
+  }
+
+  static void clearTestMocks() {
+    _testClient = null;
+    _testSharedPreferences = null;
+    _testProjectDatabase = null;
+  }
+
+  static void clearCache() {
+    _projectsCache = null;
+    _projectsLastFetch = null;
+    _apiProjectsCache = null;
+    _apiProjectsLastFetch = null;
+  }
 
   static Future<Map<String, String>> _getHeaders() async {
     final cookie = await AuthService.getCookie();
@@ -46,7 +79,14 @@ class ProjectService {
         // Store cached paths in the project data for later retrieval
         projectJson['_cached_gallery_image_paths'] = cachedImagePaths;
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: '_cacheProjectGalleryImages',
+        message: 'Project: ${projectJson['name']} | Error: $e',
+        stackTrace: stack.toString(),
+      );
       print('Error caching project gallery images: $e');
     }
   }
@@ -60,12 +100,14 @@ class ProjectService {
 
     try {
       final headers = await _getHeaders();
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(
           '${AuthService.baseUrl}/api/resource/Property Projects?fields=["name"]',
         ),
         headers: headers,
       );
+
+      if (AuthService.checkResponse(response)) return [];
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
@@ -75,7 +117,14 @@ class ProjectService {
         }
       }
       return [];
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'fetchProjectNamesFromServer',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       print('Error fetching project names from server: $e');
       return [];
     }
@@ -86,7 +135,7 @@ class ProjectService {
     // Check if we are online before trying to fetch from API
     if (!ConnectivityService.isOnline) {
       print('Offline: Loading projects from local database');
-      final ProjectDatabase projectDatabase = ProjectDatabase();
+      final ProjectDatabase projectDatabase = _projectDatabase;
       final List<Map<String, dynamic>> rawProjects =
           await projectDatabase.getAllProjects();
       return rawProjects.map((data) {
@@ -95,7 +144,7 @@ class ProjectService {
       }).toList();
     }
 
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final SharedPreferences prefs = await _sharedPreferences;
     String lastSyncTimestamp =
         prefs.getString(_lastSyncTimestampKey) ?? "2000-01-01 00:00:00";
 
@@ -118,11 +167,13 @@ class ProjectService {
           .get(uri, headers: headers)
           .timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return [];
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = json.decode(response.body);
         final List<dynamic> message = responseBody['message'] ?? [];
 
-        final ProjectDatabase projectDatabase = ProjectDatabase();
+        final ProjectDatabase projectDatabase = _projectDatabase;
 
         // Step 1: Get all local Project IDs
         final List<Map<String, dynamic>> localProjectsRaw = await projectDatabase.getAllProjects();
@@ -206,7 +257,7 @@ class ProjectService {
         print('Failed to load projects: ${response.statusCode}');
         print('Response body: ${response.body}');
         // Return existing projects from database on error
-        final ProjectDatabase projectDatabase = ProjectDatabase();
+        final ProjectDatabase projectDatabase = _projectDatabase;
         final List<Map<String, dynamic>> rawProjects =
             await projectDatabase.getAllProjects();
         return rawProjects.map((data) {
@@ -214,10 +265,17 @@ class ProjectService {
           return Project.fromJson(projectJson);
         }).toList();
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'syncProjects',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       print('Error during project sync: $e');
       // Return existing projects from database on error
-      final ProjectDatabase projectDatabase = ProjectDatabase();
+      final ProjectDatabase projectDatabase = _projectDatabase;
       final List<Map<String, dynamic>> rawProjects =
           await projectDatabase.getAllProjects();
       return rawProjects.map((data) {
@@ -236,7 +294,7 @@ class ProjectService {
       }
 
       // Load projects from local database
-      final ProjectDatabase projectDatabase = ProjectDatabase();
+      final ProjectDatabase projectDatabase = _projectDatabase;
       final List<Map<String, dynamic>> rawProjects =
           await projectDatabase.getAllProjects();
 
@@ -254,7 +312,14 @@ class ProjectService {
       _projectsLastFetch = DateTime.now();
       print('Loaded ${projects.length} projects from local database');
       return projects;
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'fetchProjects (local)',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       print('❌ General exception caught while fetching projects: $e');
       return [];
     }
@@ -269,6 +334,8 @@ class ProjectService {
           .get(Uri.parse('$baseUrl/api/resource/Property Projects/$id'), headers: headers)
           .timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return null;
+
       print('Project response status: ${response.statusCode}');
       print('Project response body: ${response.body}');
 
@@ -281,13 +348,34 @@ class ProjectService {
         print('❌ Project error: ${response.statusCode} - ${response.body}');
         return null;
       }
-    } on http.ClientException catch (e) {
+    } on http.ClientException catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'fetchProject',
+        message: 'ClientException: $e',
+        stackTrace: stack.toString(),
+      );
       print('❌ ClientException caught: $e');
       return null;
-    } on FormatException catch (e) {
+    } on FormatException catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'fetchProject',
+        message: 'FormatException: $e',
+        stackTrace: stack.toString(),
+      );
       print('❌ FormatException caught: $e');
       return null;
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'fetchProject',
+        message: 'GeneralException: $e',
+        stackTrace: stack.toString(),
+      );
       print('❌ General exception caught: $e');
       return null;
     }
@@ -296,10 +384,13 @@ class ProjectService {
   static Future<List<Map<String, dynamic>>> fetchProjectLocations() async {
     try {
       final headers = await _getHeaders();
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_all_project_locations'),
         headers: headers,
       );
+
+      if (AuthService.checkResponse(response)) return [];
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['message'] is List) {
@@ -307,13 +398,20 @@ class ProjectService {
         }
       }
       return [];
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'fetchProjectLocations',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       print('Error fetching project locations: $e');
       return [];
     }
   }
 
-  static Future<List<Map<String, String>>> fetchApiProjects({bool forceRefresh = false}) async {
+  static Future<List<Map<String, dynamic>>> fetchApiProjects({bool forceRefresh = false}) async {
     final now = DateTime.now();
     if (!forceRefresh &&
         _apiProjectsCache != null &&
@@ -325,10 +423,13 @@ class ProjectService {
 
     try {
       final headers = await _getHeaders();
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_all_projects'),
         headers: headers,
       );
+
+      if (AuthService.checkResponse(response)) return [];
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['message'] is List) {
@@ -338,6 +439,11 @@ class ProjectService {
               'id': item['name'].toString(),
               'name': item['project_name']?.toString() ?? item['name'].toString(), // Use project_name for display name
             };
+          }).where((p) {
+            final name = p['name']?.toString().toLowerCase().trim() ?? '';
+            final id = p['id']?.toString().toLowerCase().trim() ?? '';
+            if (name == 'bhavin steel' || name == 'parinee i' || id == 'bhavin steel' || id == 'parinee i') return false;
+            return true;
           }).toList();
           _apiProjectsCache = projects;
           _apiProjectsLastFetch = now;
@@ -346,9 +452,74 @@ class ProjectService {
         return [];
       }
       return [];
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'fetchApiProjects',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       print('Error fetching API projects: $e');
       return [];
     }
   }
+
+  static Future<bool> incrementCampaignLeads(
+      String projectId, String campaignId, int currentLeads) async {
+    try {
+      print('🚀 [API] Incrementing leads for campaign: $campaignId');
+      final headers = await AuthService.getHeaders();
+      
+      // Use pathSegments to ensure proper encoding of all parts of the URL
+      final baseUrlUri = Uri.parse(AuthService.baseUrl);
+      final url = baseUrlUri.replace(
+        pathSegments: [
+          ...baseUrlUri.pathSegments.where((s) => s.isNotEmpty),
+          'api',
+          'resource',
+          'Property Project Campaign',
+          campaignId,
+        ],
+      );
+
+      print('🔗 [API] Increment URL: $url');
+      print('📝 [API] Payload: {"leads_generated": ${currentLeads + 1}}');
+
+      final response = await http
+          .put(
+            url,
+            headers: headers,
+            body: jsonEncode({
+              'leads_generated': currentLeads + 1,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (AuthService.checkResponse(response)) return false;
+
+      print('📥 [API] Increment Response Status: ${response.statusCode}');
+      print('📄 [API] Increment Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        print('✅ [API] Campaign leads incremented successfully');
+        return true;
+      } else {
+        print(
+            '❌ [API] Failed to increment campaign leads: ${response.statusCode} - ${response.body}');
+        return false;
+      }
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'ProjectService',
+        action: 'incrementCampaignLeads',
+        message: 'Project: $projectId | Campaign: $campaignId | Error: $e',
+        stackTrace: stack.toString(),
+      );
+      print('⚠️ [API] Exception incrementing campaign leads: $e');
+      return false;
+    }
+  }
 }
+

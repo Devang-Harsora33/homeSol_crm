@@ -7,6 +7,7 @@ import 'package:Homesol/services/connectivity_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:Homesol/utils/error_logger.dart';
 
 class TicketService {
   static String get baseUrl => AuthService.baseUrl;
@@ -26,6 +27,8 @@ class TicketService {
       final headers = await _getHeaders();
       final uri = Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_my_tickets');
       final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return [];
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -49,6 +52,8 @@ class TicketService {
           )
           .timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) throw Exception('Session Expired');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         final Map<String, dynamic> ticketData = responseData['data'];
@@ -56,7 +61,14 @@ class TicketService {
       } else {
         throw Exception('Server error: ${response.statusCode}');
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'TicketService',
+        action: 'createTicket',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
       throw Exception('Error creating ticket: $e');
     }
   }
@@ -96,6 +108,8 @@ class TicketService {
           body: json.encode(payload),
         )
         .timeout(const Duration(seconds: 20));
+
+    if (AuthService.checkResponse(response)) return;
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Failed attaching files: ${response.statusCode}');
@@ -144,6 +158,8 @@ class TicketService {
           )
           .timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) throw Exception('Session Expired');
+
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         return Ticket.fromJson(jsonData);
@@ -175,6 +191,8 @@ class TicketService {
         )
         .timeout(const Duration(seconds: 15));
 
+    if (AuthService.checkResponse(response)) return;
+
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('Server error: ${response.statusCode}');
     }
@@ -198,6 +216,8 @@ class TicketService {
           body: json.encode({'status': status}),
         )
         .timeout(const Duration(seconds: 15));
+
+    if (AuthService.checkResponse(response)) throw Exception('Session Expired');
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final jsonData = json.decode(response.body);
@@ -228,6 +248,8 @@ class TicketService {
           )
           .timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return await TicketDatabase.getAllTickets();
+
       if (response.statusCode == 200) {
         // Deletion check
         final List<String> serverTicketNamesList = await fetchTicketNamesFromServer();
@@ -250,7 +272,15 @@ class TicketService {
 
         return tickets;
       }
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.logError(
+        logLevel: 'ERROR',
+        module: 'TicketService',
+        action: 'syncMyTickets',
+        message: e.toString(),
+        stackTrace: stack.toString(),
+      );
+    }
     return await TicketDatabase.getAllTickets();
   }
 }

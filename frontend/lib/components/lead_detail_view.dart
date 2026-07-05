@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:screen_protector/screen_protector.dart';
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/auth_service.dart';
 import '../models/lead.dart';
 import '../models/project.dart';
 import '../models/developer.dart';
@@ -53,33 +54,36 @@ class _LeadDetailViewState extends State<LeadDetailView> {
   bool _isActivityLogsLoading = true; // New loading state for activity logs
   String _lastVisitDate = 'N/A'; // New state variable for last visit date
   String? _visitDoneDate; // Added for Visit Done Date
+  String? _currentUserDesignation;
 
   @override
   void initState() {
     super.initState();
-    ScreenProtector.preventScreenshotOn();
+    // ScreenProtector.preventScreenshotOn();
     _currentLead = widget.lead;
     _fetchData();
   }
 
   @override
   void dispose() {
-    ScreenProtector.preventScreenshotOff();
+    // ScreenProtector.preventScreenshotOff();
     super.dispose();
   }
 
   Future<void> _fetchData() async {
     try {
+      final profile = await AuthService.getMyProfile();
       final updatedLead = await LeadService.fetchLead(_currentLead.name!);
       final projects = await ProjectService.syncProjects();
       final developers = await DeveloperService.syncDevelopers();
       final siteVisits = await SiteVisitService.fetchMySiteVisits();
       final followUps = await LeadService.fetchTeamFollowups(_currentLead.name!); 
-      final activityLogs = await LeadService.fetchLeadActivityLogs(_currentLead.name!);
+      // final activityLogs = await LeadService.fetchLeadActivityLogs(_currentLead.name!); // Hidden for now
       final linkedUnits = await PropertyUnitService.fetchPropertyUnitsForLead(_currentLead.name!);
 
       if (mounted) {
         setState(() {
+          _currentUserDesignation = profile?.designation?.toLowerCase().trim();
           if (updatedLead != null) {
             _currentLead = updatedLead;
           }
@@ -139,7 +143,7 @@ class _LeadDetailViewState extends State<LeadDetailView> {
           _followUps = followUps.where((followUp) => followUp.leadId == _currentLead.name).toList(); // Filter follow-ups
           _isFollowUpsLoading = false;
 
-          _activityLogs = activityLogs;
+          // _activityLogs = activityLogs; // Hidden for now
           _isActivityLogsLoading = false;
           _linkedUnits = linkedUnits;
         });
@@ -184,8 +188,9 @@ class _LeadDetailViewState extends State<LeadDetailView> {
             children: [
               _buildHeaderCard(),
               const SizedBox(height: 16),
-              _buildQuickActions(),
+              _buildFunnelProgress(),
               const SizedBox(height: 16),
+              _buildQuickActions(),              const SizedBox(height: 16),
               
               // 1. Interested Project (if any)
               if (_currentLead.projectId.isNotEmpty) ...[
@@ -216,6 +221,13 @@ class _LeadDetailViewState extends State<LeadDetailView> {
                 _infoRow(Icons.category_outlined, "Purpose", _currentLead.customPurposeOfPurchase ?? '-'),
                 _infoRow(Icons.build_circle_outlined, "Prop Type", _currentLead.customLookingForPropertyType ?? '-'),
                 _infoRow(Icons.account_balance_outlined, "Financing", _currentLead.customFinancingDetails ?? '-'),
+                _infoRow(
+                  Icons.credit_card_outlined,
+                  "Loan Requirements",
+                  _currentLead.customLoanRequirements != null && _currentLead.customLoanRequirements!.isNotEmpty
+                      ? "${_currentLead.customLoanRequirements} Cr"
+                      : '-',
+                ),
                 _infoRow(Icons.timer_outlined, "Expected Time", _currentLead.customExpectedTimeOfPurchase ?? '-'),
                 _infoRow(Icons.home_filled, "Current Residence", _currentLead.customCurrentResidenceType ?? '-'),
               ]),
@@ -226,8 +238,9 @@ class _LeadDetailViewState extends State<LeadDetailView> {
                 // _infoRow(Icons.flag, "Lead Status", _currentLead.customLatestVisitStatus  ?? 'New'),
                 _infoRow(Icons.flag, "Lead Status", _currentLead.customLeadStatus ?? _currentLead.status ?? 'New', isTappable: true, onTap: _editLeadStatus),
                 _infoRow(Icons.stacked_bar_chart, "Lead Stages", _currentLead.customStages ?? 'N/A', isTappable: true, onTap: _editLeadStages),
+                _infoRow(Icons.do_not_disturb_alt, "Lost Reason", _currentLead.customLeadLostStages ?? 'N/A', isTappable: true, onTap: _editLeadLostStages),
                 // _infoRow(Icons.verified_user_outlined, "Qualification", _currentLead.qualificationStatus ?? '-'),
-                _infoRow(Icons.calendar_today, "Qualified On", _currentLead.qualifiedOn?.toString() ?? '-'),
+                _infoRow(Icons.calendar_today, "Qualified On", _formatPostedDate(_currentLead.qualifiedOn)),
                 _infoRow(Icons.calendar_month, "Last Visit", _lastVisitDate),
                 if (_visitDoneDate != null)
                   _infoRow(Icons.event_available_rounded, "Visit Done Date", _visitDoneDate!),
@@ -253,8 +266,7 @@ class _LeadDetailViewState extends State<LeadDetailView> {
                // 5. Source & Marketing
               _buildSectionCard("Source & Marketing", [
                 _infoRow(Icons.source, "Source", _currentLead.source ?? '-'),
-                _infoRow(Icons.source, "Source Type", _currentLead.customSourceType ??  'N/A'),
-                _infoRow(Icons.campaign, "Campaign", _currentLead.campaignName ?? '-'),
+                _infoRow(Icons.campaign, "Campaign", _currentLead.customCampaign ?? '-'),
                 _infoRow(Icons.request_page, "Request Type", _currentLead.requestType ?? '-'),
                 // const SizedBox(height: 12),
                 // Wrap(
@@ -302,12 +314,14 @@ class _LeadDetailViewState extends State<LeadDetailView> {
 
 
               // New Site Visits Card
-              _buildSiteVisitsCard(),
-              const SizedBox(height: 16),
+              if (_currentUserDesignation != null && _currentUserDesignation != 'lead caller') ...[
+                _buildSiteVisitsCard(),
+                const SizedBox(height: 16),
 
-              // New Follow-ups Card
-              _buildFollowUpsCard(),
-              const SizedBox(height: 16),
+                // New Follow-ups Card
+                _buildFollowUpsCard(),
+                const SizedBox(height: 16),
+              ],
 
               // 7. System Info
               _buildSystemInfoCard(),
@@ -317,7 +331,7 @@ class _LeadDetailViewState extends State<LeadDetailView> {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomBar(context),
+      bottomNavigationBar: (_currentUserDesignation != null && _currentUserDesignation != 'lead caller') ? _buildBottomBar(context) : null,
     );
   }
 
@@ -589,7 +603,22 @@ class _LeadDetailViewState extends State<LeadDetailView> {
             );
             return ListTile(
               title: Text(project.projectName ?? 'N/A'),
-              subtitle: Text(visit.status ?? 'N/A'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(visit.status ?? 'N/A'),
+                  if (visit.visitDuration != null && visit.visitDuration!.isNotEmpty)
+                    Text(
+                      "Duration: ${visit.visitDuration}",
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  if (visit.presenceOfCp != null)
+                    Text(
+                      "CP Presence: ${visit.presenceOfCp == 1 ? 'Yes' : 'No'}",
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                ],
+              ),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
               onTap: () {
                 Navigator.push(
@@ -777,8 +806,11 @@ Widget _buildFollowUpsCard() {
             textAlign: TextAlign.center
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -813,8 +845,41 @@ Widget _buildFollowUpsCard() {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              if (_currentLead.customLeadQuality != null)
+              if (_currentLead.customLeadLostStages != null && _currentLead.customLeadLostStages!.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.red.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                       Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.red.withOpacity(0.4),
+                                blurRadius: 4,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      Text(
+                        'LOST: ${_currentLead.customLeadLostStages!}', 
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.red, letterSpacing: 0.5)
+                      ),
+                    ],
+                  ),
+                ),
+              if (_currentLead.customLeadQuality != null && _currentLead.customLeadQuality! > 0)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -822,6 +887,7 @@ Widget _buildFollowUpsCard() {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: List.generate(5, (index) {
                       int numberOfStars = (_currentLead.customLeadQuality! / 0.2).round();
                       return Padding(
@@ -841,66 +907,230 @@ Widget _buildFollowUpsCard() {
     );
   }
 
+  int _getFunnelStageIndex(String? status) {
+    switch (status) {
+      case 'Lead Generated - Open': return 1;
+      case 'Prospect': return 2;
+      case 'Won': return 3;
+      default: return 1;
+    }
+  }
+
+  Widget _buildFunnelProgress() {
+    final currentStage = _getFunnelStageIndex(_currentLead.customLeadStatus);
+    final stages = [
+      {'title': 'Open', 'roman': 'I'},
+      {'title': 'Prospect', 'roman': 'II'},
+      {'title': 'Won', 'roman': 'III'},
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.white, Colors.grey.shade50],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade100, width: 1.5),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 8))
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'LEAD FUNNEL',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1.5),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Active Stage: ${stages[currentStage - 1]['title']}',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: kAccent),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kAccent,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(color: kAccent.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
+                  ],
+                ),
+                child: Text(
+                  'STAGE ${stages[currentStage - 1]['roman']}',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              // Background line
+              Positioned(
+                left: 40,
+                right: 40,
+                top: 20,
+                child: Container(
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              // Progress line
+              if (currentStage > 1)
+                Positioned(
+                  left: 40,
+                  right: currentStage == 2 ? MediaQuery.of(context).size.width / 2 : 40,
+                  top: 20,
+                  child: AnimatedContainer(
+                    duration: const Duration(seconds: 1),
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: kAccent,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(color: kAccent.withOpacity(0.2), blurRadius: 4),
+                      ],
+                    ),
+                  ),
+                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(stages.length, (index) {
+                  final stageIdx = index + 1;
+                  final bool isCompleted = stageIdx < currentStage;
+                  final bool isCurrent = stageIdx == currentStage;
+
+                  return Column(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 500),
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: isCurrent ? Colors.white : (isCompleted ? kAccent : Colors.white),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isCurrent || isCompleted ? kAccent : Colors.grey.shade200,
+                            width: isCurrent ? 4 : 2,
+                          ),
+                          boxShadow: [
+                            if (isCurrent)
+                              BoxShadow(color: kAccent.withOpacity(0.2), blurRadius: 12, spreadRadius: 4),
+                          ],
+                        ),
+                        child: Center(
+                          child: isCompleted
+                              ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
+                              : Text(
+                                  stages[index]['roman']!,
+                                  style: TextStyle(
+                                    color: isCurrent ? kAccent : Colors.grey.shade300,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        stages[index]['title']!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                          color: isCurrent ? kAccent : Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickActions() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _actionButton(FontAwesomeIcons.phone, "Call", Colors.green,
-                onPressed: () => _showNumberSelectionDialog(context, _currentLead, 'call')),
-            const SizedBox(width: 12),
-            _actionButton(FontAwesomeIcons.whatsapp, "WhatsApp", const Color(0xFF25D366),
-                onPressed: () => _showNumberSelectionDialog(context, _currentLead, 'whatsapp')),
-            const SizedBox(width: 12),
-            _actionButton(FontAwesomeIcons.envelope, "Email", Colors.blue, onPressed: () {
-              if (_currentLead.name != null) {
-                LeadService.recordButtonPress(_currentLead.name!, 'Email Button');
-              }
-              if (_currentLead.emailId != null && _currentLead.emailId!.isNotEmpty) {
-                _launchUrl('mailto:${_currentLead.emailId}');
-              } else {
-                CustomSnackBar.show(context, message: 'No email address available', isError: false, title: 'Notice');
-              }
-            }),
-            const SizedBox(width: 12),
-            _actionButton(FontAwesomeIcons.calendarCheck, "Visit", Colors.orange, onPressed: () async {
-              if (_currentLead.name != null) {
-                LeadService.recordButtonPress(_currentLead.name!, 'Site Visit Button');
-              }
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => CreateSiteVisitScreen(
-                  preselectedLeadId: _currentLead.name,
-                  preselectedLeadDisplayName: _currentLead.leadName, // Pass the display name
-                  preselectedProjectId: _currentLead.customInterestedProject,
-                )),
-              );
-              // Refresh data after returning from CreateSiteVisitScreen
-              if (result == true) {
-                _fetchData();
-              }
-            }),
-            const SizedBox(width: 12),
-            _actionButton(FontAwesomeIcons.clockRotateLeft, "Follow Up", const Color(0xFF1A1A1A), onPressed: () async {
-              if (_currentLead.name != null) {
-                LeadService.recordButtonPress(_currentLead.name!, 'Follow Up Button');
-              }
-              // Navigating to CreateSiteVisitScreen as a fallback for Follow Up creation logic
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => CreateSiteVisitScreen( 
-                  preselectedLeadId: _currentLead.name,
-                )),
-              );
-               if (result == true) {
-                _fetchData();
-              }
-            }),
-          ],
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _actionButton(FontAwesomeIcons.phone, "Call", Colors.green,
+                    onPressed: () => _showNumberSelectionDialog(context, _currentLead, 'call')),
+                _actionButton(FontAwesomeIcons.whatsapp, "WhatsApp", const Color(0xFF25D366),
+                    onPressed: () => _showNumberSelectionDialog(context, _currentLead, 'whatsapp')),
+                _actionButton(FontAwesomeIcons.envelope, "Email", Colors.blue, onPressed: () {
+                  if (_currentLead.name != null) {
+                    LeadService.recordButtonPress(_currentLead.name!, 'Email Button');
+                  }
+                  if (_currentLead.emailId != null && _currentLead.emailId!.isNotEmpty) {
+                    _launchUrl('mailto:${_currentLead.emailId}');
+                  } else {
+                    CustomSnackBar.show(context, message: 'No email address available', isError: false, title: 'Notice');
+                  }
+                }),
+                if (_currentUserDesignation != null && _currentUserDesignation != 'lead caller') ...[
+                  _actionButton(FontAwesomeIcons.calendarCheck, "Visit", Colors.orange, onPressed: () async {
+                    if (_currentLead.name != null) {
+                      LeadService.recordButtonPress(_currentLead.name!, 'Site Visit Button');
+                    }
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => CreateSiteVisitScreen(
+                        preselectedLeadId: _currentLead.name,
+                        preselectedLeadDisplayName: _currentLead.leadName, // Pass the display name
+                        preselectedProjectId: _currentLead.customInterestedProject,
+                      )),
+                    );
+                    // Refresh data after returning from CreateSiteVisitScreen
+                    if (result == true) {
+                      _fetchData();
+                    }
+                  }),
+                  _actionButton(FontAwesomeIcons.clockRotateLeft, "Follow Up", const Color(0xFF1A1A1A), onPressed: () async {
+                    if (_currentLead.name != null) {
+                      LeadService.recordButtonPress(_currentLead.name!, 'Follow Up Button');
+                    }
+                    // Navigating to CreateSiteVisitScreen as a fallback for Follow Up creation logic
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => CreateSiteVisitScreen( 
+                        preselectedLeadId: _currentLead.name,
+                      )),
+                    );
+                     if (result == true) {
+                      _fetchData();
+                    }
+                  }),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1154,6 +1384,7 @@ Widget _buildFollowUpsCard() {
           _miniInfo("ID", _currentLead.name ?? ''), // The unique ID
           _miniInfo("Created", _currentLead.createdAt?.toString() ?? '-'),
           _miniInfo("Last Modified", _currentLead.modified?.toString() ?? '-'),
+          /* Hide Activity Logs for now
           if (_isActivityLogsLoading)
             const Padding(
               padding: EdgeInsets.only(top: 8.0),
@@ -1191,6 +1422,7 @@ Widget _buildFollowUpsCard() {
               ),
             )).toList(),
           ],
+          */
         ],
       ),
     );
@@ -1521,12 +1753,12 @@ Widget _buildFollowUpsCard() {
   }
 
   void _editLeadStatus() {
-    final statuses = ['Open', 'Prospect', 'Won', 'Lost'];
-    _showSelectionDialog('Edit Lead Status', statuses, _currentLead.customLeadStatus ?? 'Open', (newVal) async {
+    final statuses = ['Lead Generated - Open', 'Prospect', 'Won'];
+    _showSelectionDialog('Edit Lead Status', statuses, _currentLead.customLeadStatus ?? 'Lead Generated - Open', (newVal) async {
       final updates = {
         'custom_lead_status': newVal,
         'custom_stages': null, // Reset stage
-        'status': newVal == 'Lost' ? 'Do Not Contact' : 'Lead',
+        'status': 'Lead',
       };
       await _saveLeadUpdate(updates);
     });
@@ -1544,15 +1776,30 @@ Widget _buildFollowUpsCard() {
     });
   }
 
+  void _editLeadLostStages() {
+    final stages = [
+      'None (Clear)',
+      'Ringing - Not Picking Up',
+      'Budget Issue',
+      'Plan Dropped',
+      'Location Issue',
+      'Builder Credibility',
+      'Carpet Area / Inventory',
+      'Plan on Hold'
+    ];
+    _showSelectionDialog('Edit Lost Reason', stages, _currentLead.customLeadLostStages ?? '', (newVal) async {
+      final valueToSave = newVal == 'None (Clear)' ? null : newVal;
+      await _saveLeadUpdate({'custom_lead_lost_stages': valueToSave});
+    });
+  }
+
   List<String> _getStagesForStatus(String? status) {
     switch (status) {
-      case 'Open':
+      case 'Lead Generated - Open':
         return [
-          'Lead Generated',
-          'Interested',
+          'Called - Interested',
           'Detail Sent',
           'Follow Up',
-          'Ringing',
           'Site Visit Confirm (VC)',
           'Site Visit Prospect (VP)',
         ];
@@ -1565,8 +1812,6 @@ Widget _buildFollowUpsCard() {
         ];
       case 'Won':
         return ['Booking in Approval', 'Booking Done'];
-      case 'Lost':
-        return ['Not Interested'];
       default:
         return [];
     }
@@ -1617,19 +1862,26 @@ Widget _buildFollowUpsCard() {
                   itemBuilder: (context, index) {
                     final opt = options[index];
                     final isSelected = opt == currentValue;
+                    final isClearOption = opt == 'None (Clear)';
+                    
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                      leading: isClearOption ? const Icon(Icons.clear, color: Colors.red) : null,
                       title: Text(
                         opt,
                         style: TextStyle(
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected ? kAccent : Colors.black87,
+                          fontWeight: (isSelected || isClearOption) ? FontWeight.bold : FontWeight.w500,
+                          color: isClearOption 
+                              ? Colors.red 
+                              : (isSelected ? kAccent : Colors.black87),
                           fontSize: 16,
                         ),
                       ),
-                      trailing: isSelected
-                          ? const Icon(Icons.check_circle, color: kAccent)
-                          : const Icon(Icons.circle_outlined, color: Colors.black12),
+                      trailing: isClearOption 
+                          ? null 
+                          : (isSelected
+                              ? const Icon(Icons.check_circle, color: kAccent)
+                              : const Icon(Icons.circle_outlined, color: Colors.black12)),
                       onTap: () {
                         HapticFeedback.lightImpact();
                         Navigator.pop(context);

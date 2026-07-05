@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -69,8 +70,7 @@ class LocationService {
 
       // Get current position
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        locationSettings: _getLocationSettings(timeLimit: const Duration(seconds: 10)),
       );
 
       _currentPosition = position;
@@ -135,11 +135,42 @@ class LocationService {
   /// Start listening to location updates
   Stream<Position> getLocationStream() {
     return Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Update every 10 meters
-      ),
+      locationSettings: _getLocationSettings(),
     );
+  }
+
+  LocationSettings _getLocationSettings({Duration? timeLimit}) {
+    if (kIsWeb) {
+      return LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+        timeLimit: timeLimit,
+      );
+    }
+    
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return AndroidSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+          forceLocationManager: true, // Fix for NmeaClient native crash
+          timeLimit: timeLimit,
+        );
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        return AppleSettings(
+          accuracy: LocationAccuracy.high,
+          activityType: ActivityType.fitness,
+          distanceFilter: 10,
+          timeLimit: timeLimit,
+        );
+      default:
+        return LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+          timeLimit: timeLimit,
+        );
+    }
   }
 
   /// Stop location updates

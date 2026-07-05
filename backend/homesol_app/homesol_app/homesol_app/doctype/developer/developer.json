@@ -254,11 +254,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-11 12:13:26.838882",
- "modified_by": "Administrator",
+ "modified": "2026-06-22 01:29:41.779192",
+ "modified_by": "admin@homesolindia.com",
  "module": "Homesol App",
  "name": "Developer",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "devangkh1206@gmail.com",
  "permissions": [
   {
@@ -276,8 +276,10 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "developer_name"
+ "title_field": "developer_name",
+ "translated_doctype": 1
 }

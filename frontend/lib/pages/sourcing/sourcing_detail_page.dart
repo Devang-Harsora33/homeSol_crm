@@ -8,12 +8,14 @@ import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'sourcing_create_page.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:Homesol/components/sourcing_questionnaire_popup.dart';
 
 const Color goldAccent = Color(0xFF675D40);
+const Color kBackgroundColor = Color(0xFFF5F7FA);
 const Color matteBlack = Color(0xFF1A1A1A);
 const Color offWhite = Color(0xFFF9F9F9);
-const Color kBackgroundColor = Color(0xFFF2F2F7);
 
 class SourcingDetailPage extends StatefulWidget {
   final Sourcing sourcing;
@@ -28,32 +30,30 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
   late Sourcing _sourcing;
   bool _isLoading = false;
   String? _cpFirmName;
-  String? _projectName;
+  List<String> _projectNames = [];
 
   @override
   void initState() {
     super.initState();
-    ScreenProtector.preventScreenshotOn();
+    // ScreenProtector.preventScreenshotOn();
     _sourcing = widget.sourcing;
     _refreshData();
   }
 
   @override
   void dispose() {
-    ScreenProtector.preventScreenshotOff();
+    // ScreenProtector.preventScreenshotOff();
     super.dispose();
   }
 
   Future<void> _refreshData() async {
     setState(() => _isLoading = true);
     try {
-      // Fetch full details as the list view might have partial data
       final updated = await SourcingService.getSourcingDetail(_sourcing.name!);
       if (updated != null) {
         _sourcing = updated;
       }
       
-      // Load CP and Project names in parallel
       await Future.wait([
         _loadCPData(),
         _loadProjectData(),
@@ -85,20 +85,36 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
   }
 
   Future<void> _loadProjectData() async {
-    if (_sourcing.interestedProject == null) return;
+    if (_sourcing.interestedProject == null || _sourcing.interestedProject!.isEmpty) {
+      setState(() => _projectNames = []);
+      return;
+    }
     
     try {
       final projects = await ProjectService.fetchApiProjects();
-      final matched = projects.where((p) => p['id'] == _sourcing.interestedProject).toList();
-      if (matched.isNotEmpty) {
-        _projectName = matched.first['name'];
+      final List<String> names = [];
+      for (var ip in _sourcing.interestedProject!) {
+        final matched = projects.where((p) => p['id'] == ip.project).toList();
+        if (matched.isNotEmpty && matched.first['name'] != null) {
+          names.add(matched.first['name']!);
+        } else if (ip.project != null) {
+          names.add(ip.project!);
+        }
       }
+      setState(() {
+        _projectNames = names;
+      });
     } catch (e) {
       debugPrint('Error loading project data: $e');
     }
   }
 
   Future<void> _updateStatus(int status) async {
+    if (status == 1 && _sourcing.visitStatus == 'Visit Scheduled') {
+      await _askForDurationAndSubmit();
+      return;
+    }
+
     setState(() => _isLoading = true);
     final errorMsg = await SourcingService.updateDocStatus(_sourcing.name!, status);
     
@@ -111,6 +127,234 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
       if (mounted) {
         setState(() => _isLoading = false);
         CustomSnackBar.show(context, message: 'Failed to update status: $errorMsg', isError: true, title: 'Error');
+      }
+    }
+  }
+
+  String _calculateDurationString(int minutes) {
+    if (minutes < 60) return '$minutes mins';
+    final hours = minutes ~/ 60;
+    final remainingMins = minutes % 60;
+    if (remainingMins == 0) {
+      return '$hours Hour${hours > 1 ? 's' : ''}';
+    }
+    return '$hours Hour${hours > 1 ? 's' : ''} and $remainingMins mins';
+  }
+
+  void _showQuestionnairePopup(Sourcing source, [int? calculatedMinutes]) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SourcingQuestionnairePopup(
+        source: source,
+        initialCalculatedMinutes: calculatedMinutes,
+        durationStringGenerator: _calculateDurationString,
+        onSaved: () => _refreshData(),
+      ),
+    );
+  }
+
+  Future<void> _showAutoOpenBottomSheet(Sourcing source, int minutes) async {
+    bool cancelled = false;
+    bool isFinished = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (BuildContext bContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 5.0, end: 0.0),
+              duration: const Duration(seconds: 5),
+              onEnd: () {
+                if (!cancelled) {
+                  isFinished = true;
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                  _showQuestionnairePopup(source, minutes);
+                }
+              },
+              builder: (context, value, child) {
+                return Container(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+                      const SizedBox(height: 24),
+                      const Icon(Icons.timer_outlined, size: 48, color: goldAccent),
+                      const SizedBox(height: 16),
+                      const Text('Sourcing Submitted!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: matteBlack)),
+                      const SizedBox(height: 8),
+                      Text('Duration recorded as ${_calculateDurationString(minutes)}.', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                      const SizedBox(height: 24),
+                      Text('Opening Questionnaire in ${value.ceil()}s...', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: goldAccent)),
+                      const SizedBox(height: 16),
+                      LinearProgressIndicator(
+                        value: value / 5.0,
+                        backgroundColor: Colors.grey[200],
+                        valueColor: const AlwaysStoppedAnimation<Color>(goldAccent),
+                        borderRadius: BorderRadius.circular(8),
+                        minHeight: 8,
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            cancelled = true;
+                            Navigator.pop(context);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey[700],
+                            side: BorderSide(color: Colors.grey[300]!),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('CANCEL', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    ).then((_) {
+      if (!cancelled && !isFinished) {
+        cancelled = true;
+      }
+    });
+  }
+
+  Future<void> _askForDurationAndSubmit() async {
+    double visitDuration = 15;
+    final minutes = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              title: const Text('Visit Duration', style: TextStyle(fontWeight: FontWeight.bold, color: matteBlack)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Please select the duration of the visit:'),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Duration', style: TextStyle(fontWeight: FontWeight.bold, color: matteBlack)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: goldAccent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _calculateDurationString(visitDuration.toInt()),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: goldAccent,
+                      inactiveTrackColor: goldAccent.withOpacity(0.1),
+                      thumbColor: goldAccent,
+                      trackHeight: 4,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                      overlayColor: goldAccent.withOpacity(0.1),
+                      valueIndicatorColor: goldAccent,
+                      valueIndicatorTextStyle: const TextStyle(color: Colors.white),
+                    ),
+                    child: Slider(
+                      value: visitDuration,
+                      min: 0,
+                      max: 60,
+                      divisions: 60,
+                      label: '${visitDuration.toInt()} mins',
+                      onChanged: (v) => setDialogState(() => visitDuration = v),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('0 min', style: TextStyle(fontSize: 10, color: Colors.grey[400], fontWeight: FontWeight.w500)),
+                        Text('1 hr', style: TextStyle(fontSize: 10, color: Colors.grey[400], fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (visitDuration > 0) {
+                      Navigator.pop(context, visitDuration.toInt());
+                    } else {
+                      CustomSnackBar.show(context, message: 'Please select a valid duration', isError: true, title: 'Error');
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: goldAccent),
+                  child: const Text('CONFIRM', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (minutes != null) {
+      setState(() => _isLoading = true);
+      try {
+        await SourcingService.updateSourcingFields(_sourcing.name!, {
+          'visit_duration': '$minutes mins',
+          'visit_status': 'Visit Done',
+        });
+        setState(() {
+          _sourcing.visitStatus = 'Visit Done';
+          _sourcing.visitDuration = '$minutes mins';
+        });
+        final errorMsg = await SourcingService.updateDocStatus(_sourcing.name!, 1);
+        
+        if (errorMsg == null) {
+          await _refreshData();
+          if (mounted) {
+            _showAutoOpenBottomSheet(_sourcing, minutes);
+          }
+        } else {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            CustomSnackBar.show(context, message: 'Failed to update status: $errorMsg', isError: true, title: 'Error');
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          CustomSnackBar.show(context, message: 'An error occurred: $e', isError: true, title: 'Error');
+        }
       }
     }
   }
@@ -149,19 +393,20 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
         backgroundColor: Colors.white, 
         surfaceTintColor: Colors.transparent, 
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Confirm Delete', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text('Are you sure you want to permanently delete this sourcing entry?'),
+        title: const Text('Confirm Delete', style: TextStyle(fontWeight: FontWeight.w900, color: matteBlack)),
+        content: const Text('Are you sure you want to permanently delete this sourcing entry?', style: TextStyle(color: Colors.black87)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('CANCEL', style: TextStyle(color: Colors.grey[600])),
+            child: Text('CANCEL', style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('DELETE', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
-      ),    );
+      ),
+    );
 
     if (confirm == true) {
       setState(() => _isLoading = true);
@@ -183,254 +428,438 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: kBackgroundColor,
+        body: Center(child: CircularProgressIndicator(color: goldAccent)),
+      );
+    }
+
     return Scaffold(
       backgroundColor: kBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Sourcing Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        foregroundColor: matteBlack,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.pop(context, true),
-        ),
-        actions: [
-          if (_sourcing.docstatus == 0)
-            IconButton(
-              icon: const Icon(Icons.edit_rounded),
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SourcingCreatePage(existingSourcing: _sourcing),
-                  ),
-                );
-                if (result == true) {
-                  final sources = await SourcingService.getMySources();
-                  if (mounted) {
-                    setState(() {
-                      _sourcing = sources.firstWhere((s) => s.name == _sourcing.name);
-                    });
-                    _loadCPData();
-                  }
-                }
-              },
-            ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: goldAccent))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeaderCard(),
-                  const SizedBox(height: 16),
-                  _buildSectionCard('Channel Partner Details', [
-                    _infoRow(Icons.business_rounded, "Channel Partner", _cpFirmName ?? _sourcing.channelPartnerId ?? 'N/A'),
-                  ]),
-                  const SizedBox(height: 16),
-                  _buildSectionCard('Contact Information', [
-                    _infoRow(Icons.person_outline, "Contact Person", _sourcing.contactPersonMet),
-                    _infoRow(Icons.phone_android_rounded, "Mobile", _sourcing.mobileNumber),
-                    _infoRow(Icons.chat_bubble_outline_rounded, "WhatsApp", _sourcing.whatsappNumber),
-                  ]),
-                  const SizedBox(height: 16),
-                  _buildSectionCard('Visit Details', [
-                    _infoRow(Icons.info_outline_rounded, "Visit Status", _sourcing.visitStatus, isStatus: true),
-                    _infoRow(Icons.category_outlined, "Visit Type", _sourcing.visitType),
-                    _infoRow(Icons.favorite_outline, "CP Interest", _sourcing.cpInterest),
-                    _infoRow(Icons.apartment_rounded, "Interested Project", _projectName ?? _sourcing.interestedProject),
-                    _infoRow(Icons.notification_important_outlined, "Next Follow-up", _sourcing.nextFollowUp != null ? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(_sourcing.nextFollowUp!)) : 'N/A'),
-                    _infoRow(Icons.calendar_today_rounded, "Visit Date", _sourcing.visitDate != null ? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(_sourcing.visitDate!)) : 'N/A'),
-                    _infoRow(Icons.notes_rounded, "Remark", _sourcing.remark),
-                    const Divider(height: 24),
-                    _infoRow(Icons.timer_outlined, "Visit Duration", "${_sourcing.visitDuration ?? 'N/A'} "),
-                    _infoRow(Icons.coffee_outlined, "Did he offer coffee?", _sourcing.offeredCoffee == 1 ? "Yes" : "No"),
-                    _infoRow(Icons.person_pin_outlined, "Did you meet the owner?", _sourcing.metTheOwner == 1 ? "Yes" : "No"),
-                    _infoRow(Icons.trending_up_rounded, "Did the client ask about recent price trends in the area?", _sourcing.askedAboutPriceTrends == 1 ? "Yes" : "No"),
-                    _infoRow(Icons.build_outlined, "Is the client considering redevelopment properties?", _sourcing.consideringRedevelopment == 1 ? "Yes" : "No"),
-                    _infoRow(Icons.percent_rounded, "Are they concerned about current home loan interest rates?", _sourcing.concernedAboutInterestRates == 1 ? "Yes" : "No"),
-                    _infoRow(Icons.compare_arrows_rounded, "Did they compare this locality to a neighboring micro-market?", _sourcing.comparedMicroMarkets == 1 ? "Yes" : "No"),
-                    _infoRow(Icons.verified_user_outlined, "Is the client strictly looking for RERA-registered projects?", _sourcing.strictlyReraRegistered == 1 ? "Yes" : "No"),
-                  ]),
-                  const SizedBox(height: 16),
-                  _buildLocationCard(),
-                  const SizedBox(height: 24),
-                  _buildActionButtons(),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Widget _buildHeaderCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: matteBlack,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
+      body: Stack(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: goldAccent.withOpacity(0.2),
-                  shape: BoxShape.circle,
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              _buildSliverAppBar(),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildMetricsGrid(),
+                      const SizedBox(height: 24),
+                      _buildSectionCard('Contact Information', [
+                        _infoRow(Icons.business_rounded, "Channel Partner", _cpFirmName ?? _sourcing.channelPartnerId ?? 'N/A'),
+                        _infoRow(Icons.person_outline, "Contact Person", _sourcing.contactPersonMet),
+                        _infoRow(Icons.phone_android_rounded, "Mobile", _sourcing.mobileNumber),
+                        _infoRow(Icons.chat_bubble_outline_rounded, "WhatsApp", _sourcing.whatsappNumber),
+                      ]),
+                      const SizedBox(height: 24),
+                      _buildSectionCard('Meeting Details', [
+                        _infoRow(Icons.info_outline_rounded, "Visit Status", _sourcing.visitStatus, isStatus: true),
+                        _infoRow(Icons.calendar_today_rounded, "Visit Date", _sourcing.visitDate != null ? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(_sourcing.visitDate!)) : 'N/A'),
+                        _infoRow(Icons.notification_important_outlined, "Next Follow-up", _sourcing.nextFollowUp != null ? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(_sourcing.nextFollowUp!)) : 'N/A'),
+                        _infoRow(Icons.coffee_outlined, "Offered Coffee?", _sourcing.offeredCoffee == 1 ? "Yes" : "No"),
+                        _infoRow(Icons.person_pin_outlined, "Met the owner?", _sourcing.metTheOwner == 1 ? "Yes" : "No"),
+                        _infoRow(Icons.home_work_outlined, "Current Demand", _sourcing.currentDemand == null || _sourcing.currentDemand!.isEmpty ? 'N/A' : _sourcing.currentDemand),
+                        _infoRow(Icons.notes_rounded, "Remark", _sourcing.remark),
+                      ]),
+                      const SizedBox(height: 24),
+                      _buildSectionCard('Projects & Location', [
+                        _buildProjectsWrap(),
+                        const SizedBox(height: 16),
+                        _buildLocationCardInner(),
+                      ]),
+                      const SizedBox(height: 100), // padding for floating bar
+                    ],
+                  ),
                 ),
-                child: const Icon(Icons.source_rounded, color: goldAccent, size: 30),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _sourcing.name ?? 'N/A',
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _cpFirmName ?? _sourcing.contactPersonMet ?? 'Unknown Contact',
-                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-              _buildDocStatusBadge(_sourcing.docstatus ?? 0),
             ],
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _buildFloatingBottomBar(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDocStatusBadge(int status) {
-    String text = 'Draft';
-    Color color = Colors.orange;
-    if (status == 1) {
-      text = 'Submitted';
-      color = Colors.green;
-    } else if (status == 2) {
-      text = 'Cancelled';
-      color = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.4)),
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 300.0,
+      floating: false,
+      pinned: true,
+      backgroundColor: matteBlack,
+      elevation: 0,
+      stretch: true,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+        onPressed: () => Navigator.pop(context, true),
       ),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+      actions: [
+        if (_sourcing.docstatus == 0)
+          IconButton(
+            icon: const Icon(Icons.edit_rounded, color: Colors.white, size: 20),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SourcingCreatePage(existingSourcing: _sourcing),
+                ),
+              );
+              if (result == true) {
+                final sources = await SourcingService.getMySources();
+                if (mounted) {
+                  setState(() {
+                    _sourcing = sources.firstWhere((s) => s.name == _sourcing.name);
+                  });
+                  _loadCPData();
+                }
+              } else if (result is Map && result['refresh'] == true) {
+                 if (mounted) Navigator.pop(context, result);
+              }
+            },
+          ),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        stretchModes: const [StretchMode.zoomBackground],
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [Color(0xFF3A3A3A), matteBlack],
+                  center: Alignment.topCenter,
+                  radius: 1.2,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 30),
+                  Hero(
+                    tag: 'sourcing_avatar_${_sourcing.name}',
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: goldAccent.withOpacity(0.5), width: 2),
+                        boxShadow: [
+                          BoxShadow(color: goldAccent.withOpacity(0.2), blurRadius: 20, spreadRadius: 5),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 48,
+                        backgroundColor: Colors.white,
+                        child: Text(
+                          (_cpFirmName?.isNotEmpty ?? false) ? _cpFirmName![0].toUpperCase() : 'S',
+                          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: goldAccent),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    _sourcing.name ?? 'N/A',
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _cpFirmName ?? _sourcing.contactPersonMet ?? 'Unknown Contact',
+                          style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _buildDocStatusBadge(_sourcing.docstatus ?? 0),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildLocationCard() {
+  Widget _buildDocStatusBadge(int status) {
+    String text = 'DRAFT';
+    Color color = Colors.orange;
+    if (status == 1) {
+      text = 'SUBMITTED';
+      color = Colors.green;
+    } else if (status == 2) {
+      text = 'CANCELLED';
+      color = Colors.grey;
+    }
+
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+      ),
+    );
+  }
+
+  Widget _buildVisitTypeCard() {
+    bool isOpen = (_sourcing.visitType ?? 'Open') != 'Close';
+    return GestureDetector(
+      onTap: () async {
+        final newType = isOpen ? 'Close' : 'Open';
+        setState(() {
+          _sourcing.visitType = newType;
+        });
+        try {
+          await SourcingService.updateSourcingFields(_sourcing.name!, {
+            'visit_type': newType,
+          });
+        } catch (e) {
+          debugPrint('Failed to save visit_type: $e');
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isOpen ? Colors.green.withOpacity(0.05) : Colors.redAccent.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isOpen ? Colors.green.withOpacity(0.3) : Colors.redAccent.withOpacity(0.3), width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(isOpen ? Icons.lock_open_rounded : Icons.lock_outline_rounded, size: 18, color: isOpen ? Colors.green : Colors.redAccent),
+                const SizedBox(width: 8),
+                Text('Visit Type', style: TextStyle(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isOpen ? 'Open' : 'Close',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: isOpen ? Colors.green : Colors.redAccent,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricsGrid() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildVisitTypeCard()),
+            const SizedBox(width: 16),
+            Expanded(child: _buildMetricCard('Interest', _sourcing.cpInterest ?? 'N/A', Icons.favorite_outline, const Color(0xFFF39C12))),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: _buildMetricCard('Duration', '${_sourcing.visitDuration ?? 'N/A'}', Icons.timer_outlined, const Color(0xFF9B59B6))),
+            const SizedBox(width: 16),
+            Expanded(child: _buildMetricCard('Outlook', _sourcing.marketOutlook?.toString() ?? '0', Icons.trending_up_rounded, _getOutlookColor((_sourcing.marketOutlook ?? 0).toDouble()))),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 8)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: matteBlack)),
-          const SizedBox(height: 16),
-          _infoRow(Icons.location_on_outlined, "Address", _sourcing.address),
-          const SizedBox(height: 8),
-          if (_sourcing.location != null && _sourcing.location!.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Map Preview", style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                const SizedBox(height: 10),
-                GestureDetector(
-                  onTap: _openInMaps,
-                  child: Container(
-                    height: 150,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: offWhite,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                      image: const DecorationImage(
-                        image: NetworkImage('https://static-maps.yandex.ru/1.x/?lang=en_US&ll=72.8529,19.2098&z=12&l=map&size=450,150'), // Dynamic placeholder or grid
-                        fit: BoxFit.cover,
-                        opacity: 0.3,
-                      ),
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Grid pattern overlay for "map" look if image fails
-                        Positioned.fill(
-                          child: CustomPaint(
-                            painter: GridPainter(),
-                          ),
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 40),
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: matteBlack.withOpacity(0.8),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'Tap to View on Google Maps',
-                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Positioned(
-                          bottom: 8,
-                          right: 12,
-                          child: Text(
-                            _getCoordinatesDisplay(),
-                            style: TextStyle(fontSize: 10, color: matteBlack.withOpacity(0.5), fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                child: Icon(icon, size: 20, color: color),
+              ),
+              Expanded(
+                child: Text(
+                  value,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: matteBlack, letterSpacing: -0.5),
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            )
-          else
-            _infoRow(Icons.map_outlined, "Coordinates", "Not captured"),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProjectsWrap() {
+    if (_projectNames.isEmpty) {
+      return _infoRow(Icons.apartment_rounded, "Interested Project", 'N/A');
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: const BoxDecoration(color: kBackgroundColor, shape: BoxShape.circle),
+              child: const Icon(Icons.apartment_rounded, size: 18, color: goldAccent),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Interested Projects", style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.only(left: 54.0),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _projectNames.map((name) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.withOpacity(0.2)),
+              ),
+              child: Text(
+                name,
+                style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w800, fontSize: 12),
+              ),
+            )).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocationCardInner() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _infoRow(Icons.location_on_outlined, "Address", _sourcing.address),
+        if (_sourcing.location != null && _sourcing.location!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text("Map Preview", style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _openInMaps,
+            child: Container(
+              height: 150,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: offWhite,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+                image: const DecorationImage(
+                  image: NetworkImage('https://static-maps.yandex.ru/1.x/?lang=en_US&ll=72.8529,19.2098&z=12&l=map&size=450,150'),
+                  fit: BoxFit.cover,
+                  opacity: 0.3,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned.fill(child: CustomPaint(painter: GridPainter())),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.location_on_rounded, color: Colors.redAccent, size: 40),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: matteBlack.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text('Tap to View on Maps', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    bottom: 8,
+                    right: 12,
+                    child: Text(
+                      _getCoordinatesDisplay(),
+                      style: TextStyle(fontSize: 10, color: matteBlack.withOpacity(0.5), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          const SizedBox(height: 8),
+          _infoRow(Icons.map_outlined, "Coordinates", "Not captured"),
+        ],
+      ],
     );
   }
 
   Widget _buildSectionCard(String title, List<Widget> children) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
         ],
@@ -438,33 +867,52 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: matteBlack)),
-          const SizedBox(height: 16),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: matteBlack, letterSpacing: 0.5)),
+          const SizedBox(height: 24),
           ...children,
         ],
       ),
     );
   }
 
-  Widget _infoRow(IconData icon, String label, String? value, {bool isStatus = false}) {
+  Color _getOutlookColor(double value) {
+    if (value < 0) {
+      return Color.lerp(Colors.redAccent, Colors.grey.shade400, (value + 5) / 5)!;
+    } else {
+      return Color.lerp(Colors.grey.shade400, const Color(0xFF4C6645), value / 5)!;
+    }
+  }
+
+  Widget _infoRow(IconData icon, String label, String? value, {bool isStatus = false, Color? color}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: goldAccent),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: kBackgroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: goldAccent),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                const SizedBox(height: 2),
+                Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                const SizedBox(height: 4),
                 isStatus 
                   ? _buildStatusBadge(value ?? 'N/A')
                   : Text(
                       value == null || value.isEmpty ? 'Not Provided' : value,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: matteBlack),
+                      style: TextStyle(
+                        fontSize: 14, 
+                        fontWeight: FontWeight.w800, 
+                        color: color ?? matteBlack,
+                      ),
                     ),
               ],
             ),
@@ -483,85 +931,74 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
       case 'Interested': color = Colors.green; break;
       case 'Not Interested': color = Colors.red; break;
       case 'Follow-up': color = Colors.orange; break;
-      default: color = Colors.blue;
+      default: color = Colors.blueGrey;
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(status, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+      child: Text(status, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w900)),
     );
   }
 
-
-
-  Widget _buildActionButtons() {
-    return Column(
-      children: [
-        if (_sourcing.docstatus == 0) ...[
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(
-              onPressed: () => _updateStatus(1),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: goldAccent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 0,
+  Widget _buildFloatingBottomBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -5)),
+        ],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Row(
+        children: [
+          if (_sourcing.docstatus == 0) ...[
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => _updateStatus(1),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: matteBlack,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: const Text('SUBMIT', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1, fontSize: 13)),
               ),
-              child: const Text('SUBMIT SOURCING', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: OutlinedButton(
+            const SizedBox(width: 12),
+          ] else if (_sourcing.docstatus == 1) ...[
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => _updateStatus(2),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.redAccent, width: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('CANCEL SOURCING', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1, fontSize: 13)),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          
+          if (_sourcing.docstatus != 1)
+            IconButton(
               onPressed: _delete,
-              style: OutlinedButton.styleFrom(
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.red.withOpacity(0.1),
                 foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.all(16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text('DELETE SOURCING', style: TextStyle(fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.delete_outline_rounded),
             ),
-          ),
-          const SizedBox(height: 12),
         ],
-        if (_sourcing.docstatus == 1) ...[
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: OutlinedButton(
-              onPressed: () => _updateStatus(2),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: const Text('CANCEL SOURCING', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (_sourcing.docstatus == 2) ...[
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(
-              onPressed: _delete,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 0,
-              ),
-              child: const Text('DELETE SOURCING', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-            ),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }

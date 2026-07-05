@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import now_datetime, getdate, today, flt
+from frappe.utils import now_datetime, getdate, today, flt , add_days
 import json
 
 # --- Attendance & Check-in ---
@@ -223,6 +223,135 @@ def get_my_leave_applications():
         "status": "success",
         "data": applications
     }
+
+
+
+
+@frappe.whitelist()
+def get_team_checkins(days=7):
+    user = frappe.session.user
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    
+    if not employee:
+        return []
+
+    # Calculate the cutoff datetime (e.g., exactly 7 days ago at midnight)
+    cutoff_date = add_days(today(), -int(days))
+    cutoff_datetime = f"{cutoff_date} 00:00:00"
+
+    # 1. Personal Checkins
+    personal_checkins = frappe.get_all(
+        "Employee Checkin",
+        filters={
+            "employee": employee,
+            "time": [">=", cutoff_datetime]  # --- NEW DATE FILTER ---
+        },
+        fields=['*'],  
+        order_by="time desc",
+        ignore_permissions=True
+    )
+
+    team_checkins = []
+
+    # 2. Team Checkins
+    led_teams = frappe.get_all(
+        "Sales Team Member", 
+        filters={"employee": employee, "role": "Team Lead"}, 
+        fields=["parent"]
+    )
+
+    if led_teams:
+        team_names = [t.parent for t in led_teams]
+        team_employees = frappe.get_all(
+            "Sales Team Member", 
+            filters={
+                "parent": ["in", team_names], 
+                "employee": ["!=", employee]
+            }, 
+            fields=["employee"]
+        )
+        
+        emp_ids = list(set([e.employee for e in team_employees if e.employee]))
+        
+        if emp_ids:
+            team_checkins = frappe.get_all(
+                "Employee Checkin",
+                filters={
+                    "employee": ["in", emp_ids],
+                    "time": [">=", cutoff_datetime]  # --- NEW DATE FILTER ---
+                },
+                fields=['*'],  
+                order_by="time desc",
+                ignore_permissions=True
+            )
+
+    all_checkins = personal_checkins + team_checkins
+    all_checkins.sort(key=lambda x: str(x.get('time', '')), reverse=True)
+
+    return all_checkins
+
+
+@frappe.whitelist()
+def get_team_attendances(days=7):
+    user = frappe.session.user
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    
+    if not employee:
+        return []
+
+    # Calculate the cutoff date (e.g., exactly 7 days ago)
+    cutoff_date = add_days(today(), -int(days))
+
+    # 1. Personal Attendances
+    personal_attendances = frappe.get_all(
+        "Attendance",
+        filters={
+            "employee": employee,
+            "attendance_date": [">=", cutoff_date]  # --- NEW DATE FILTER ---
+        },
+        fields=['*'],  
+        order_by="attendance_date desc",
+        ignore_permissions=True
+    )
+
+    team_attendances = []
+
+    # 2. Team Attendances
+    led_teams = frappe.get_all(
+        "Sales Team Member", 
+        filters={"employee": employee, "role": "Team Lead"}, 
+        fields=["parent"]
+    )
+
+    if led_teams:
+        team_names = [t.parent for t in led_teams]
+        team_employees = frappe.get_all(
+            "Sales Team Member", 
+            filters={
+                "parent": ["in", team_names], 
+                "employee": ["!=", employee]
+            }, 
+            fields=["employee"]
+        )
+        
+        emp_ids = list(set([e.employee for e in team_employees if e.employee]))
+        
+        if emp_ids:
+            team_attendances = frappe.get_all(
+                "Attendance",
+                filters={
+                    "employee": ["in", emp_ids],
+                    "attendance_date": [">=", cutoff_date]  # --- NEW DATE FILTER ---
+                },
+                fields=['*'],  
+                order_by="attendance_date desc",
+                ignore_permissions=True
+            )
+
+    all_attendances = personal_attendances + team_attendances
+    all_attendances.sort(key=lambda x: str(x.get('attendance_date', '')), reverse=True)
+
+    return all_attendances
 
 #-------Salary APIs-------#
 

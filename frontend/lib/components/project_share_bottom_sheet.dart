@@ -20,9 +20,19 @@ const Color kAccent = Color(0xFF1A1A1A);
 
 class ProjectShareBottomSheet extends StatefulWidget {
   final Project project;
-  final Lead lead;
+  final Lead? lead;
+  final Set<int>? initialSelectedDocIndices;
+  final Set<int>? initialSelectedImageIndices;
+  final Set<int>? initialSelectedBrochureIndices;
 
-  const ProjectShareBottomSheet({super.key, required this.project, required this.lead});
+  const ProjectShareBottomSheet({
+    super.key, 
+    required this.project, 
+    this.lead,
+    this.initialSelectedDocIndices,
+    this.initialSelectedImageIndices,
+    this.initialSelectedBrochureIndices,
+  });
 
   @override
   State<ProjectShareBottomSheet> createState() => _ProjectShareBottomSheetState();
@@ -37,13 +47,28 @@ class _ProjectShareBottomSheetState extends State<ProjectShareBottomSheet> {
   String _currentUserPhone = '';
 
   bool _includeGeneralInfo = true;
-  final Set<int> _selectedDocIndices = {};
-  final Set<int> _selectedImageIndices = {};
-  final Set<int> _selectedBrochureIndices = {};
+  late Set<int> _selectedDocIndices;
+  late Set<int> _selectedImageIndices;
+  late Set<int> _selectedBrochureIndices;
 
   @override
   void initState() {
     super.initState();
+    _selectedDocIndices = widget.initialSelectedDocIndices != null 
+        ? Set.from(widget.initialSelectedDocIndices!) 
+        : {};
+    _selectedImageIndices = widget.initialSelectedImageIndices != null 
+        ? Set.from(widget.initialSelectedImageIndices!) 
+        : {};
+    _selectedBrochureIndices = widget.initialSelectedBrochureIndices != null 
+        ? Set.from(widget.initialSelectedBrochureIndices!) 
+        : {};
+    
+    // If something specific is pre-selected, maybe we don't want to spam general info by default?
+    // Actually, usually they want the text + the file.
+    // Let's keep _includeGeneralInfo = true for now, but if only files are selected, 
+    // maybe we should be smart about it.
+    
     _loadUserEmail();
   }
 
@@ -69,9 +94,18 @@ class _ProjectShareBottomSheetState extends State<ProjectShareBottomSheet> {
     } catch (_) {}
   }
 
-  String _formatBudget(int num) {
-    if (num == 0) return '0';
-    return '${(num / 10000000).toStringAsFixed(2)} Cr';
+  String _formatBudget(double price) {
+    if (price == 0) return '0';
+    // If price is a small number (e.g. 0.8), it's already in Crores
+    if (price < 10) {
+      return '${price.toStringAsFixed(2)} Cr';
+    }
+    // If price is a medium number (e.g. 80), it's in Lakhs
+    if (price < 100000) {
+      return '${(price / 100).toStringAsFixed(2)} Cr';
+    }
+    // If price is a large number (e.g. 8,000,000), it's in Rupees
+    return '${(price / 10000000).toStringAsFixed(2)} Cr';
   }
 
   String _generateGeneralInfo() {
@@ -99,7 +133,7 @@ class _ProjectShareBottomSheetState extends State<ProjectShareBottomSheet> {
       buffer.writeln("📍 *Configuration & Pricing:*");
       for (var c in p.configurations) {
         buffer.writeln("- ${c.name}");
-        buffer.writeln("${c.carpetArea} Sq.Ft - ${_formatBudget(c.price.toInt())}** Onwards \n");
+        buffer.writeln("${c.carpetArea} Sq.Ft - ${_formatBudget(c.price)}** Onwards \n");
       }
     }
 
@@ -226,13 +260,16 @@ class _ProjectShareBottomSheetState extends State<ProjectShareBottomSheet> {
       }
 
       // 3. Format phone
-      String phone = (widget.lead.whatsappNo?.isNotEmpty == true) 
-          ? widget.lead.whatsappNo! 
-          : widget.lead.customerPhone;
-      
-      phone = phone.trim().replaceAll(RegExp(r'[^0-9]'), '');
-      if (phone.startsWith('0')) phone = phone.substring(1);
-      if (phone.length == 10) phone = '91$phone';
+      String phone = '';
+      if (widget.lead != null) {
+        phone = (widget.lead!.whatsappNo?.isNotEmpty == true) 
+            ? widget.lead!.whatsappNo! 
+            : widget.lead!.customerPhone;
+        
+        phone = phone.trim().replaceAll(RegExp(r'[^0-9]'), '');
+        if (phone.startsWith('0')) phone = phone.substring(1);
+        if (phone.length == 10) phone = '91$phone';
+      }
 
       // 4. Execute Sharing
       if (phone.isNotEmpty) {

@@ -1,0 +1,38 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Sign and Push a new beta build to TestFlight"
+  lane :beta do
+    # 1. Authenticate with App Store Connect
+    app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_API_PRIVATE_KEY"],
+      is_key_content_base64: false
+    )
+    
+    # 2. Package and sign the IPA manually using your provision profile
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      team_id: "D4V52F9AUT", # Matches your Team ID from the logs
+      bundle_identifier: "com.devangharsora.homesolerp2026",
+      profile_name: "Homesol_Nexus_AppStore_Profile" # Make sure this matches the exact name you gave it in Part 2!
+    )
+
+    build_ios_app(
+      scheme: "Runner",
+      archive_path: "../build/ios/archive/Runner.xcarchive",
+      output_directory: "../build/ios/ipa",
+      output_name: "Runner.ipa",
+      export_method: "app-store", # Changed back to satisfy Fastlane validation
+      skip_build_archive: true,
+      export_team_id: "D4V52F9AUT" # Keeps your team mapping intact
+    )
+    
+    # 3. Upload the finalized signed binary to TestFlight
+    upload_to_testflight(
+      ipa: "../build/ios/ipa/Runner.ipa",
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

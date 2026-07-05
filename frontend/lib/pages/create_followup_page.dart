@@ -1,4 +1,5 @@
 import 'package:Homesol/services/apis/leads/lead_service.dart';
+import 'package:Homesol/services/notification_service.dart';
 import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -179,6 +180,47 @@ class _CreateFollowUpScreenState extends State<CreateFollowUpScreen> {
 
       final error = await LeadService.createFollowup(body);
       if (error == null) {
+        // --- Schedule Reminders if status is Open and next_follow_up is set ---
+        if (_status == 'Open' && _nextFollowUpController.text.isNotEmpty) {
+          try {
+            final now = DateTime.now();
+            final nextDt = DateFormat('yyyy-MM-dd HH:mm:ss').parse(_nextFollowUpController.text);
+            final leadName = _leadDisplayController.text;
+
+            // 5-minute reminder
+            if (nextDt.isAfter(now.add(const Duration(minutes: 5)))) {
+              final reminderTime = nextDt.subtract(const Duration(minutes: 5));
+              final delay = reminderTime.difference(now);
+              
+              NotificationService.instance.scheduleTimerNotification(
+                id: nextDt.millisecondsSinceEpoch.hashCode + 40,
+                title: 'Upcoming Lead Follow-up (5m)',
+                body: 'Follow-up with $leadName scheduled in 5 minutes.',
+                delay: delay,
+              );
+              debugPrint('[CreateFollowup] Scheduled 5m reminder for $nextDt');
+            }
+
+            // 1-minute reminder
+            if (nextDt.isAfter(now.add(const Duration(minutes: 1)))) {
+              final reminderTime = nextDt.subtract(const Duration(minutes: 1));
+              final delay = reminderTime.difference(now);
+              
+              if (delay.inSeconds > 0) {
+                NotificationService.instance.scheduleTimerNotification(
+                  id: nextDt.millisecondsSinceEpoch.hashCode + 41,
+                  title: 'Upcoming Lead Follow-up (1m)',
+                  body: 'Follow-up with $leadName scheduled in 1 minute.',
+                  delay: delay,
+                );
+                debugPrint('[CreateFollowup] Scheduled 1m reminder for $nextDt');
+              }
+            }
+          } catch (e) {
+            debugPrint('[CreateFollowup] Error parsing date for reminders: $e');
+          }
+        }
+
         CustomSnackBar.show(context, message: 'Follow-up created successfully', isError: false, title: 'Notice');
         widget.onFollowUpCreated?.call();
         Navigator.pop(context);
@@ -313,7 +355,9 @@ class _CreateFollowUpScreenState extends State<CreateFollowUpScreen> {
                 _styledTextField(
                   controller: _remarksController,
                   label: "Remarks",
-                  maxLines: 3,
+                  maxLines: null,
+                  minLines: 3,
+                  type: TextInputType.multiline,
                   isRequired: false,
                 ),
                 _styledTextField(
@@ -354,12 +398,14 @@ class _CreateFollowUpScreenState extends State<CreateFollowUpScreen> {
     );
   }
 
-  Widget _styledTextField({required TextEditingController controller, required String label, int maxLines = 1, bool readOnly = false, VoidCallback? onTap, IconData? icon, bool isRequired = true}) {
+  Widget _styledTextField({required TextEditingController controller, required String label, int? maxLines = 1, int? minLines, bool readOnly = false, VoidCallback? onTap, IconData? icon, bool isRequired = true, TextInputType type = TextInputType.text}) {
     return TextFormField(
       controller: controller,
       readOnly: readOnly,
       onTap: onTap,
       maxLines: maxLines,
+      minLines: minLines,
+      keyboardType: type,
       decoration: kInputDecoration.copyWith(labelText: label, suffixIcon: icon != null ? Icon(icon) : null),
       validator: (v) => isRequired && (v == null || v.isEmpty) ? 'Required' : null,
     );

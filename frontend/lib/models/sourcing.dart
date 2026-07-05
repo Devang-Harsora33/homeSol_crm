@@ -1,10 +1,30 @@
+import 'dart:convert';
+
+class SourcingProject {
+  final String? project;
+
+  SourcingProject({this.project});
+
+  factory SourcingProject.fromJson(Map<String, dynamic> json) {
+    return SourcingProject(
+      project: json['project']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'project': project,
+    };
+  }
+}
+
 class Sourcing {
   final String? name;
   final String? owner;
   final String? creation;
   final String? modified;
   final String? modifiedBy;
-  final int? docstatus;
+  int? docstatus;
   final int? idx;
   final String? salesPartner;
   final String? customChannelPartner;
@@ -12,7 +32,7 @@ class Sourcing {
   final String? contactPersonMet;
   final String? mobileNumber;
   final String? whatsappNumber;
-  final String? visitStatus;
+  String? visitStatus;
   final String? visitDate;
   final String? remark;
   final String? address;
@@ -21,15 +41,13 @@ class Sourcing {
   String? visitDuration;
   final int? offeredCoffee;
   final int? metTheOwner;
-  final int? askedAboutPriceTrends;
-  final int? consideringRedevelopment;
-  final int? concernedAboutInterestRates;
-  final int? comparedMicroMarkets;
-  final int? strictlyReraRegistered;
+  final int? marketOutlook;
+  final String? currentDemand;
 
-  final String? visitType;
+  String? visitType;
+  final String? campaignDiscussed;
   final String? cpInterest;
-  final String? interestedProject;
+  final List<SourcingProject>? interestedProject;
   final String? nextFollowUp;
   final String? enterOtp;
   final int? isVerified;
@@ -58,13 +76,11 @@ class Sourcing {
     this.visitDuration,
     this.offeredCoffee,
     this.metTheOwner,
-    this.askedAboutPriceTrends,
-    this.consideringRedevelopment,
-    this.concernedAboutInterestRates,
-    this.comparedMicroMarkets,
-    this.strictlyReraRegistered,
+    this.marketOutlook,
+    this.currentDemand,
 
     this.visitType,
+    this.campaignDiscussed,
     this.cpInterest,
     this.interestedProject,
     this.nextFollowUp,
@@ -75,6 +91,36 @@ class Sourcing {
 
   String? get channelPartnerId {
     return salesPartner ?? customChannelPartner ?? channelPartner;
+  }
+
+  static List<SourcingProject>? _parseInterestedProject(dynamic value) {
+    if (value == null) return null;
+    try {
+      if (value is List) {
+        return value.map((i) {
+          if (i is Map) return SourcingProject.fromJson(Map<String, dynamic>.from(i));
+          if (i is String) return SourcingProject(project: i);
+          return SourcingProject(project: i?.toString());
+        }).where((p) => p.project != null).toList();
+      }
+      if (value is String) {
+        if (value.trim().startsWith('[')) {
+          final decoded = jsonDecode(value);
+          if (decoded is List) {
+            return decoded.map((i) {
+              if (i is Map) return SourcingProject.fromJson(Map<String, dynamic>.from(i));
+              if (i is String) return SourcingProject(project: i);
+              return SourcingProject(project: i?.toString());
+            }).where((p) => p.project != null).toList();
+          }
+        } else if (value.isNotEmpty) {
+          return [SourcingProject(project: value)];
+        }
+      }
+    } catch (e) {
+      print('Error parsing interestedProject: $e | Value: $value');
+    }
+    return null;
   }
 
   factory Sourcing.fromJson(Map<String, dynamic> json) {
@@ -101,15 +147,13 @@ class Sourcing {
       visitDuration: json['visit_duration']?.toString(),
       offeredCoffee: json['offered_coffee'] is int ? json['offered_coffee'] : int.tryParse(json['offered_coffee']?.toString() ?? '0'),
       metTheOwner: json['met_the_owner'] is int ? json['met_the_owner'] : int.tryParse(json['met_the_owner']?.toString() ?? '0'),
-      askedAboutPriceTrends: json['asked_about_price_trends'] is int ? json['asked_about_price_trends'] : int.tryParse(json['asked_about_price_trends']?.toString() ?? '0'),
-      consideringRedevelopment: json['considering_redevelopment'] is int ? json['considering_redevelopment'] : int.tryParse(json['considering_redevelopment']?.toString() ?? '0'),
-      concernedAboutInterestRates: json['concerned_about_interest_rates'] is int ? json['concerned_about_interest_rates'] : int.tryParse(json['concerned_about_interest_rates']?.toString() ?? '0'),
-      comparedMicroMarkets: json['compared_micro_markets'] is int ? json['compared_micro_markets'] : int.tryParse(json['compared_micro_markets']?.toString() ?? '0'),
-      strictlyReraRegistered: json['strictly_rera_registered'] is int ? json['strictly_rera_registered'] : int.tryParse(json['strictly_rera_registered']?.toString() ?? '0'),
+      marketOutlook: json['market_outlook'] is int ? json['market_outlook'] : int.tryParse(json['market_outlook']?.toString() ?? '0'),
+      currentDemand: json['current_demand']?.toString(),
 
       visitType: json['visit_type']?.toString(),
+      campaignDiscussed: json['campaign_discussed']?.toString(),
       cpInterest: json['cp_interest']?.toString(),
-      interestedProject: json['interested_project']?.toString(),
+      interestedProject: _parseInterestedProject(json['interested_project']),
       nextFollowUp: json['next_follow_up']?.toString(),
       enterOtp: json['enter_otp']?.toString(),
       isVerified: json['is_verified'] is int ? json['is_verified'] : int.tryParse(json['is_verified']?.toString() ?? '0'),
@@ -135,15 +179,13 @@ class Sourcing {
       'visit_duration': visitDuration,
       'offered_coffee': offeredCoffee,
       'met_the_owner': metTheOwner,
-      'asked_about_price_trends': askedAboutPriceTrends,
-      'considering_redevelopment': consideringRedevelopment,
-      'concerned_about_interest_rates': concernedAboutInterestRates,
-      'compared_micro_markets': comparedMicroMarkets,
-      'strictly_rera_registered': strictlyReraRegistered,
+      'market_outlook': marketOutlook,
+      'current_demand': currentDemand,
 
       'visit_type': visitType,
+      'campaign_discussed': campaignDiscussed,
       'cp_interest': cpInterest,
-      'interested_project': interestedProject,
+      'interested_project': interestedProject?.map((i) => i.toJson()).toList(),
       'next_follow_up': nextFollowUp,
       'enter_otp': enterOtp,
       'is_verified': isVerified,

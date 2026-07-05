@@ -120,30 +120,58 @@ class ShiftService {
         final project = await ProjectService.fetchProject(projectId);
         if (project != null && project.location != null) {
           final locationData = json.decode(project.location!);
-          final coordinates =
-              locationData['features'][0]['geometry']['coordinates'];
-          final double projectLat = coordinates[1];
-          final double projectLng = coordinates[0];
-          print('Project $projectId Location: $projectLat, $projectLng');
+          final features = locationData['features'] as List<dynamic>? ?? [];
 
-          final distance = LocationService.instance.calculateDistance(
-            currentPosition.latitude,
-            currentPosition.longitude,
-            projectLat,
-            projectLng,
-          );
-          print('Distance to Project $projectId: $distance km');
+          for (var feature in features) {
+            try {
+              final geometry = feature['geometry'];
+              final type = geometry['type'];
+              final coordinates = geometry['coordinates'];
+              
+              List<Map<String, double>> pointsToCheck = [];
 
-          if (distance <= 0.35) {
-            // 350 meters
-            return WorkforceService.markAttendance(
-              logType,
-              currentPosition.latitude,
-              currentPosition.longitude,
-              deviceId,
-              deviceType,
-              remark: remark,
-            );
+              if (type == 'Point') {
+                pointsToCheck.add({
+                  'lat': (coordinates[1] as num).toDouble(),
+                  'lng': (coordinates[0] as num).toDouble(),
+                });
+              } else if (type == 'Polygon') {
+                for (var ring in coordinates) {
+                  for (var point in ring) {
+                    pointsToCheck.add({
+                      'lat': (point[1] as num).toDouble(),
+                      'lng': (point[0] as num).toDouble(),
+                    });
+                  }
+                }
+              }
+
+              for (var p in pointsToCheck) {
+                final double projectLat = p['lat']!;
+                final double projectLng = p['lng']!;
+
+                final distance = LocationService.instance.calculateDistance(
+                  currentPosition.latitude,
+                  currentPosition.longitude,
+                  projectLat,
+                  projectLng,
+                );
+
+                if (distance <= 0.35) {
+                  // 350 meters
+                  return WorkforceService.markAttendance(
+                    logType,
+                    currentPosition.latitude,
+                    currentPosition.longitude,
+                    deviceId,
+                    deviceType,
+                    remark: remark,
+                  );
+                }
+              }
+            } catch (e) {
+              print('Error parsing feature coordinates for project $projectId: $e');
+            }
           }
         }
       }

@@ -22,13 +22,13 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
   String? _currentUserDesignation;
   
   bool _isRefreshing = false;
-  Key _sourcingListKey = UniqueKey();
+  final GlobalKey<SourcingListPageState> _sourcingListKey = GlobalKey<SourcingListPageState>();
   Key _cpListKey = UniqueKey();
 
   @override
   void initState() {
     super.initState();
-    ScreenProtector.preventScreenshotOn();
+    // ScreenProtector.preventScreenshotOn();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (mounted) setState(() {});
@@ -49,7 +49,7 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
 
   @override
   void dispose() {
-    ScreenProtector.preventScreenshotOff();
+    // ScreenProtector.preventScreenshotOff();
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -58,6 +58,9 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
   Widget _buildSearchAndFilterCard(ThemeData theme, bool isDark) {
     const kAccent = Color(0xFF675D40);
     final isSourcingTab = _tabController.index == 0;
+
+    final bool isLeadCaller = _currentUserDesignation?.trim().toLowerCase() == 'lead caller';
+    final int tabLength = isLeadCaller ? 1 : 2;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -144,7 +147,7 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
           const SizedBox(height: 14),
 
           // ── Tab Bar ──
-          if (_currentUserDesignation?.trim().toLowerCase() != 'property developer')
+          if (_currentUserDesignation?.trim().toLowerCase() != 'property developer' && !isLeadCaller)
             Container(
               height: 44,
               decoration: BoxDecoration(
@@ -216,6 +219,7 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final bool isLeadCaller = _currentUserDesignation?.trim().toLowerCase() == 'lead caller';
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -223,7 +227,7 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
         children: [
           _buildSearchAndFilterCard(theme, isDark),
           Expanded(
-            child: (_currentUserDesignation?.trim().toLowerCase() == 'property developer')
+            child: (_currentUserDesignation?.trim().toLowerCase() == 'property developer' || isLeadCaller)
                 ? SourcingListPage(
                     key: _sourcingListKey,
                     developerId: widget.developerId,
@@ -251,17 +255,15 @@ class _SourcingMainPageState extends State<SourcingMainPage> with SingleTickerPr
           ),
         ],
       ),
-      floatingActionButton: (_currentUserDesignation?.trim().toLowerCase() != 'property developer') ? Padding(
+      floatingActionButton: (_currentUserDesignation?.trim().toLowerCase() != 'property developer' && !isLeadCaller) ? Padding(
         padding: const EdgeInsets.only(bottom: 70.0),
         child: FloatingActionButton(
           heroTag: null,
           onPressed: () async {
             if (_tabController.index == 0) {
                final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const SourcingCreatePage()));
-               if (result == true) {
-                 setState(() {
-                   _sourcingListKey = UniqueKey();
-                 });
+               if (result != null) {
+                 _sourcingListKey.currentState?.handleCreateResult(result);
                }
             } else {
                final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ChannelPartnerCreationPage()));

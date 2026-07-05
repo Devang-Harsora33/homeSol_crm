@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:intl/intl.dart';
+import '../../../models/cp_connections.dart';
 
 class ChannelPartnerService {
   static String get baseUrl => AuthService.baseUrl;
@@ -289,5 +290,25 @@ class ChannelPartnerService {
       print('Error fetching site visits for channel partner: $e');
       return [];
     }
+  }
+
+  static Future<CPConnections?> fetchCPConnections(String cpName) async {
+    if (!ConnectivityService.isOnline) return null;
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse('$baseUrl/api/method/homesol_app.api.get_cp_connections?cp_name=${Uri.encodeComponent(cpName)}');
+      
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['message'] != null && data['message']['data'] != null) {
+          return CPConnections.fromJson(data['message']['data']);
+        }
+      }
+    } catch (e) {
+      print('Error fetching CP connections: $e');
+    }
+    return null;
   }
 }

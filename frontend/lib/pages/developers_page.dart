@@ -523,10 +523,12 @@ class _DevelopersPageState extends State<DevelopersPage>
 
   Future<void> _fetchData() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
 
       print('Fetching developers and projects data...');
 
@@ -536,8 +538,12 @@ class _DevelopersPageState extends State<DevelopersPage>
         ProjectService.syncProjects(forceRefresh: true),
       ]);
 
-      final List<Developer> developers = results[0] as List<Developer>;
-      final List<Project> projects = results[1] as List<Project>;
+      final rawDevelopers = results[0] as List<Developer>;
+      final rawProjects = results[1] as List<Project>;
+
+      // Deduplicate developers and projects by ID
+      final developers = {for (var d in rawDevelopers) d.id: d}.values.toList();
+      final projects = {for (var p in rawProjects) p.id: p}.values.toList();
 
       List<Developer> filteredDevelopers = developers;
       List<Project> filteredProjects = projects;
@@ -574,19 +580,23 @@ class _DevelopersPageState extends State<DevelopersPage>
       print('Developers fetched: ${filteredDevelopers.length}');
       print('Projects fetched: ${filteredProjects.length}');
 
-      setState(() {
-        _developers = filteredDevelopers;
-        _projects = filteredProjects;
-        _isLoading = false;
-      });
-
-      _extractSpecializations();
+      if (mounted) {
+        setState(() {
+          _developers = filteredDevelopers;
+          _projects = filteredProjects;
+          _isLoading = false;
+        });
+        _computeProjectGlobalBounds();
+        _extractSpecializations();
+      }
     } catch (e) {
       print('Error fetching data: $e');
-      setState(() {
-        _isLoading = false;
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
     }
   }
 
@@ -1877,7 +1887,9 @@ Download HomeSol App to connect with developers and explore projects!
     }
 
     // Price
-    if (_pPriceMinCr != null || _pPriceMaxCr != null) {
+    bool isPriceFilterActive = (_pPriceMinCr != null && _pPriceMinCr != _pGlobalPriceMinCr) || 
+                               (_pPriceMaxCr != null && _pPriceMaxCr != _pGlobalPriceMaxCr);
+    if (isPriceFilterActive) {
       list = list.where((p) {
         final minPrice = p.priceRangeMin.toDouble();
         final maxPrice = p.priceRangeMax.toDouble();
@@ -1888,23 +1900,22 @@ Download HomeSol App to connect with developers and explore projects!
     }
 
     // Area
-    if (_pAreaMinSqft != null || _pAreaMaxSqft != null) {
+    bool isAreaFilterActive = (_pAreaMinSqft != null && _pAreaMinSqft != _pGlobalAreaMinSqft) || 
+                              (_pAreaMaxSqft != null && _pAreaMaxSqft != _pGlobalAreaMaxSqft);
+    if (isAreaFilterActive) {
       list = list.where((p) {
         if (p.configurations.isEmpty) return false;
         double minArea = double.infinity;
         double maxArea = 0;
         for (final conf in p.configurations) {
-          final a = _parseAreaSqft(conf.carpetArea.toString());
-          if (a == null) continue;
+          final a = conf.carpetArea;
           if (a < minArea) minArea = a;
           if (a > maxArea) maxArea = a;
         }
-        if (_pAreaMaxSqft != null &&
-            minArea > _pAreaMaxSqft!) {
+        if (_pAreaMaxSqft != null && minArea > _pAreaMaxSqft!) {
           return false;
         }
-        if (_pAreaMinSqft != null &&
-            maxArea < _pAreaMinSqft!) {
+        if (_pAreaMinSqft != null && maxArea < _pAreaMinSqft!) {
           return false;
         }
         return true;
@@ -2251,7 +2262,7 @@ class _ProjectCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               child: CachedImage(
-                imageUrl: buildImageUrl(project.galleryImages.first.images),
+                imageUrl: project.galleryImages.isNotEmpty ? buildImageUrl(project.galleryImages.first.images) : '',
                 fit: BoxFit.cover,
               ),
               ),

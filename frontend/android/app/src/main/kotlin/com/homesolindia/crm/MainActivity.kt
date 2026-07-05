@@ -6,12 +6,19 @@ import io.flutter.plugin.common.MethodChannel
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Bundle
+import androidx.core.view.WindowCompat
 import androidx.core.content.FileProvider
 import java.io.File
 import java.util.ArrayList
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.homesolindia.crm/whatsapp_share"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        super.onCreate(savedInstanceState)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

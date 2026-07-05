@@ -77,7 +77,21 @@ class ProjectDatabase {
 
   Future<List<Map<String, dynamic>>> getAllProjects() async {
     final db = await database;
-    return await db.query('projects');
+    final results = await db.query('projects');
+    return results.where((row) {
+      final name = row['name']?.toString().toLowerCase().trim() ?? '';
+      if (name == 'bhavin steel' || name == 'parinee i') return false;
+      
+      final dataStr = row['data'] as String?;
+      if (dataStr != null) {
+        try {
+          final data = json.decode(dataStr);
+          final projectName = data['project_name']?.toString().toLowerCase().trim() ?? '';
+          if (projectName == 'bhavin steel' || projectName == 'parinee i') return false;
+        } catch (e) {}
+      }
+      return true;
+    }).toList();
   }
 
   Future<Map<String, dynamic>?> getProjectByName(String name) async {

@@ -72,9 +72,16 @@ class _ProjectCardState extends State<ProjectCard> {
 ${project.amenities.isNotEmpty ? '🏠 Amenities: ${project.amenities.take(5).join(', ')}' : ''}
 
 ${project.configurations.isNotEmpty ? '🏘️ Available Configurations:' : ''}
-${project.configurations.take(3).map((config) => '• ${config.name} - ${config.carpetArea} - ${config.price}').join('\n')}
-
-${project.campaigns.isNotEmpty ? '🔥 Special Offers Available!' : ''}
+${project.configurations.take(3).map((config) {
+        final formattedPrice = config.price == 0 
+            ? 'Price on Request' 
+            : (config.price < 10 
+                ? '${config.price.toStringAsFixed(2)} Cr' 
+                : (config.price < 10000 
+                    ? '${(config.price / 100).toStringAsFixed(2)} Cr' 
+                    : '${(config.price / 10000000).toStringAsFixed(2)} Cr'));
+        return '• ${config.name} - ${config.carpetArea.toInt()} sq.ft - $formattedPrice';
+      }).join('\n')}
 
 Download HomeSol App to explore more properties and connect with developers!
 
@@ -84,10 +91,6 @@ Download HomeSol App to explore more properties and connect with developers!
     Clipboard.setData(ClipboardData(text: shareText));
     final theme = Theme.of(context);
     CustomSnackBar.show(context, message: 'Project details copied to clipboard!', isError: false, title: 'Notice');
-          },
-        ),
-      ),
-    );
   }
 
   @override
@@ -117,7 +120,7 @@ Download HomeSol App to explore more properties and connect with developers!
                           itemCount: project.images.length,
                           itemBuilder: (context, index) {
                             return Image.network(
-                              buildImageUrl(project.images[index]),
+                              buildImageUrl(project.images[index].images),
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
@@ -384,7 +387,7 @@ Download HomeSol App to explore more properties and connect with developers!
                                 ),
                               ),
                               child: Text(
-                                amenity,
+                                amenity.data,
                                 style: TextStyle(
                                   color: const Color(0xFF8a6d00),
                                   fontSize: 12,
@@ -429,7 +432,14 @@ Download HomeSol App to explore more properties and connect with developers!
                             (c) => RegExp(r'^' + digits).hasMatch(c.name),
                             orElse: () => project.configurations.first,
                           );
-                          final label = '${t} • ${cfg.carpetArea} • ${cfg.price}';
+                          final formattedPrice = cfg.price == 0 
+                              ? 'Request' 
+                              : (cfg.price < 10 
+                                  ? '${cfg.price.toStringAsFixed(2)} Cr' 
+                                  : (cfg.price < 10000 
+                                      ? '${(cfg.price / 100).toStringAsFixed(2)} Cr' 
+                                      : '${(cfg.price / 10000000).toStringAsFixed(2)} Cr'));
+                          final label = '${t} • ${cfg.carpetArea.toInt()} • $formattedPrice';
                           return Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,

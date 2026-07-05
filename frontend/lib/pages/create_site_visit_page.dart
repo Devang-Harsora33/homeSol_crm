@@ -3,13 +3,14 @@ import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/leads/lead_service.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:Homesol/services/apis/site_visits/sitevisit_service.dart';
+import 'package:Homesol/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'dart:convert'; 
+import 'dart:convert';
 import '../models/lead.dart' as model_lead; // Alias this import
 import '../models/sales_team.dart';
-import '../services/databases/lead_database.dart'; 
+import '../services/databases/lead_database.dart';
 import '../services/auth_service.dart'; // Uncomment if needed
 
 const kAccent = Color(0xFF675D40);
@@ -72,38 +73,58 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
 
   // Form field values
   String? _selectedLead;
-  Map<String, String>? _selectedProject;
-  String _status = 'Scheduled';
+  Map<String, dynamic>? _selectedProject;
+  String _status = 'Visit Scheduled';
+  bool _presenceOfCp = false;
 
   // Lead additional fields (if missing)
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
-  final TextEditingController _residenceTypeController = TextEditingController();
+  final TextEditingController _residenceTypeController =
+      TextEditingController();
   final TextEditingController _firmNameController = TextEditingController();
   final TextEditingController _postalCodeController = TextEditingController();
-  final TextEditingController _configurationController = TextEditingController();
+  final TextEditingController _configurationController =
+      TextEditingController();
   final TextEditingController _budgetMinController = TextEditingController();
   final TextEditingController _budgetMaxController = TextEditingController();
   final TextEditingController _leadRemarkController = TextEditingController();
-  
+  final TextEditingController _loanRequirementsController =
+      TextEditingController();
+
   String? _selectedFinancing;
+  String? _selectedLoanRequirements;
   String? _selectedPurpose;
   String? _selectedExpectedTime;
-  
-  Map<String, String>? _selectedSalesManager;
-  List<Map<String, String>> _salesManagerOptions = [];
-  List<Map<String, String>> _teamLeads = [];
+
+  Map<String, dynamic>? _selectedSalesManager;
+  double _visitDuration = 15.0; // Minutes
+
+  String _calculateDurationString(int minutes) {
+    if (minutes < 60) return '$minutes mins';
+    final hours = minutes ~/ 60;
+    final remainingMins = minutes % 60;
+    if (remainingMins == 0) {
+      return '$hours Hour${hours > 1 ? 's' : ''}';
+    }
+    return '$hours Hour${hours > 1 ? 's' : ''} and $remainingMins mins';
+  }
+
+  List<Map<String, dynamic>> _salesManagerOptions = [];
+  List<Map<String, dynamic>> _teamLeads = [];
   List<SalesTeam> _salesTeams = [];
   bool _isSalesManagersLoading = false;
 
   bool _showMissingLeadFields = false;
   model_lead.Lead? _fullSelectedLead;
   List<String> _selectedConfigurations = [];
-  Set<String> _missingFields = {}; // Added to track which fields were initially missing
+  Set<String> _missingFields =
+      {}; // Added to track which fields were initially missing
 
   DateTime? _selectedDateTime; // For Visit Date
 
-  bool _isMissing(String? val) => val == null || val.trim().isEmpty || val == '-';
+  bool _isMissing(String? val) =>
+      val == null || val.trim().isEmpty || val == '-';
   DateTime? _selectedScheduledDateTime; // For Scheduled Date (New)
 
   final TextEditingController _remarkController = TextEditingController();
@@ -120,14 +141,43 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
   List<model_lead.Lead> _leadOptions = []; // Use aliased Lead
   List<model_lead.Lead> _filteredLeadOptions = []; // Filtered Lead options
   bool _isLeadsLoading = true;
-  List<Map<String, String>> _projectOptions = [];
+  List<Map<String, dynamic>> _projectOptions = [];
   bool _isProjectsLoading = true;
-  final List<String> _statusOptions = [
-    'Scheduled',
+  List<String> _statusOptions = [
+    'Visit Scheduled',
     'Visit Done',
+    'Revisit Scheduled',
     'Revisit Done',
     'Cancelled',
   ];
+
+  void _updateStatusOptionsBasedOnLead(model_lead.Lead lead) {
+    final latestVisitStatus = lead.customLatestVisitStatus;
+    if (latestVisitStatus == 'Visit Done' || 
+        latestVisitStatus == 'Revisit Done' || 
+        latestVisitStatus == 'Revisit Scheduled') {
+      _statusOptions = [
+        'Revisit Scheduled',
+        'Revisit Done',
+        'Cancelled',
+      ];
+      if (!_statusOptions.contains(_status)) {
+        _status = 'Revisit Scheduled';
+      }
+    } else {
+      _statusOptions = [
+        'Visit Scheduled',
+        'Visit Done',
+        'Revisit Scheduled',
+        'Revisit Done',
+        'Cancelled',
+      ];
+      // Keep existing status if it is valid, otherwise reset
+      if (!_statusOptions.contains(_status)) {
+        _status = 'Visit Scheduled';
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -137,7 +187,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
       'yyyy-MM-dd HH:mm:ss',
     ).format(_selectedDateTime!);
     _initializeDropdownDataAndPreselect();
-    
+
     // Add listener for lead search
     _leadSearchController.addListener(_onLeadSearchChanged);
     _fetchSalesManagers();
@@ -159,14 +209,25 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
             final currentUserEmployeeId = profile!.employee;
 
             // Filter sales teams to find the ones the current user is in
-            final userTeams = _salesTeams.where((team) => team.members.any((member) => member.employee == currentUserEmployeeId)).toList();
+            final userTeams = _salesTeams
+                .where(
+                  (team) => team.members.any(
+                    (member) => member.employee == currentUserEmployeeId,
+                  ),
+                )
+                .toList();
 
             // From those teams, get the team leads
-            final Set<Map<String, String>> teamLeads = {};
+            final Set<Map<String, dynamic>> teamLeads = {};
             for (final team in userTeams) {
               final leads = team.members
                   .where((member) => member.role == 'Team Lead')
-                  .map((lead) => {'id': lead.userId ?? lead.employee, 'name': lead.employeeName});
+                  .map(
+                    (lead) => {
+                      'id': lead.userId ?? lead.employee,
+                      'name': lead.employeeName,
+                    },
+                  );
               teamLeads.addAll(leads);
             }
             _teamLeads = teamLeads.toList();
@@ -174,7 +235,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
             // Fallback if no profile or not employee
             _teamLeads = _salesManagerOptions;
           }
-          
+
           _isSalesManagersLoading = false;
         });
       }
@@ -186,16 +247,34 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
 
   Future<void> _onLeadSelected(String? leadId) async {
     if (leadId == null) {
+      _firstNameController.clear();
+      _mobileController.clear();
+      _residenceTypeController.clear();
+      _postalCodeController.clear();
+      _configurationController.clear();
+      _budgetMinController.clear();
+      _budgetMaxController.clear();
+      _leadRemarkController.clear();
+      _loanRequirementsController.clear();
       setState(() {
         _selectedLead = null;
         _fullSelectedLead = null;
         _showMissingLeadFields = false;
         _selectedSalesManager = null;
         _selectedFinancing = null;
+        _selectedLoanRequirements = null;
         _selectedPurpose = null;
         _selectedExpectedTime = null;
         _selectedConfigurations = [];
         _missingFields.clear();
+        _statusOptions = [
+          'Visit Scheduled',
+          'Visit Done',
+          'Revisit Scheduled',
+          'Revisit Done',
+          'Cancelled',
+        ];
+        _status = 'Visit Scheduled';
       });
       _updateLeadDisplayText();
       return;
@@ -212,24 +291,31 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
       _isLoading = true;
       _selectedSalesManager = null;
       _selectedFinancing = null;
+      _selectedLoanRequirements = null;
       _selectedPurpose = null;
       _selectedExpectedTime = null;
-      
+
       if (localLead != null) {
         _firstNameController.text = localLead.firstName ?? '';
-        _mobileController.text = localLead.mobileNo ?? localLead.customerPhone ?? '';
-        _residenceTypeController.text = localLead.customCurrentResidenceType ?? '';
+        _mobileController.text =
+            localLead.mobileNo ?? localLead.customerPhone ?? '';
+        _residenceTypeController.text =
+            localLead.customCurrentResidenceType ?? '';
         _firmNameController.text = localLead.companyName ?? '';
         _postalCodeController.text = localLead.customPostalCode ?? '';
         _configurationController.text = localLead.customConfiguration ?? '';
         _budgetMinController.text = localLead.customBudgetMin ?? '';
         _budgetMaxController.text = localLead.customBudgetMax ?? '';
         _leadRemarkController.text = localLead.customRemark ?? '';
+        _loanRequirementsController.text =
+            localLead.customLoanRequirements ?? '';
         _selectedFinancing = localLead.customFinancingDetails;
+        _selectedLoanRequirements = localLead.customLoanRequirements;
         _selectedPurpose = localLead.customPurposeOfPurchase;
         _selectedExpectedTime = localLead.customExpectedTimeOfPurchase;
-        
-        if (localLead.customConfiguration != null && localLead.customConfiguration!.isNotEmpty) {
+
+        if (localLead.customConfiguration != null &&
+            localLead.customConfiguration!.isNotEmpty) {
           _selectedConfigurations = localLead.customConfiguration!
               .split(',')
               .map((e) => e.trim())
@@ -241,21 +327,38 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
         // Track which fields are missing locally
         _missingFields.clear();
         if (_isMissing(localLead.firstName)) _missingFields.add('firstName');
-        if (_isMissing(localLead.mobileNo ?? localLead.customerPhone)) _missingFields.add('mobileNo');
-        if (_isMissing(localLead.customCurrentResidenceType)) _missingFields.add('residenceType');
+        if (_isMissing(localLead.mobileNo ?? localLead.customerPhone))
+          _missingFields.add('mobileNo');
+        if (_isMissing(localLead.customCurrentResidenceType))
+          _missingFields.add('residenceType');
         if (_isMissing(localLead.companyName)) _missingFields.add('firmName');
-        if (_isMissing(localLead.customPostalCode)) _missingFields.add('postalCode');
-        if (_isMissing(localLead.customConfiguration)) _missingFields.add('configuration');
-        if (_isMissing(localLead.customBudgetMin)) _missingFields.add('budgetMin');
-        if (_isMissing(localLead.customBudgetMax)) _missingFields.add('budgetMax');
-        if (_isMissing(localLead.customSalesManager)) _missingFields.add('salesManager');
-        if (_isMissing(localLead.customInterestedProject)) _missingFields.add('interestedProject');
-        if (_isMissing(localLead.customFinancingDetails)) _missingFields.add('financing');
-        if (_isMissing(localLead.customPurposeOfPurchase)) _missingFields.add('purpose');
-        if (_isMissing(localLead.customExpectedTimeOfPurchase)) _missingFields.add('expectedTime');
-        if (_isMissing(localLead.customRemark)) _missingFields.add('leadRemark');
+        if (_isMissing(localLead.customPostalCode))
+          _missingFields.add('postalCode');
+        if (_isMissing(localLead.customConfiguration))
+          _missingFields.add('configuration');
+        if (_isMissing(localLead.customBudgetMin))
+          _missingFields.add('budgetMin');
+        if (_isMissing(localLead.customBudgetMax))
+          _missingFields.add('budgetMax');
+        if (_isMissing(localLead.customSalesManager))
+          _missingFields.add('salesManager');
+        if (_isMissing(localLead.customInterestedProject))
+          _missingFields.add('interestedProject');
+        if (_isMissing(localLead.customFinancingDetails))
+          _missingFields.add('financing');
+        if (_isMissing(localLead.customLoanRequirements))
+          _missingFields.add('loanRequirements');
+        if (_isMissing(localLead.customPurposeOfPurchase))
+          _missingFields.add('purpose');
+        if (_isMissing(localLead.customExpectedTimeOfPurchase))
+          _missingFields.add('expectedTime');
+        if (_isMissing(localLead.customRemark))
+          _missingFields.add('leadRemark');
 
         _showMissingLeadFields = _missingFields.isNotEmpty;
+      }
+      if (localLead != null) {
+        _updateStatusOptionsBasedOnLead(localLead);
       }
     });
     _updateLeadDisplayText();
@@ -266,22 +369,28 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
         if (fullLead != null) {
           setState(() {
             _fullSelectedLead = fullLead;
-            
+
             // Update controllers with full lead data
             _firstNameController.text = fullLead.firstName ?? '';
-            _mobileController.text = fullLead.mobileNo ?? fullLead.customerPhone ?? '';
-            _residenceTypeController.text = fullLead.customCurrentResidenceType ?? '';
+            _mobileController.text =
+                fullLead.mobileNo ?? fullLead.customerPhone ?? '';
+            _residenceTypeController.text =
+                fullLead.customCurrentResidenceType ?? '';
             _firmNameController.text = fullLead.companyName ?? '';
             _postalCodeController.text = fullLead.customPostalCode ?? '';
             _configurationController.text = fullLead.customConfiguration ?? '';
             _budgetMinController.text = fullLead.customBudgetMin ?? '';
             _budgetMaxController.text = fullLead.customBudgetMax ?? '';
             _leadRemarkController.text = fullLead.customRemark ?? '';
+            _loanRequirementsController.text =
+                fullLead.customLoanRequirements ?? '';
             _selectedFinancing = fullLead.customFinancingDetails;
+            _selectedLoanRequirements = fullLead.customLoanRequirements;
             _selectedPurpose = fullLead.customPurposeOfPurchase;
             _selectedExpectedTime = fullLead.customExpectedTimeOfPurchase;
-            
-            if (fullLead.customConfiguration != null && fullLead.customConfiguration!.isNotEmpty) {
+
+            if (fullLead.customConfiguration != null &&
+                fullLead.customConfiguration!.isNotEmpty) {
               _selectedConfigurations = fullLead.customConfiguration!
                   .split(',')
                   .map((e) => e.trim())
@@ -290,18 +399,25 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
               _selectedConfigurations = [];
             }
 
-            if (fullLead.customSalesManager != null && fullLead.customSalesManager!.isNotEmpty) {
+            if (fullLead.customSalesManager != null &&
+                fullLead.customSalesManager!.isNotEmpty) {
               try {
                 // Try to find in filtered _teamLeads first
                 _selectedSalesManager = _teamLeads.firstWhere(
                   (m) => m['id'] == fullLead.customSalesManager,
                   orElse: () => _salesManagerOptions.firstWhere(
                     (m) => m['id'] == fullLead.customSalesManager,
-                    orElse: () => {'id': fullLead.customSalesManager!, 'name': fullLead.customSalesManager!},
+                    orElse: () => {
+                      'id': fullLead.customSalesManager!,
+                      'name': fullLead.customSalesManager!,
+                    },
                   ),
                 );
               } catch (e) {
-                _selectedSalesManager = {'id': fullLead.customSalesManager!, 'name': fullLead.customSalesManager!};
+                _selectedSalesManager = {
+                  'id': fullLead.customSalesManager!,
+                  'name': fullLead.customSalesManager!,
+                };
               }
             } else {
               _selectedSalesManager = null;
@@ -310,30 +426,52 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
             // Re-calculate missing fields based on full data
             _missingFields.clear();
             if (_isMissing(fullLead.firstName)) _missingFields.add('firstName');
-            if (_isMissing(fullLead.mobileNo ?? fullLead.customerPhone)) _missingFields.add('mobileNo');
-            if (_isMissing(fullLead.customCurrentResidenceType)) _missingFields.add('residenceType');
-            if (_isMissing(fullLead.companyName)) _missingFields.add('firmName');
-            if (_isMissing(fullLead.customPostalCode)) _missingFields.add('postalCode');
-            if (_isMissing(fullLead.customConfiguration)) _missingFields.add('configuration');
-            if (_isMissing(fullLead.customBudgetMin)) _missingFields.add('budgetMin');
-            if (_isMissing(fullLead.customBudgetMax)) _missingFields.add('budgetMax');
-            if (_isMissing(fullLead.customSalesManager)) _missingFields.add('salesManager');
-            if (_isMissing(fullLead.customInterestedProject)) _missingFields.add('interestedProject');
-            if (_isMissing(fullLead.customFinancingDetails)) _missingFields.add('financing');
-            if (_isMissing(fullLead.customPurposeOfPurchase)) _missingFields.add('purpose');
-            if (_isMissing(fullLead.customExpectedTimeOfPurchase)) _missingFields.add('expectedTime');
-            if (_isMissing(fullLead.customRemark)) _missingFields.add('leadRemark');
+            if (_isMissing(fullLead.mobileNo ?? fullLead.customerPhone))
+              _missingFields.add('mobileNo');
+            if (_isMissing(fullLead.customCurrentResidenceType))
+              _missingFields.add('residenceType');
+            if (_isMissing(fullLead.companyName))
+              _missingFields.add('firmName');
+            if (_isMissing(fullLead.customPostalCode))
+              _missingFields.add('postalCode');
+            if (_isMissing(fullLead.customConfiguration))
+              _missingFields.add('configuration');
+            if (_isMissing(fullLead.customBudgetMin))
+              _missingFields.add('budgetMin');
+            if (_isMissing(fullLead.customBudgetMax))
+              _missingFields.add('budgetMax');
+            if (_isMissing(fullLead.customSalesManager))
+              _missingFields.add('salesManager');
+            if (_isMissing(fullLead.customInterestedProject))
+              _missingFields.add('interestedProject');
+            if (_isMissing(fullLead.customFinancingDetails))
+              _missingFields.add('financing');
+            if (_isMissing(fullLead.customLoanRequirements))
+              _missingFields.add('loanRequirements');
+            if (_isMissing(fullLead.customPurposeOfPurchase))
+              _missingFields.add('purpose');
+            if (_isMissing(fullLead.customExpectedTimeOfPurchase))
+              _missingFields.add('expectedTime');
+            if (_isMissing(fullLead.customRemark))
+              _missingFields.add('leadRemark');
 
             _showMissingLeadFields = _missingFields.isNotEmpty;
-            
+
             if (_showMissingLeadFields) {
-              _showSnackBar('Please complete missing lead details in the form.', isError: false);
+              _showSnackBar(
+                'Please complete missing lead details in the form.',
+                isError: false,
+              );
             }
+            _updateStatusOptionsBasedOnLead(fullLead);
           });
           _updateLeadDisplayText();
         } else if (localLead == null) {
           // Both local and remote failed
-          _showSnackBar('Failed to fetch lead details. Please try again.', isError: true);
+          _showSnackBar(
+            'Failed to fetch lead details. Please try again.',
+            isError: true,
+          );
         }
         setState(() => _isLoading = false);
       }
@@ -351,8 +489,14 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
 
   Widget _buildConfigurationButtons() {
     final configurations = [
-      "1BHK", "1.5BHK", "2BHK", "2.5BHK",
-      "3BHK", "4BHK", "5BHK", "Studio",
+      "1BHK",
+      "1.5BHK",
+      "2BHK",
+      "2.5BHK",
+      "3BHK",
+      "4BHK",
+      "5BHK",
+      "Studio",
     ];
 
     return Column(
@@ -372,7 +516,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
           runSpacing: 10.0,
           children: configurations.map((config) {
             final isSelected = _selectedConfigurations.contains(config);
-            
+
             return Material(
               color: Colors.transparent,
               child: InkWell(
@@ -392,7 +536,10 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected ? kAccent : Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -406,7 +553,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                               color: kAccent.withOpacity(0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
-                            )
+                            ),
                           ]
                         : [],
                   ),
@@ -414,7 +561,9 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                     config,
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.grey[800],
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       fontSize: 14,
                     ),
                   ),
@@ -434,7 +583,8 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
         final name = (lead.leadName ?? '').toLowerCase();
         final id = (lead.name ?? '').toLowerCase();
         final phone = (lead.mobileNo ?? '').toLowerCase();
-        final matches = name.contains(query) || id.contains(query) || phone.contains(query);
+        final matches =
+            name.contains(query) || id.contains(query) || phone.contains(query);
         final isSelected = lead.name == _selectedLead;
         return matches || isSelected;
       }).toList();
@@ -447,7 +597,8 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
     } else {
       final lead = _leadOptions.where((l) => l.name == _selectedLead);
       if (lead.isNotEmpty) {
-        _leadDisplayController.text = lead.first.leadName ?? lead.first.name ?? 'Selected Lead';
+        _leadDisplayController.text =
+            lead.first.leadName ?? lead.first.name ?? 'Selected Lead';
       } else {
         _leadDisplayController.text = 'Selected Lead';
       }
@@ -470,7 +621,9 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
       setState(() {
         if (widget.preselectedProjectId != null) {
           try {
-            _selectedProject = _projectOptions.firstWhere((p) => p['id'] == widget.preselectedProjectId);
+            _selectedProject = _projectOptions.firstWhere(
+              (p) => p['id'] == widget.preselectedProjectId,
+            );
           } catch (e) {
             _selectedProject = null; // Not found
           }
@@ -480,6 +633,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
       _onLeadSearchChanged();
     }
   }
+
   Future<void> _fetchDropdownData() async {
     setState(() {
       _isLeadsLoading = true;
@@ -489,7 +643,8 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
     try {
       await LeadService.syncMyLeads(); // Sync data from API to local DB
 
-      final List<Map<String, dynamic>> rawLeads = await LeadDatabase().getAllLeads();
+      final List<Map<String, dynamic>> rawLeads = await LeadDatabase()
+          .getAllLeads();
       final List<model_lead.Lead> leads = rawLeads.map((data) {
         final leadJson = json.decode(data['data']);
         return model_lead.Lead.fromJson(leadJson);
@@ -504,7 +659,9 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
           // No longer initializing _selectedLead with the first lead here
           // It will be set from widget.preselectedLeadId if available
           _projectOptions = projects;
-          print('DEBUG: _projectOptions after fetch: $_projectOptions'); // Debug print for project options
+          print(
+            'DEBUG: _projectOptions after fetch: $_projectOptions',
+          ); // Debug print for project options
           // No longer initializing _selectedProject with the first project here
           // It will be set from widget.preselectedProjectId if available
         });
@@ -531,10 +688,10 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
     _dateController.dispose();
 
     _scheduledDateController.dispose();
-    
+
     _leadSearchController.dispose();
     _leadDisplayController.dispose();
-    
+
     _firstNameController.dispose();
     _mobileController.dispose();
     _residenceTypeController.dispose();
@@ -643,70 +800,158 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
     }
   }
 
-    Future<void> _submitForm() async {
-      if (!_formKey.currentState!.validate()) return;
-      
-      if (_selectedLead == null || _selectedLead!.isEmpty) {
-        _showSnackBar('Please select a lead.', isError: true);
-        return;
-      }
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) return;
 
-      setState(() => _isLoading = true);
+    if (_selectedLead == null || _selectedLead!.isEmpty) {
+      _showSnackBar('Please select a lead.', isError: true);
+      return;
+    }
 
-      try {
-        // 1. Update Lead if fields were missing
-        if (_selectedLead != null && _showMissingLeadFields) {
-          final leadUpdates = {
-            "first_name": _firstNameController.text,
-            "mobile_no": _mobileController.text,
-            "custom_current_residence_type": _residenceTypeController.text,
-            "company_name": _firmNameController.text,
-            "custom_postal_code": _postalCodeController.text,
-            "custom_configuration": _configurationController.text,
-            "custom_budget_min": _budgetMinController.text,
-            "custom_budget_max": _budgetMaxController.text,
-            "custom_sales_manager": _selectedSalesManager?['id'],
-            "custom_interested_project": _selectedProject?['id'],
-            "custom_financing_details": _selectedFinancing,
-            "custom_purpose_of_purchase": _selectedPurpose,
-            "custom_expected_time_of_purchase": _selectedExpectedTime,
-            "custom_remark": _leadRemarkController.text,
-          };
-          
-          await LeadService.updateLead(_selectedLead!, leadUpdates);
-          print('Lead updated successfully with missing fields.');
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Update Lead if fields were missing
+      if (_selectedLead != null && _showMissingLeadFields) {
+        // Map sales manager to User ID (email) if it's currently an employee ID
+        String? salesManagerId = _selectedSalesManager?['id'];
+        final salesManagerName = _selectedSalesManager?['name'];
+        if (salesManagerId != null && !salesManagerId.contains('@') && salesManagerName != null) {
+          final matchingUser = _salesManagerOptions.firstWhereOrNull(
+            (u) => u['name'] == salesManagerName,
+          );
+          if (matchingUser != null) {
+            salesManagerId = matchingUser['id'];
+            print('👤 [DEBUG] Mapped Site Visit Sales Manager name "$salesManagerName" to ID "$salesManagerId"');
+          }
         }
 
-        // 2. Create Site Visit
-        final body = {
-          "lead": _selectedLead,
-          "project": _selectedProject?['id'],
-          "remark": _remarkController.text,
-          "visit_date": _dateController.text,
-          "status": _status,
-          // Only send scheduled time if status is Scheduled, otherwise default to visit_date
-          "visit_scheduled_datetime": _status == 'Scheduled'
-              ? _scheduledDateController.text
-              : _dateController.text,
+        final leadUpdates = {
+          "first_name": _firstNameController.text,
+          "mobile_no": _mobileController.text,
+          "custom_current_residence_type": _residenceTypeController.text,
+          "company_name": _firmNameController.text,
+          "custom_postal_code": _postalCodeController.text,
+          "custom_configuration": _configurationController.text,
+          "custom_budget_min": double.tryParse(_budgetMinController.text),
+          "custom_budget_max": double.tryParse(_budgetMaxController.text),
+          "custom_sales_manager": salesManagerId,
+          "custom_interested_project": _selectedProject?['id'],
+          "custom_financing_details": _selectedFinancing,
+          "custom_loan_requirements": double.tryParse(_loanRequirementsController.text),
+          "custom_purpose_of_purchase": _selectedPurpose,
+          "custom_expected_time_of_purchase": _selectedExpectedTime,
+          "custom_remark": _leadRemarkController.text,
         };
 
-        final String? errorMessage = await SiteVisitService.createSiteVisit(body);
-
-        if (errorMessage == null) {
-          _showSnackBar('Site visit created successfully!', isError: false);
-          if (mounted) {
-            widget.onSiteVisitCreated?.call(); // Invoke the callback
-            Navigator.of(context).pop();
-          }
-        } else {
-          _showSnackBar('Failed to create site visit: $errorMessage', isError: true);
-        }
-      } catch (e) {
-        _showSnackBar('Error: $e', isError: true);
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+        await LeadService.updateLead(_selectedLead!, leadUpdates);
+        print('Lead updated successfully with missing fields.');
       }
+
+      // 2. Create Site Visit
+      String finalStatus = _status;
+      String? durationStr;
+      
+      if (_status == 'Visit Done' || _status == 'Revisit Done') {
+        durationStr = '${_visitDuration.toInt()} mins';
+      }
+
+      final body = {
+        "lead": _selectedLead,
+        "project": _selectedProject?['id'],
+        "remark": _remarkController.text,
+        "visit_date": _dateController.text,
+        "status": finalStatus,
+        "presence_of_cp": _presenceOfCp ? 1 : 0,
+        "visit_duration": durationStr,
+        // Only send scheduled time if status is Scheduled, otherwise default to visit_date
+        "visit_scheduled_datetime": _status == 'Visit Scheduled'
+            ? _scheduledDateController.text
+            : _dateController.text,
+      };
+
+      final String? errorMessage = await SiteVisitService.createSiteVisit(body);
+
+      if (errorMessage == null) {
+        // --- Schedule Reminders if status is Scheduled ---
+        if (_status == 'Visit Scheduled' && _selectedScheduledDateTime != null) {
+          final now = DateTime.now();
+          final scheduledDt = _selectedScheduledDateTime!;
+          final leadName = _leadDisplayController.text;
+          final projectName = _selectedProject?['name'] ?? 'Project';
+
+          // 5-minute reminder
+          if (scheduledDt.isAfter(now.add(const Duration(minutes: 5)))) {
+            final reminderTime = scheduledDt.subtract(
+              const Duration(minutes: 5),
+            );
+            final delay = reminderTime.difference(now);
+
+            NotificationService.instance.scheduleTimerNotification(
+              id: scheduledDt.millisecondsSinceEpoch.hashCode + 30,
+              title: 'Upcoming Site Visit (5m)',
+              body: 'Site visit with $leadName at $projectName in 5 minutes.',
+              delay: delay,
+            );
+            debugPrint(
+              '[CreateSiteVisit] Scheduled 5m reminder for $scheduledDt',
+            );
+          }
+
+          // 1-minute reminder
+          if (scheduledDt.isAfter(now.add(const Duration(minutes: 1)))) {
+            final reminderTime = scheduledDt.subtract(
+              const Duration(minutes: 1),
+            );
+            final delay = reminderTime.difference(now);
+
+            if (delay.inSeconds > 0) {
+              NotificationService.instance.scheduleTimerNotification(
+                id: scheduledDt.millisecondsSinceEpoch.hashCode + 31,
+                title: 'Upcoming Site Visit (1m)',
+                body: 'Site visit with $leadName at $projectName in 1 minute.',
+                delay: delay,
+              );
+              debugPrint(
+                '[CreateSiteVisit] Scheduled 1m reminder for $scheduledDt',
+              );
+            }
+          }
+
+          // 30-minute Post-Visit Remark Reminder
+          final postVisitTime = scheduledDt.add(const Duration(minutes: 30));
+          final postDelay = postVisitTime.difference(now);
+          if (postDelay.inSeconds > 0) {
+            NotificationService.instance.scheduleTimerNotification(
+              id: scheduledDt.millisecondsSinceEpoch.hashCode + 32,
+              title: 'Post-Visit Remarks 📝',
+              body:
+                  'How did the visit with $leadName go? Tap to add your closing remarks.',
+              delay: postDelay,
+            );
+            debugPrint(
+              '[CreateSiteVisit] Scheduled 30m post-visit reminder for $postVisitTime',
+            );
+          }
+        }
+
+        _showSnackBar('Site visit created successfully!', isError: false);
+        if (mounted) {
+          widget.onSiteVisitCreated?.call(); // Invoke the callback
+          Navigator.of(context).pop();
+        }
+      } else {
+        _showSnackBar(
+          'Failed to create site visit: $errorMessage',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      _showSnackBar('Error: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
@@ -768,28 +1013,46 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                         ? const Center(child: CircularProgressIndicator())
                         : ListView.builder(
                             itemCount: _leadOptions.where((lead) {
-                              final query = _leadSearchController.text.toLowerCase();
+                              final query = _leadSearchController.text
+                                  .toLowerCase();
                               final name = (lead.leadName ?? '').toLowerCase();
                               final id = (lead.name ?? '').toLowerCase();
                               final phone = (lead.mobileNo ?? '').toLowerCase();
-                              return name.contains(query) || id.contains(query) || phone.contains(query);
+                              return name.contains(query) ||
+                                  id.contains(query) ||
+                                  phone.contains(query);
                             }).length,
                             itemBuilder: (context, index) {
                               final filteredList = _leadOptions.where((lead) {
-                                final query = _leadSearchController.text.toLowerCase();
-                                final name = (lead.leadName ?? '').toLowerCase();
+                                final query = _leadSearchController.text
+                                    .toLowerCase();
+                                final name = (lead.leadName ?? '')
+                                    .toLowerCase();
                                 final id = (lead.name ?? '').toLowerCase();
-                                final phone = (lead.mobileNo ?? '').toLowerCase();
-                                return name.contains(query) || id.contains(query) || phone.contains(query);
+                                final phone = (lead.mobileNo ?? '')
+                                    .toLowerCase();
+                                return name.contains(query) ||
+                                    id.contains(query) ||
+                                    phone.contains(query);
                               }).toList();
-                              
+
                               final lead = filteredList[index];
                               final isSelected = lead.name == _selectedLead;
-                              
+
                               return ListTile(
-                                title: Text(lead.leadName ?? lead.name ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                title: Text(
+                                  lead.leadName ?? lead.name ?? 'Unknown',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                                 subtitle: Text(lead.name ?? ''),
-                                trailing: isSelected ? const Icon(Icons.check_circle, color: kAccent) : null,
+                                trailing: isSelected
+                                    ? const Icon(
+                                        Icons.check_circle,
+                                        color: kAccent,
+                                      )
+                                    : null,
                                 selected: isSelected,
                                 onTap: () {
                                   _onLeadSelected(lead.name);
@@ -856,7 +1119,8 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
 
   Widget _styledDropdown({
     required String label,
-    required dynamic value, // This can be String for Lead/Status or Map<String,String> for Project
+    required dynamic
+    value, // This can be String for Lead/Status or Map<String,String> for Project
     required List<dynamic> items,
     required Function(dynamic) onChanged, // Now accepts dynamic
     bool isLoading = false,
@@ -885,18 +1149,21 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
       resolvedValue = null;
     }
 
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButtonFormField<dynamic>( // Keep as dynamic for flexibility
+        DropdownButtonFormField<dynamic>(
+          // Keep as dynamic for flexibility
           value: resolvedValue,
           decoration: kInputDecoration.copyWith(
             labelText: label,
             labelStyle: TextStyle(color: Colors.grey.shade600),
-            suffixIcon: isLoading 
-            ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 2))             
-            : null,
+            suffixIcon: isLoading
+                ? Transform.scale(
+                    scale: 0.5,
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
           ),
           dropdownColor: Colors.white,
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
@@ -907,30 +1174,36 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
             if (item is model_lead.Lead) {
               displayValue = item.leadName ?? item.name ?? '';
               itemValue = item.name; // This is a String
-            } else if (item is Map<String, String>) { // For project options
-              displayValue = item[displayKey] ?? '';
+            } else if (item is Map) {
+              // For project options
+              displayValue = item[displayKey]?.toString() ?? '';
               itemValue = item; // This is a Map
-            } else if (item is String) { // For status options
+            } else if (item is String) {
+              // For status options
               displayValue = item;
               itemValue = item; // This is a String
             }
-            
-            return DropdownMenuItem<dynamic>( // Keep dynamic
+
+            return DropdownMenuItem<dynamic>(
+              // Keep dynamic
               value: itemValue,
-              child: Text(displayValue, style: const TextStyle(fontWeight: FontWeight.w500)),
+              child: Text(
+                displayValue,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
             );
           }).toList(),
           onChanged: isLoading ? null : onChanged,
-          validator: (val) => val == null || (val is String && val.isEmpty) ? 'Required' : null,
+          validator: (val) =>
+              val == null || (val is String && val.isEmpty) ? 'Required' : null,
           selectedItemBuilder: (BuildContext context) {
             return items.map<Widget>((dynamic item) {
               String displayValue = '';
               if (item is model_lead.Lead) {
                 displayValue = item.leadName ?? item.name ?? '';
-              } else if (item is Map<String, String>) {
-                displayValue = item[displayKey] ?? '';
-              }
-              else if (item is String) {
+              } else if (item is Map) {
+                displayValue = item[displayKey]?.toString() ?? '';
+              } else if (item is String) {
                 displayValue = item;
               }
               return Text(displayValue, overflow: TextOverflow.ellipsis);
@@ -946,7 +1219,8 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
 
     required String label,
 
-    int maxLines = 1,
+    int? maxLines = 1,
+    int? minLines,
 
     bool readOnly = false,
 
@@ -957,12 +1231,13 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
     IconData? icon,
 
     bool isRequired = true, // Added isRequired param
-    
+
     TextInputType type = TextInputType.text, // Added type
 
     FormFieldValidator<String>? validator, // Added validator
     int? maxLength,
     List<TextInputFormatter>? inputFormatters,
+    String? suffixText,
   }) {
     return TextFormField(
       controller: controller,
@@ -974,6 +1249,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
       onChanged: onChanged, // Pass onChanged to TextFormField
 
       maxLines: maxLines,
+      minLines: minLines,
 
       keyboardType: type, // Pass type to TextFormField
       maxLength: maxLength,
@@ -986,9 +1262,10 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
 
         labelStyle: TextStyle(color: Colors.grey.shade600),
 
-        alignLabelWithHint: maxLines > 1,
+        alignLabelWithHint: maxLines == null || maxLines > 1,
 
         suffixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
+        suffixText: suffixText,
         counterText: "",
       ),
 
@@ -1008,7 +1285,10 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
     return Scaffold(
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        title: const Text('Create Site Visit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text(
+          'Create Site Visit',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -1048,7 +1328,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                   isLoading: _isProjectsLoading,
                   onChanged: (val) {
                     setState(() {
-                      _selectedProject = val as Map<String, String>?; // Cast to Map<String, String>?
+                      _selectedProject = val as Map<String, dynamic>?;
                     });
                   },
                   displayKey: 'name',
@@ -1070,7 +1350,11 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                     padding: EdgeInsets.only(bottom: 8.0),
                     child: Text(
                       "This lead has incomplete information. Please fill in the mandatory details to proceed with the site visit.",
-                      style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                   if (_missingFields.contains('firstName'))
@@ -1123,7 +1407,8 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                     ),
                     _buildConfigurationButtons(),
                   ],
-                  if (_missingFields.contains('budgetMin') || _missingFields.contains('budgetMax'))
+                  if (_missingFields.contains('budgetMin') ||
+                      _missingFields.contains('budgetMax'))
                     Row(
                       children: [
                         Expanded(
@@ -1151,7 +1436,7 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                       isLoading: _isSalesManagersLoading,
                       onChanged: (val) {
                         setState(() {
-                          _selectedSalesManager = val as Map<String, String>?;
+                          _selectedSalesManager = val as Map<String, dynamic>?;
                         });
                       },
                       displayKey: 'name',
@@ -1162,28 +1447,47 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                       label: "Financing",
                       value: _selectedFinancing,
                       items: ['Own Funds', 'Loan Required', 'Both'],
-                      onChanged: (val) => setState(() => _selectedFinancing = val as String?),
+                      onChanged: (val) =>
+                          setState(() => _selectedFinancing = val as String?),
+                    ),
+                  if (_missingFields.contains('loanRequirements'))
+                    _styledTextField(
+                      label: "Loan Requirements",
+                      controller: _loanRequirementsController,
+                      type: const TextInputType.numberWithOptions(decimal: true),
+                      suffixText: 'Cr',
+                      isRequired: true,
                     ),
                   if (_missingFields.contains('purpose'))
                     _styledDropdown(
                       label: "Purpose",
                       value: _selectedPurpose,
                       items: ['Investment', 'Personal use'],
-                      onChanged: (val) => setState(() => _selectedPurpose = val as String?),
+                      onChanged: (val) =>
+                          setState(() => _selectedPurpose = val as String?),
                     ),
                   if (_missingFields.contains('expectedTime'))
                     _styledDropdown(
                       label: "Expected Purchase Time",
                       value: _selectedExpectedTime,
-                      items: ['Immediate', '3-6 months', '6-12 months', 'More than 12 months'],
-                      onChanged: (val) => setState(() => _selectedExpectedTime = val as String?),
+                      items: [
+                        'Immediate',
+                        '3-6 months',
+                        '6-12 months',
+                        'More than 12 months',
+                      ],
+                      onChanged: (val) => setState(
+                        () => _selectedExpectedTime = val as String?,
+                      ),
                     ),
                   if (_missingFields.contains('leadRemark'))
                     _styledTextField(
                       controller: _leadRemarkController,
                       label: "Lead Remark",
-                      icon: Icons.comment,
-                      maxLines: 2,
+                      icon: Icons.notes,
+                      maxLines: null,
+                      minLines: 3,
+                      type: TextInputType.multiline,
                     ),
                 ]),
 
@@ -1195,9 +1499,92 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                   items: _statusOptions,
                   onChanged: (val) => setState(() => _status = val!),
                 ),
-                
+
+                if (_status == 'Visit Done' || _status == 'Revisit Done') ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: kAccent.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: kAccent.withOpacity(0.1)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: const [
+                                Icon(Icons.timer_outlined, color: kAccent, size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Meeting Duration',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: kAccent,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                _calculateDurationString(_visitDuration.toInt()),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            activeTrackColor: kAccent,
+                            inactiveTrackColor: kAccent.withOpacity(0.1),
+                            thumbColor: kAccent,
+                            trackHeight: 4,
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                            overlayColor: kAccent.withOpacity(0.1),
+                            valueIndicatorColor: kAccent,
+                            valueIndicatorTextStyle: const TextStyle(color: Colors.white),
+                          ),
+                          child: Slider(
+                            value: _visitDuration,
+                            min: 0,
+                            max: 60,
+                            divisions: 60,
+                            label: '${_visitDuration.toInt()} mins',
+                            onChanged: (v) => setState(() => _visitDuration = v),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('0 min', style: TextStyle(fontSize: 10, color: Colors.grey[400], fontWeight: FontWeight.w500)),
+                              Text('1 hr', style: TextStyle(fontSize: 10, color: Colors.grey[400], fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 // ★★★ CONDITIONAL FIELD: Scheduled Date ★★★
-                if (_status == 'Scheduled')
+                if (_status == 'Visit Scheduled' || _status == 'Revisit Scheduled')
                   _styledTextField(
                     controller: _scheduledDateController,
                     label: "Scheduled Date & Time",
@@ -1210,8 +1597,28 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
                 _styledTextField(
                   controller: _remarkController,
                   label: "Remarks (Optional)",
-                  maxLines: 3,
+                  maxLines: null,
+                  minLines: 3,
                   isRequired: false,
+                  type: TextInputType.multiline,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Presence of CP",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Switch(
+                      value: _presenceOfCp,
+                      onChanged: (val) => setState(() => _presenceOfCp = val),
+                      activeColor: kAccent,
+                    ),
+                  ],
                 ),
               ]),
             ],
@@ -1228,14 +1635,27 @@ class _CreateSiteVisitScreenState extends State<CreateSiteVisitScreen> {
               backgroundColor: kAccent,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: _isLoading ? null : _submitForm,
             child: _isLoading
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
                 : const Text(
                     'Create Site Visit',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
           ),
         ),

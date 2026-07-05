@@ -109,8 +109,12 @@ class _ProjectsPageState extends State<ProjectsPage> {
       print('Projects fetched: ${results[0].length}');
       print('Developers fetched: ${results[1].length}');
 
+      final rawProjects = results[0] as List<Project>;
+      // Deduplicate projects by ID
+      final deduplicatedProjects = {for (var p in rawProjects) p.id: p}.values.toList();
+
       setState(() {
-        _projects = results[0] as List<Project>;
+        _projects = deduplicatedProjects;
         _developers = results[1] as List<Developer>;
         _isLoading = false;
       });
@@ -938,8 +942,8 @@ class _ProjectsPageState extends State<ProjectsPage> {
     // Return project's coordinates if available
     if (project.locationCoordinates != null) {
       return (
-        project.locationCoordinates!.latitude,
-        project.locationCoordinates!.longitude,
+        project.locationCoordinates!['latitude'] ?? 0.0,
+        project.locationCoordinates!['longitude'] ?? 0.0,
       );
     }
 
@@ -1043,7 +1047,16 @@ class _ProjectsPageState extends State<ProjectsPage> {
   ${project.amenities.isNotEmpty ? '🏠 Amenities: ${project.amenities.take(5).join(', ')}' : ''}
 
   ${project.configurations.isNotEmpty ? '🏘️ Available Configurations:' : ''}
-  ${project.configurations.take(3).map((config) => '• ${config.name} - ${config.carpetArea} - ${config.price}').join('\n')}
+  ${project.configurations.take(3).map((config) {
+        final formattedPrice = config.price == 0 
+            ? 'Price on Request' 
+            : (config.price < 10 
+                ? '${config.price.toStringAsFixed(2)} Cr' 
+                : (config.price < 10000 
+                    ? '${(config.price / 100).toStringAsFixed(2)} Cr' 
+                    : '${(config.price / 10000000).toStringAsFixed(2)} Cr'));
+        return '• ${config.name} - ${config.carpetArea.toInt()} sq.ft - $formattedPrice';
+      }).join('\n')}
 
   ${project.campaigns.isNotEmpty ? '🔥 Special Offers Available!' : ''}
 
@@ -1056,10 +1069,6 @@ class _ProjectsPageState extends State<ProjectsPage> {
     Clipboard.setData(ClipboardData(text: shareText));
     final theme = Theme.of(context);
     CustomSnackBar.show(context, message: 'Project details copied to clipboard!', isError: false, title: 'Notice');
-          },
-        ),
-      ),
-    );
   }
 
   bool _hasActiveFilters() {
@@ -1105,9 +1114,11 @@ class _ProjectsPageState extends State<ProjectsPage> {
                 brokerId: brokerId,
                 lockProjectSelection: true,
                 onCreated: () {
-                  CustomSnackBar.show(context, message: 
-                        'Enquiry added for ${_visibleProjects.length} projects!',
-                      , isError: false, title: 'Notice');
+                  CustomSnackBar.show(context, 
+                    message: 'Enquiry added for ${_visibleProjects.length} projects!',
+                    isError: false, 
+                    title: 'Notice'
+                  );
                 },
               );
             } catch (e) {

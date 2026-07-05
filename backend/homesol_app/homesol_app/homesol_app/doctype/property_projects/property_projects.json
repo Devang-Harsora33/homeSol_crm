@@ -408,8 +408,8 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-01 18:12:56.911299",
- "modified_by": "Administrator",
+ "modified": "2026-06-24 15:31:27.264078",
+ "modified_by": "admin@homesolindia.com",
  "module": "Homesol App",
  "name": "Property Projects",
  "naming_rule": "Expression (old style)",
@@ -430,9 +430,11 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
  "title_field": "project_name",
- "track_changes": 1
+ "track_changes": 1,
+ "translated_doctype": 1
 }

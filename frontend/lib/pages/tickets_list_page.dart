@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../models/ticket.dart';
 import 'ticket_page.dart';
 import 'ticket_detail_page.dart';
+import 'ticket_creation_page.dart';
 
 class TicketsListPage extends StatefulWidget {
   const TicketsListPage({super.key});
@@ -218,7 +219,7 @@ class _TicketsListPageState extends State<TicketsListPage> {
         onPressed: () async {
           await Navigator.of(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const TicketPage()));
+          ).push(MaterialPageRoute(builder: (_) => const TicketCreationPage()));
           // Reload list after returning from creation page
           await _load();
           if (mounted) setState(() {});

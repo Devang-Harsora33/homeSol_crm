@@ -24,6 +24,8 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
   late Future<List<PropertyUnit>> _unitsFuture;
   final TransformationController _transformationController = TransformationController();
   String? _filterStatus;
+  String? _selectedWing;
+  bool _showStats = false;
   
   // Grid settings
   final double _cellWidth = 50.0;
@@ -82,6 +84,10 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
         return const Color(0xFFFF9800); // Material Orange
       case 'Sold':
         return const Color(0xFFF44336); // Material Red
+      case 'Refuge':
+        return Colors.grey;
+      case 'Investor Unit':
+        return Colors.purple;
       default:
         return Colors.blueGrey;
     }
@@ -104,6 +110,139 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildStatsTable(List<PropertyUnit> units) {
+    final Map<String, InventoryStatRow> statsMap = {};
+    for (final unit in units) {
+      final key = "${unit.configuration}_${unit.carpetArea}";
+      if (!statsMap.containsKey(key)) {
+        statsMap[key] = InventoryStatRow(
+          configuration: unit.configuration,
+          carpetArea: unit.carpetArea,
+        );
+      }
+      statsMap[key]!.totalUnits++;
+      if (unit.unitStatus == 'Sold') {
+        statsMap[key]!.soldUnits++;
+      }
+    }
+
+    final sortedStats = statsMap.values.toList()
+      ..sort((a, b) {
+        int cmp = a.configuration.compareTo(b.configuration);
+        if (cmp != 0) return cmp;
+        return a.carpetArea.compareTo(b.carpetArea);
+      });
+
+    int grandTotalUnits = 0;
+    double grandTotalSqFt = 0;
+
+    for (var stat in sortedStats) {
+      grandTotalUnits += stat.totalUnits;
+      grandTotalSqFt += stat.totalSqFt;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF675d40).withOpacity(0.05),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.analytics_outlined, size: 18, color: Color(0xFF675d40)),
+                const SizedBox(width: 8),
+                Text(
+                  '$_selectedWing - Wing Inventory Stats',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF675d40),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Table(
+            border: TableBorder(
+              horizontalInside: BorderSide(color: Colors.grey[100]!, width: 1),
+            ),
+            columnWidths: const {
+              0: FlexColumnWidth(2),
+              1: FlexColumnWidth(1.2),
+              2: FlexColumnWidth(1),
+              3: FlexColumnWidth(1.2),
+              4: FlexColumnWidth(1),
+            },
+            children: [
+              TableRow(
+                decoration: BoxDecoration(color: Colors.grey[50]),
+                children: [
+                  _buildTableCell('Total Inventory', isHeader: true),
+                  _buildTableCell('Carpet Area', isHeader: true),
+                  _buildTableCell('Total Units', isHeader: true),
+                  _buildTableCell('Sq:ft', isHeader: true),
+                  _buildTableCell('Sold Out', isHeader: true),
+                ],
+              ),
+              ...sortedStats.map((stat) => TableRow(
+                children: [
+                  _buildTableCell(stat.configuration),
+                  _buildTableCell(stat.carpetArea.toStringAsFixed(0)),
+                  _buildTableCell(stat.totalUnits.toString()),
+                  _buildTableCell(stat.totalSqFt.toStringAsFixed(0)),
+                  _buildTableCell(stat.soldUnits.toString(), textColor: stat.soldUnits > 0 ? Colors.red[700] : null),
+                ],
+              )),
+              TableRow(
+                decoration: BoxDecoration(color: Colors.grey[50]),
+                children: [
+                  _buildTableCell('Total', isHeader: true),
+                  _buildTableCell(''),
+                  _buildTableCell(grandTotalUnits.toString(), isHeader: true),
+                  _buildTableCell(grandTotalSqFt.toStringAsFixed(0), isHeader: true),
+                  _buildTableCell(''),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableCell(String text, {bool isHeader = false, Color? textColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+          fontSize: isHeader ? 10 : 11,
+          color: textColor ?? (isHeader ? Colors.black87 : Colors.black54),
+        ),
+        textAlign: TextAlign.center,
+      ),
     );
   }
 
@@ -144,38 +283,84 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
           );
         }
 
-        // Process data into matrix
-        final floors = <String>{};
-        final series = <String>{};
-        final Map<String, Map<String, PropertyUnit>> matrix = {};
+        // Get unique wings
+        final wings = units
+            .map((u) => u.wing)
+            .where((w) => w != null && w.isNotEmpty)
+            .cast<String>()
+            .toSet()
+            .toList()
+          ..sort();
 
-        for (final unit in units) {
-          final f = unit.floorNumber;
-          String s = unit.flatNo;
-          if (s.startsWith(f)) {
-            s = s.substring(f.length);
-          }
-          if (s.isEmpty) s = unit.flatNo;
-
-          floors.add(f);
-          series.add(s);
-          matrix.putIfAbsent(f, () => {})[s] = unit;
+        // Auto-select first wing if none selected
+        if (_selectedWing == null && wings.isNotEmpty) {
+          _selectedWing = wings.first;
         }
 
-        final sortedFloors = floors.toList()..sort((a, b) => (int.tryParse(b) ?? 0).compareTo(int.tryParse(a) ?? 0));
-        final sortedSeries = series.toList()..sort();
+        // Filter units by wing
+        final filteredByWingUnits = _selectedWing == null
+            ? units
+            : units.where((u) => u.wing == _selectedWing).toList();
+
+        // Process data into matrix
+        final floors = <String>{};
+        final seriesSet = <String>{};
+        
+        // Detailed mapping: floor -> series -> unit
+        final Map<String, Map<String, PropertyUnit>> matrix = {};
+        
+        // Track units that span multiple series (Jodi flats)
+        // Unit Name -> List of Series it covers
+        final Map<String, List<String>> unitSpans = {};
+
+        for (final unit in filteredByWingUnits) {
+          final f = unit.floorNumber;
+          floors.add(f);
+          
+          final List<String> unitParts = unit.flatNo.split('-');
+          final List<String> currentUnitSeries = [];
+          
+          for (final part in unitParts) {
+            String s = part.trim();
+            // If the part starts with the floor number, strip it to get the series
+            if (s.startsWith(f)) {
+              s = s.substring(f.length);
+            }
+            // If stripping floor number results in empty (e.g. flat 14 on floor 14), 
+            // fallback to the full part as series
+            if (s.isEmpty) s = part.trim();
+            
+            seriesSet.add(s);
+            currentUnitSeries.add(s);
+            
+            matrix.putIfAbsent(f, () => {})[s] = unit;
+          }
+          
+          if (unitParts.length > 1) {
+            unitSpans[unit.name] = currentUnitSeries;
+          }
+        }
+
+        final sortedFloors = floors.toList()
+          ..sort((a, b) => (int.tryParse(b) ?? 0).compareTo(int.tryParse(a) ?? 0));
+        final sortedSeries = seriesSet.toList()..sort();
 
         // Account for the margin (1.5 * 2 = 3.0) in total size calculation
         final double cellSpacing = 3.0;
         final double totalGridWidth = sortedSeries.length * (_cellWidth + cellSpacing);
         final double totalGridHeight = sortedFloors.length * (_cellHeight + cellSpacing);
+        
+        // Calculate dynamic height: header + grid height + padding (8.0 total), capped at 550
+        final double calculatedHeight = _headerSize + totalGridHeight + 16.0;
+        final double displayHeight = calculatedHeight.clamp(150.0, 550.0);
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildControls(),
+            _buildControls(wings),
+            if (_showStats) _buildStatsTable(filteredByWingUnits),
             SizedBox(
-              height: 550, // Fixed height to avoid layout errors in scrollable parents
+              height: displayHeight, // Dynamic height capped at 550
               child: Container(
                 color: const Color(0xFFF5F7FA),
                 child: LayoutBuilder(
@@ -209,7 +394,7 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
                                   )
                                 ],
                               ),
-                              child: _buildMatrixGrid(sortedFloors, sortedSeries, matrix),
+                              child: _buildMatrixGrid(sortedFloors, sortedSeries, matrix, unitSpans),
                             ),
                           ),
                         ),
@@ -227,7 +412,7 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
                                 // Top Series Header
                                 Positioned(
                                   top: 0,
-                                  left: _headerSize + offset.x,
+                                  left: _headerSize + offset.x + (4.0 * scale),
                                   width: totalGridWidth * scale,
                                   height: _headerSize * scale,
                                   child: ClipRect(
@@ -247,7 +432,7 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
                                 ),
                                 // Left Floor Header
                                 Positioned(
-                                  top: _headerSize + offset.y,
+                                  top: _headerSize + offset.y + (4.0 * scale),
                                   left: 0,
                                   width: _headerSize * scale,
                                   height: totalGridHeight * scale,
@@ -305,55 +490,198 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
     );
   }
 
-  Widget _buildControls() {
+  Widget _buildControls(List<String> wings) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A).withOpacity(0.03),
+              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF675d40).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.domain_rounded, size: 18, color: Color(0xFF675d40)),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'WING',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black54,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildZoomControls(),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: () => setState(() => _showStats = !_showStats),
+                          icon: Icon(_showStats ? Icons.visibility_off_outlined : Icons.analytics_outlined, size: 16),
+                          label: Text(_showStats ? 'Hide Stats' : 'Show Stats', style: const TextStyle(fontSize: 12)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF675d40),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Text(
+                        'Pinch to zoom, drag to pan',
+                        style: TextStyle(fontSize: 9, color: Colors.grey[400], fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+          ),
+          if (wings.isNotEmpty)
+            Container(
+              height: 60,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: wings.length,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemBuilder: (context, index) {
+                  final wing = wings[index];
+                  final isSelected = _selectedWing == wing;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: InkWell(
+                      onTap: () {
+                        if (!isSelected) {
+                          setState(() {
+                            _selectedWing = wing;
+                            _resetZoom();
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.fastOutSlowIn,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: isSelected 
+                            ? const LinearGradient(
+                                colors: [Color(0xFF675d40), Color(0xFF8E825D)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : LinearGradient(
+                                colors: [Colors.white, Colors.grey[50]!],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFF675d40).withOpacity(0.5) : Colors.grey[200]!,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            if (isSelected)
+                              BoxShadow(
+                                color: const Color(0xFF675d40).withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                                spreadRadius: -2,
+                              )
+                            else
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            wing,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black87,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                              fontSize: 14,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Column(
+              children: [
+                SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _buildFilterChip('All', null),
+                      _buildFilterChip('All Status', null),
                       const SizedBox(width: 8),
                       _buildFilterChip('Available', 'Available'),
                       const SizedBox(width: 8),
                       _buildFilterChip('Hold', 'Hold'),
                       const SizedBox(width: 8),
                       _buildFilterChip('Sold', 'Sold'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Refuge', 'Refuge'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Investor Unit', 'Investor Unit'),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              _buildZoomControls(),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildLegendItem('Available', const Color(0xFF4CAF50)),
-              _buildLegendItem('Hold', const Color(0xFFFF9800)),
-              _buildLegendItem('Sold', const Color(0xFFF44336)),
-              Text(
-                'Tip: Pinch to zoom, drag to pan',
-                style: TextStyle(fontSize: 10, color: Colors.grey[500], fontStyle: FontStyle.italic),
-              ),
-            ],
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildLegendItem('Available', const Color(0xFF4CAF50)),
+                      const SizedBox(width: 12),
+                      _buildLegendItem('Hold', const Color(0xFFFF9800)),
+                      const SizedBox(width: 12),
+                      _buildLegendItem('Sold', const Color(0xFFF44336)),
+                      const SizedBox(width: 12),
+                      _buildLegendItem('Refuge', Colors.grey),
+                      const SizedBox(width: 12),
+                      _buildLegendItem('Investor Unit', Colors.purple),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -434,128 +762,179 @@ class _LiveInventoryMatrixState extends State<LiveInventoryMatrix> {
   }
 
   Widget _buildTopHeader(List<String> series) {
+    final double totalCellWidth = _cellWidth + 3.0; // _cellWidth + 1.5 margin on each side
     return Row(
       children: series.map((s) => Container(
-        width: _cellWidth,
+        width: totalCellWidth,
         height: _headerSize,
         decoration: BoxDecoration(
           color: const Color(0xFF37474F), // Blue Grey 800
           border: Border.all(color: Colors.white.withOpacity(0.1), width: 0.5),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'SERIES',
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 7, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'SERIES',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 7, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                ),
+                Text(
+                  s,
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-            Text(
-              s,
-              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-            ),
-          ],
+          ),
         ),
       )).toList(),
     );
   }
 
   Widget _buildLeftHeader(List<String> floors) {
+    final double totalCellHeight = _cellHeight + 3.0; // _cellHeight + 1.5 margin on each side
     return Column(
       children: floors.map((f) => Container(
         width: _headerSize,
-        height: _cellHeight,
+        height: totalCellHeight,
         decoration: BoxDecoration(
           color: const Color(0xFF37474F),
           border: Border.all(color: Colors.white.withOpacity(0.1), width: 0.5),
         ),
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'F',
-                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 8, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                f,
-                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-            ],
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'F',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 8, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  f,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
           ),
         ),
       )).toList(),
     );
   }
 
-  Widget _buildMatrixGrid(List<String> floors, List<String> series, Map<String, Map<String, PropertyUnit>> matrix) {
+  Widget _buildMatrixGrid(List<String> floors, List<String> series, Map<String, Map<String, PropertyUnit>> matrix, Map<String, List<String>> unitSpans) {
     return Column(
       children: floors.map((floor) {
-        return Row(
-          children: series.map((s) {
-            final unit = matrix[floor]?[s];
-            return _buildMicroCard(unit);
-          }).toList(),
-        );
+        final List<Widget> rowCells = [];
+        final Set<String> renderedSeriesInRow = {};
+
+        for (final s in series) {
+          if (renderedSeriesInRow.contains(s)) continue;
+
+          final unit = matrix[floor]?[s];
+          if (unit == null) {
+            rowCells.add(_buildMicroCard(null));
+            renderedSeriesInRow.add(s);
+            continue;
+          }
+
+          final span = unitSpans[unit.name];
+          if (span != null && span.length > 1) {
+            // It's a Jodi unit
+            final int colspan = span.length;
+            rowCells.add(_buildMicroCard(unit, colspan: colspan));
+            renderedSeriesInRow.addAll(span);
+          } else {
+            rowCells.add(_buildMicroCard(unit));
+            renderedSeriesInRow.add(s);
+          }
+        }
+
+        return Row(children: rowCells);
       }).toList(),
     );
   }
 
-  Widget _buildMicroCard(PropertyUnit? unit) {
+  Widget _buildMicroCard(PropertyUnit? unit, {int colspan = 1}) {
+    // Account for the margin (1.5 * 2 = 3.0)
+    final double cellSpacing = 3.0;
+    final double width = (colspan * _cellWidth) + ((colspan - 1) * cellSpacing);
+    
     if (unit == null) {
       return Container(
-        width: _cellWidth,
+        width: width,
         height: _cellHeight,
+        margin: const EdgeInsets.all(1.5),
         decoration: BoxDecoration(
-          color: Colors.grey[50],
-          border: Border.all(color: Colors.white, width: 0.5),
+          color: const Color(0xFFF1F4F8).withOpacity(0.5),
+          borderRadius: BorderRadius.circular(4),
         ),
       );
     }
 
     final bool isHighlighted = _filterStatus == null || unit.unitStatus == _filterStatus;
     final color = _getStatusColor(unit.unitStatus);
+    final isJodi = colspan > 1;
     
     return GestureDetector(
       onTap: () => _showUnitDetails(unit),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 200),
-        opacity: isHighlighted ? 1.0 : 0.1,
+        opacity: isHighlighted ? 1.0 : 0.15,
         child: Container(
-          width: _cellWidth,
+          width: width,
           height: _cellHeight,
           margin: const EdgeInsets.all(1.5),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.85),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: color, width: 0.5),
+            color: color.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: color, 
+              width: 0.5
+            ),
             boxShadow: [
               if (isHighlighted)
                 BoxShadow(
-                  color: color.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+                  color: color.withOpacity(0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 3),
                 ),
             ],
           ),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               Center(
-                child: Text(
-                  unit.flatNo,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    letterSpacing: -0.5,
+                child: FittedBox(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      unit.flatNo,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 11,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
                   ),
                 ),
               ),
               Positioned(
                 bottom: 2,
-                right: 3,
+                right: 4,
                 child: Text(
-                  unit.configuration.split(' ').first, // e.g. "2" from "2 BHK"
-                  style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 8, fontWeight: FontWeight.bold),
+                  unit.configuration.split(' ').first,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8), 
+                    fontSize: 8, 
+                    fontWeight: FontWeight.bold
+                  ),
                 ),
               ),
             ],
@@ -919,6 +1298,10 @@ class UnitDetailsBottomSheetState extends State<UnitDetailsBottomSheet> {
         return const Color(0xFFF0AD4E);
       case 'Sold':
         return const Color(0xFFD9534F);
+      case 'Refuge':
+        return Colors.grey;
+      case 'Investor Unit':
+        return Colors.purple;
       default:
         return Colors.grey;
     }
@@ -946,20 +1329,45 @@ class UnitDetailsBottomSheetState extends State<UnitDetailsBottomSheet> {
                 'Flat ${widget.unit.flatNo}',
                 style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(_currentStatus),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  _currentStatus,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
+              Row(
+                children: [
+                  if (widget.unit.wing != null && widget.unit.wing!.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'Wing ${widget.unit.wing}',
+                        style: TextStyle(
+                          color: Colors.grey[800],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(_currentStatus),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      _currentStatus,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 20),
+          if (widget.unit.wing != null && widget.unit.wing!.isNotEmpty)
+            _buildSpecRow(Icons.domain, 'Wing', widget.unit.wing!),
+          if (widget.unit.side != null && widget.unit.side!.isNotEmpty)
+            _buildSpecRow(Icons.view_column_outlined, 'Side', widget.unit.side!),
           _buildSpecRow(Icons.layers, 'Floor', widget.unit.floorNumber),
           _buildSpecRow(Icons.apartment, 'Configuration', widget.unit.configuration),
           _buildSpecRow(Icons.square_foot, 'Carpet Area', '${widget.unit.carpetArea} sq.ft'),
@@ -1103,6 +1511,8 @@ class UnitDetailsBottomSheetState extends State<UnitDetailsBottomSheet> {
                   DropdownMenuItem(value: 'Available', child: Text('Available')),
                   DropdownMenuItem(value: 'Hold', child: Text('Hold')),
                   DropdownMenuItem(value: 'Sold', child: Text('Sold')),
+                  DropdownMenuItem(value: 'Refuge', child: Text('Refuge')),
+                  DropdownMenuItem(value: 'Investor Unit', child: Text('Investor Unit')),
                 ],
                 onChanged: _updateStatus,
               ),
@@ -1159,4 +1569,20 @@ class UnitDetailsBottomSheetState extends State<UnitDetailsBottomSheet> {
       ),
     );
   }
+}
+
+class InventoryStatRow {
+  final String configuration;
+  final double carpetArea;
+  int totalUnits;
+  int soldUnits;
+
+  InventoryStatRow({
+    required this.configuration,
+    required this.carpetArea,
+    this.totalUnits = 0,
+    this.soldUnits = 0,
+  });
+
+  double get totalSqFt => carpetArea * totalUnits;
 }

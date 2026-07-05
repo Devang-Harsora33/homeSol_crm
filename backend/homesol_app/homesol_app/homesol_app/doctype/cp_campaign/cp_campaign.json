@@ -60,8 +60,8 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-27 01:25:56.040288",
- "modified_by": "Administrator",
+ "modified": "2026-06-22 20:59:41.706328",
+ "modified_by": "admin@homesolindia.com",
  "module": "Homesol App",
  "name": "CP Campaign",
  "naming_rule": "Expression (old style)",
@@ -85,5 +85,7 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1,
+ "track_seen": 1
 }

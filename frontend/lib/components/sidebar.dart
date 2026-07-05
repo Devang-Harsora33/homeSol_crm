@@ -136,6 +136,11 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? _darkBg : const Color(0xFFF5F5F7);
+    
+    final String designationStr = _profile?.designation?.toLowerCase() ?? '';
+    final bool showCRM = designationStr != 'sourcing';
+    final bool showSourcing = designationStr != 'sales representative';
+    final bool isDeveloper = designationStr == 'property developer';
 
     return AnimatedBuilder(
       animation: _animationController,
@@ -195,7 +200,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                           children: [
                             if (_isLoggedIn) ...[
                               _buildSectionHeader('Management', isDark),
-                              if (!(_profile?.designation?.toLowerCase().contains('sourcing') ?? false))
+                              if (showCRM)
                                 _buildModernMenuItem(
                                   icon: FontAwesomeIcons.briefcase,
                                   title: 'CRM',
@@ -208,7 +213,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                     ),
                                   ),
                                 ),
-                              if (_profile?.designation?.toLowerCase().contains('sourcing') ?? false)
+                              if (showSourcing)
                                 _buildModernMenuItem(
                                   icon: FontAwesomeIcons.magnifyingGlassPlus,
                                   title: 'Sourcing',
@@ -241,19 +246,19 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                   ),
                                 ),
                               ),
-                              if (!(_profile?.designation?.toLowerCase().contains('sourcing') ?? false))
-                                _buildModernMenuItem(
-                                  icon: FontAwesomeIcons.mapLocationDot,
-                                  title: 'Site Visits',
-                                  isDark: isDark,
-                                  onTap: () => _navigateToPage(
-                                    context,
-                                    CRMPage(
-                                      developerId: widget.developerId,
-                                    ),
-                                  ),
-                                ),
-                              if (_profile?.designation?.toLowerCase() != 'property developer')
+                              // if (showCRM)
+                              //   _buildModernMenuItem(
+                              //     icon: FontAwesomeIcons.mapLocationDot,
+                              //     title: 'Site Visits',
+                              //     isDark: isDark,
+                              //     onTap: () => _navigateToPage(
+                              //       context,
+                              //       CRMPage(
+                              //         developerId: widget.developerId,
+                              //       ),
+                              //     ),
+                              //   ),
+                              if (!isDeveloper)
                                 _buildModernMenuItem(
                                   icon: FontAwesomeIcons.handshake,
                                   title: 'Channel Partners',
@@ -261,7 +266,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                   onTap: () => _navigateToPage(context, const ChannelPartnerListPage()),
                                 ),
 
-                              if (_profile?.designation?.toLowerCase() != 'property developer') ...[
+                              if (!isDeveloper) ...[
                                 _buildSectionHeader('HR & Payroll', isDark),
                                 _buildModernMenuItem(
                                   icon: FontAwesomeIcons.calendarCheck,
@@ -345,16 +350,16 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                             const SizedBox(height: 30),
                             Center(
                               child: Text(
-                                'HOMESOL DIGITAL v1.0.0',
+                                'HomeSol Nexus v1.0.5(44)',
                                 style: TextStyle(
                                   color: (isDark ? Colors.white : Colors.black).withOpacity(0.25),
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.5
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 30),
+                            const SizedBox(height: 90),
                           ],
                         ),
                       ),

@@ -54,7 +54,9 @@ class CustomSnackBar {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    message,
+                    message.replaceAll('Exception: ', ''),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: Colors.grey[300],
                       fontSize: 13,

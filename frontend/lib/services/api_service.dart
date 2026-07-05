@@ -8,9 +8,65 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'connectivity_service.dart';
 
+import '../models/project.dart';
+import '../models/developer.dart';
+import '../models/site_visit.dart';
+import '../models/ticket.dart';
+import 'apis/projects/project_service.dart';
+import 'apis/developers/developer_service.dart';
+import 'apis/site_visits/sitevisit_service.dart';
+import 'apis/tickets/ticker_service.dart';
+
+import '../models/story.dart';
+
 class ApiService {
   static String get baseUrl => '${AuthService.baseUrl}/api/resource';
   static const String _lastSyncTimestampKey = "last_sync_timestamp_sales_teams";
+
+  // --- Bridge Methods for Backward Compatibility ---
+  
+  static Future<List<Project>> fetchProjects({bool forceRefresh = false}) async {
+    return await ProjectService.fetchProjects(forceRefresh: forceRefresh);
+  }
+
+  static Future<List<Developer>> fetchDevelopers({bool forceRefresh = false}) async {
+    return await DeveloperService.fetchDevelopers(forceRefresh: forceRefresh);
+  }
+
+  static Future<List<SiteVisit>> fetchSiteVisits({bool forceRefresh = false}) async {
+    return await SiteVisitService.fetchSiteVisits(forceRefresh: forceRefresh);
+  }
+
+  static Future<List<Ticket>> fetchTickets({bool forceRefresh = false}) async {
+    return await TicketService.fetchMyTickets(forceRefresh: forceRefresh);
+  }
+
+  // Stubs for missing functionality
+  static Future<dynamic> fetchBookmarks(String brokerId) async {
+    return _BookmarkStub();
+  }
+
+  static Future<bool> removeProjectBookmark(String brokerId, String projectId) async {
+    return true;
+  }
+
+  static Future<bool> removeDeveloperBookmark(String brokerId, String developerId) async {
+    return true;
+  }
+
+  static Future<List<Story>> fetchMeetScheduleStories() async {
+    return [];
+  }
+
+  static Future<bool> registerBrokerForMeet({required String brokerId, required String storyId}) async {
+    return true;
+  }
+
+  static Future<bool> unregisterBrokerFromMeet({required String brokerId, required String storyId}) async {
+    return true;
+  }
+
+  // --- Original ApiService Methods ---
 
   static Future<Map<String, String>> _getHeaders() async {
     final cookie = await AuthService.getCookie();
@@ -35,6 +91,8 @@ class ApiService {
       );
 
       final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return [];
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -84,6 +142,8 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 30));
 
+      if (AuthService.checkResponse(response)) return [];
+
       print('Sales teams sync response status: ${response.statusCode}');
       print('Sales teams sync response body: ${response.body}');
 
@@ -131,9 +191,16 @@ class ApiService {
           
           // Fetch all missing member details in parallel
           List<Future<Member>> memberFutures = salesTeam.members.map((member) async {
-            if (member.userId == null && member.employee.isNotEmpty) {
+            if ((member.userId == null || member.userId!.isEmpty || member.designation == null) && member.employee.isNotEmpty) {
               Profile? employeeProfile = await fetchEmployeeDetails(member.employee);
               if (employeeProfile != null) {
+                String? resolvedEmail = employeeProfile.userId;
+                if (resolvedEmail.isEmpty) {
+                  resolvedEmail = employeeProfile.companyEmail ?? 
+                                  employeeProfile.preferedEmail ?? 
+                                  employeeProfile.preferedContactEmail;
+                }
+
                 return Member(
                   name: member.name,
                   owner: member.owner,
@@ -144,7 +211,8 @@ class ApiService {
                   idx: member.idx,
                   employee: member.employee,
                   employeeName: member.employeeName,
-                  userId: employeeProfile.userId,
+                  userId: resolvedEmail,
+                  designation: employeeProfile.designation,
                   role: member.role,
                   parent: member.parent,
                   parentfield: member.parentfield,
@@ -259,8 +327,7 @@ class ApiService {
 
       // Load sales teams from local database
       final SalesTeamDatabase teamDb = SalesTeamDatabase();
-      final List<Map<String, dynamic>> rawTeams =
-          await teamDb.getAllSalesTeams();
+      final List<Map<String, dynamic>> rawTeams = await teamDb.getAllSalesTeams();
 
       if (rawTeams.isEmpty) {
         print('No sales teams in local database, syncing from API...');
@@ -268,9 +335,14 @@ class ApiService {
       }
 
       final teams = rawTeams.map((data) {
-        final teamJson = json.decode(data['data']);
-        return SalesTeam.fromJson(teamJson);
-      }).toList();
+        try {
+          final teamJson = json.decode(data['data']);
+          return SalesTeam.fromJson(teamJson);
+        } catch (e) {
+          print('Error parsing sales team from DB: $e');
+          return null;
+        }
+      }).where((t) => t != null).cast<SalesTeam>().toList();
 
       print('Loaded ${teams.length} sales teams from local database');
       return teams;
@@ -302,6 +374,8 @@ class ApiService {
 
       final response = await http.post(url, headers: headers, body: body);
 
+      if (AuthService.checkResponse(response)) return null;
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         return responseData['message']['file_url'];
@@ -323,6 +397,8 @@ class ApiService {
       );
 
       final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
+
+      if (AuthService.checkResponse(response)) return [];
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -351,8 +427,11 @@ class ApiService {
         headers: headers,
       );
 
+      if (AuthService.checkResponse(response)) return null;
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
+        print('DEBUG: Full Profile for $employeeId: ${response.body}');
         final Profile employeeProfile = Profile.fromJson(responseData['data']);
         print('Extracted userId for $employeeId: ${employeeProfile.userId}');
         return employeeProfile;
@@ -367,6 +446,40 @@ class ApiService {
       }
     } catch (e) {
       print('Exception fetching employee details for $employeeId: $e');
+      return null;
+    }
+  }
+
+  static Future<String?> fetchUserFullName(String email) async {
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_user_full_name');
+      
+      print('🔍 [API_SERVICE] Resolving full name for: $email via custom API');
+      
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode({"user_id": email}),
+      );
+
+      if (AuthService.checkResponse(response)) return null;
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final Map<String, dynamic> message = responseData['message'] ?? {};
+        final String? fullName = message['full_name'];
+        
+        if (fullName != null && fullName.isNotEmpty) {
+          print('✅ [API_SERVICE] Resolved $email to $fullName');
+          return fullName;
+        }
+      }
+      
+      print('⚠️ [API_SERVICE] Custom API could not resolve name for $email: ${response.statusCode}');
+      return null;
+    } catch (e) {
+      print('❌ [API_SERVICE] Exception in fetchUserFullName for $email: $e');
       return null;
     }
   }
@@ -386,6 +499,8 @@ class ApiService {
         headers: headers,
         body: jsonEncode(updateBody),
       );
+
+      if (AuthService.checkResponse(response)) return {};
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
@@ -421,6 +536,8 @@ class ApiService {
         body: jsonEncode(updateBody),
       );
 
+      if (AuthService.checkResponse(response)) return {};
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         return {'success': true, 'data': responseData['data']};
@@ -438,4 +555,9 @@ class ApiService {
       return {'success': false, 'message': 'Error updating employee: $e'};
     }
   }
+}
+
+class _BookmarkStub {
+  List<String> get projects => [];
+  List<String> get developers => [];
 }

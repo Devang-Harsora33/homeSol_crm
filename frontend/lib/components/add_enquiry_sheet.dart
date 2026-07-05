@@ -4,6 +4,7 @@ import 'package:Homesol/utils/custom_snackbar.dart';
 import '../models/lead.dart';
 import '../models/project.dart';
 import '../services/api_service.dart';
+import '../services/apis/leads/lead_service.dart';
 
 class AddEnquirySheet {
   static Future<void> show(
@@ -389,20 +390,18 @@ class AddEnquirySheet {
                                     configuration: [selectedConfiguration!],
                                   );
 
-                                  await ApiService.createLead(lead);
+                                  await LeadService.createLead(lead);
                                   Navigator.pop(context);
                                   onCreated?.call();
 
                                   // Show success message
-                                  CustomSnackBar.show(context, message: 
-                                        lockProjectSelection &&
-                                                projects.length > 1
+                                  CustomSnackBar.show(context, 
+                                    message: lockProjectSelection && projects.length > 1
                                             ? 'Enquiry initiated for ${projects.length} projects!'
                                             : 'Enquiry initiated successfully!',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                        ),
-                                      , isError: false, title: 'Notice');
+                                    isError: false, 
+                                    title: 'Notice'
+                                  );
                                 } catch (e) {
                                   String errorMsg = 'Failed to create enquiry';
 

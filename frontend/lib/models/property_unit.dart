@@ -8,6 +8,8 @@ class PropertyUnit {
   final String? clientName; // This will hold the lead name
   final String? modifiedBy;
   final String? paymentMethod;
+  final String? wing;
+  final String? side;
 
   PropertyUnit({
     required this.name,
@@ -19,6 +21,8 @@ class PropertyUnit {
     this.clientName,
     this.modifiedBy,
     this.paymentMethod,
+    this.wing,
+    this.side,
   });
 
   factory PropertyUnit.fromJson(Map<String, dynamic> json) {
@@ -32,6 +36,8 @@ class PropertyUnit {
       clientName: json['client_name'],
       modifiedBy: json['modified_by'],
       paymentMethod: json['payment_method'],
+      wing: json['wing'],
+      side: json['side'],
     );
   }
 
@@ -46,6 +52,8 @@ class PropertyUnit {
       'client_name': clientName,
       'modified_by': modifiedBy,
       'payment_method': paymentMethod,
+      'wing': wing,
+      'side': side,
     };
   }
 }

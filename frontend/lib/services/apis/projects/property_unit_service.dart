@@ -26,7 +26,7 @@ class PropertyUnitService {
     try {
       final headers = await _getHeaders();
       final filters = jsonEncode([["project", "=", projectId]]);
-      final fields = jsonEncode(["name", "floor_number", "flat_no", "configuration", "carpet_area", "unit_status", "client_name", "modified_by", "payment_method"]);
+      final fields = jsonEncode(["name", "floor_number", "flat_no", "configuration", "carpet_area", "unit_status", "client_name", "modified_by", "payment_method", "wing", "side"]);
       final url = Uri.parse('$baseUrl/api/resource/Property Unit?filters=$filters&fields=$fields&limit_page_length=500');
       final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
 
@@ -44,7 +44,7 @@ class PropertyUnitService {
     try {
       final headers = await _getHeaders();
       final filters = jsonEncode([["client_name", "=", leadId]]);
-      final fields = jsonEncode(["name", "floor_number", "flat_no", "configuration", "carpet_area", "unit_status", "client_name", "modified_by", "payment_method"]);
+      final fields = jsonEncode(["name", "floor_number", "flat_no", "configuration", "carpet_area", "unit_status", "client_name", "modified_by", "payment_method", "wing", "side"]);
       final url = Uri.parse('$baseUrl/api/resource/Property Unit?filters=$filters&fields=$fields&limit_page_length=500');
       final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
 

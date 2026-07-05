@@ -1,4 +1,6 @@
 import 'package:Homesol/models/ticket.dart';
+import 'package:Homesol/models/error_log.dart';
+import 'package:Homesol/services/databases/error_log_database.dart';
 import 'package:Homesol/utils/custom_snackbar.dart';
 import 'package:Homesol/services/apis/tickets/ticker_service.dart';
 import 'package:Homesol/services/auth_service.dart';
@@ -35,7 +37,8 @@ final kInputDecoration = InputDecoration(
 );
 
 class TicketCreationPage extends StatefulWidget {
-  const TicketCreationPage({super.key});
+  final ErrorLog? initialErrorLog;
+  const TicketCreationPage({super.key, this.initialErrorLog});
 
   @override
   State<TicketCreationPage> createState() => _TicketCreationPageState();
@@ -52,11 +55,48 @@ class _TicketCreationPageState extends State<TicketCreationPage> {
   final _dateController = TextEditingController();
   
   bool _isLoading = false;
+  List<ErrorLog> _recentLogs = [];
+  final List<int> _selectedLogIds = [];
+  bool _showMoreLogs = false;
 
   @override
   void initState() {
     super.initState();
     _loadSystemData();
+    _loadRecentLogs();
+    
+    if (widget.initialErrorLog != null) {
+      _category = 'App Bug';
+      _priority = 'High';
+      _descriptionController.text = "Error encountered: ${widget.initialErrorLog!.message}\nContext: ${widget.initialErrorLog!.module}";
+      if (widget.initialErrorLog!.id != null) {
+        _selectedLogIds.add(widget.initialErrorLog!.id!);
+      }
+    }
+  }
+
+  Future<void> _loadRecentLogs() async {
+    final logs = await ErrorLogDatabase.getRecentErrorLogs(10);
+    if (mounted) {
+      setState(() {
+        _recentLogs = logs;
+        
+        // If we have an initial error log from the crash dialog, 
+        // make sure it's selected in the list once logs are loaded
+        if (widget.initialErrorLog != null) {
+          final logInList = _recentLogs.where((l) => 
+            l.message == widget.initialErrorLog!.message && 
+            l.module == widget.initialErrorLog!.module
+          ).firstOrNull;
+          
+          if (logInList != null && logInList.id != null) {
+            if (!_selectedLogIds.contains(logInList.id)) {
+              _selectedLogIds.add(logInList.id!);
+            }
+          }
+        }
+      });
+    }
   }
 
   Future<void> _loadSystemData() async {
@@ -88,12 +128,29 @@ class _TicketCreationPageState extends State<TicketCreationPage> {
     setState(() => _isLoading = true);
 
     try {
+      String fullDescription = _descriptionController.text;
+      
+      if (_selectedLogIds.isNotEmpty) {
+        fullDescription += "\n\n--- ATTACHED ERROR LOGS ---\n";
+        for (final logId in _selectedLogIds) {
+          final log = _recentLogs.firstWhere((l) => l.id == logId);
+          fullDescription += "\n[${DateFormat('yyyy-MM-dd HH:mm:ss').format(log.timestamp)}]";
+          fullDescription += "\nModule: ${log.module} | Action: ${log.action}";
+          fullDescription += "\nMessage: ${log.message}";
+          fullDescription += "\nDevice: ${log.deviceInfo}";
+          if (log.stackTrace.isNotEmpty) {
+            fullDescription += "\nStack Trace: ${log.stackTrace}";
+          }
+          fullDescription += "\n---------------------------";
+        }
+      }
+
       final ticketToCreate = Ticket(
         id: '', 
         status: 'Open',
         category: _category,
         priority: _priority,
-        description: _descriptionController.text,
+        description: fullDescription,
         raisedBy: _raisedByController.text,
         creation: '', 
         docstatus: 0,
@@ -106,7 +163,7 @@ class _TicketCreationPageState extends State<TicketCreationPage> {
       await TicketService.createTicket(ticketToCreate);
 
       if (mounted) {
-        CustomSnackBar.show(context, message: 'Ticket raised successfully!', isError: false, title: 'Notice');
+        CustomSnackBar.show(context, message: 'Ticket submitted successfully!', isError: false, title: 'Success');
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -203,7 +260,57 @@ class _TicketCreationPageState extends State<TicketCreationPage> {
                 ],
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // --- SECTION 4: RECENT ERRORS ---
+              if (_recentLogs.isNotEmpty) ...[
+                const _SectionLabel(label: "ATTACH RECENT ERRORS"),
+                _FormCard(
+                  children: [
+                    const Text(
+                      "Select relevant logs to help us debug:",
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 10),
+                    ...(_showMoreLogs ? _recentLogs : _recentLogs.take(5)).map((log) {
+                      final isSelected = _selectedLogIds.contains(log.id);
+                      return CheckboxListTile(
+                        value: isSelected,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          log.message,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                        ),
+                        subtitle: Text(
+                          "${log.module} | ${DateFormat('HH:mm').format(log.timestamp)}",
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        ),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedLogIds.add(log.id!);
+                            } else {
+                              _selectedLogIds.remove(log.id);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                    if (!_showMoreLogs && _recentLogs.length > 5)
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () => setState(() => _showMoreLogs = true),
+                          icon: const Icon(Icons.expand_more, size: 18),
+                          label: const Text("Show More"),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              const SizedBox(height: 8),
 
               // --- SUBMIT BUTTON ---
               SizedBox(

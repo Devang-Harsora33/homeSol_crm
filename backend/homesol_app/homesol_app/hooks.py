@@ -241,6 +241,11 @@ app_license = "mit"
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+doc_events = {
+    "Lead": {
+        "validate": "homesol_app.api.crm.validate_lead_assignment"
+    }
+}
 
 fixtures = [
     "Client Script"

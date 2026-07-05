@@ -10,7 +10,7 @@ class LeadNote {
       note: json['note']?.toString(),
       addedBy: json['added_by']?.toString(),
       addedOn: json['added_on'] != null
-          ? DateTime.parse(json['added_on'])
+          ? DateTime.tryParse(json['added_on'])
           : null,
     );
   }
@@ -72,7 +72,7 @@ class Lead {
   final String? qualificationStatus;
   final String? qualifiedBy;
   final DateTime? qualifiedOn;
-  final String? campaignName;
+  final String? customCampaign;
   final String? company;
   final String? language;
   final String? image;
@@ -85,7 +85,7 @@ class Lead {
 
   final List<LeadNote> notes;
 
-  // Custom fields from JSON
+  final String? customLoanRequirements;
   final String? customOccupation;
   final String? customStages;
   final String? customRepeatCustomer;
@@ -111,7 +111,7 @@ class Lead {
   final String? customPostalCode;
   final String? customAttendedBy;
   final String? customSalesManager;
-  final String? customSourceType;
+  final String? customLeadLostStages;
   final int? isDigital;
   final int? isReference;
   final int? isDataCalling;
@@ -178,7 +178,7 @@ class Lead {
     this.qualificationStatus,
     this.qualifiedBy,
     this.qualifiedOn,
-    this.campaignName,
+    this.customCampaign,
     this.company,
     this.language,
     this.image,
@@ -199,6 +199,7 @@ class Lead {
     this.updatedAt,
     this.notesString,
     this.locationCoordinates,
+    this.customLoanRequirements,
     this.customOccupation,
     this.customStages,
     this.customRepeatCustomer,
@@ -224,7 +225,7 @@ class Lead {
     this.customPostalCode,
     this.customAttendedBy,
     this.customSalesManager,
-    this.customSourceType,
+    this.customLeadLostStages,
     this.isDigital,
     this.isReference,
     this.isDataCalling,
@@ -245,10 +246,10 @@ class Lead {
       name: json['name']?.toString(),
       owner: json['owner']?.toString(),
       creation: json['creation'] != null
-          ? DateTime.parse(json['creation'])
+          ? DateTime.tryParse(json['creation'])
           : null,
       modified: json['modified'] != null
-          ? DateTime.parse(json['modified'])
+          ? DateTime.tryParse(json['modified'])
           : null,
       modifiedBy: json['modified_by']?.toString(),
       docstatus: json['docstatus']?.toInt(),
@@ -286,10 +287,10 @@ class Lead {
       country: json['country']?.toString(),
       qualificationStatus: json['qualification_status']?.toString(),
       qualifiedBy: json['qualified_by']?.toString(),
-      qualifiedOn: json['qualified_on'] != null
-          ? DateTime.parse(json['qualified_on'])
-          : null,
-      campaignName: json['campaign_name']?.toString(),
+      qualifiedOn: json['qualified_on'] == null
+          ? null
+          : DateTime.tryParse(json['qualified_on']),
+      customCampaign: json['custom_campaign']?.toString(),
       company: json['company']?.toString(),
       language: json['language']?.toString(),
       image: json['image']?.toString(),
@@ -321,18 +322,19 @@ class Lead {
               ? (json['configuration'] as List).map((e) => e.toString()).toList()
               : []),
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? DateTime.tryParse(json['created_at'])
           : (json['creation'] != null
-                ? DateTime.parse(json['creation'])
+                ? DateTime.tryParse(json['creation'])
                 : null),
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
+          ? DateTime.tryParse(json['updated_at'])
           : (json['modified'] != null
-                ? DateTime.parse(json['modified'])
+                ? DateTime.tryParse(json['modified'])
                 : null),
       locationCoordinates: json['location_coordinates']?.toString(),
 
       // Custom fields
+      customLoanRequirements: json['custom_loan_requirements']?.toString(),
       customOccupation: json['custom_occupation']?.toString(),
       customStages: json['custom_stages']?.toString(),
       customRepeatCustomer: json['custom_repeat_customer']?.toString(),
@@ -358,7 +360,7 @@ class Lead {
       customPostalCode: json['custom_postal_code']?.toString(),
       customAttendedBy: json['custom_attended_by']?.toString(),
       customSalesManager: json['custom_sales_manager']?.toString(),
-      customSourceType: json['custom_source_type']?.toString(),
+      customLeadLostStages: json['custom_lead_lost_stages']?.toString(),
       isDigital: json['is_digital']?.toInt(),
       isReference: json['is_reference']?.toInt(),
       isDataCalling: json['is_data_calling']?.toInt(),
@@ -381,17 +383,44 @@ class Lead {
       'first_name': firstName,
       'last_name': lastName,
       'customer_name': customerName,
-      'mobile_no': customerPhone,
+      'mobile_no': mobileNo,
       'email_id': emailId,
-      'lead_owner': brokerId,
+      'lead_owner': leadOwner,
       'project_id': projectId,
       'status': status,
       'budget': budget,
       'configuration': configuration,
       'notes': notes.map((n) => n.toJson()).toList(),
       'source': source,
-      'custom_source_type': customSourceType,
+      'custom_campaign': customCampaign,
       'location_coordinates': locationCoordinates,
+      'custom_loan_requirements': customLoanRequirements,
+      'custom_occupation': customOccupation,
+      'custom_stages': customStages,
+      'custom_repeat_customer': customRepeatCustomer,
+      'custom_lead_quality': customLeadQuality,
+      'custom_tagging': customTagging,
+      'custom_latest_visit_status': customLatestVisitStatus,
+      'custom_lead_status': customLeadStatus,
+      'custom_lead_date': customLeadDate,
+      'custom_rented': customRented,
+      'custom_owned': customOwned,
+      'custom_parentalfriend': customParentalfriend,
+      'custom_current_residence_type': customCurrentResidenceType,
+      'custom_configuration': customConfiguration,
+      'custom_looking_for_property_type': customLookingForPropertyType,
+      'custom_financing_details': customFinancingDetails,
+      'custom_budget_min': customBudgetMin,
+      'custom_budget_max': customBudgetMax,
+      'custom_expected_time_of_purchase': customExpectedTimeOfPurchase,
+      'custom_purpose_of_purchase': customPurposeOfPurchase,
+      'custom_remark': customRemark,
+      'custom_interested_project': customInterestedProject,
+      'custom_preferred_contact_method': customPreferredContactMethod,
+      'custom_postal_code': customPostalCode,
+      'custom_attended_by': customAttendedBy,
+      'custom_sales_manager': customSalesManager,
+      'custom_lead_lost_stages': customLeadLostStages,
       'is_digital': isDigital,
       'is_reference': isReference,
       'is_data_calling': isDataCalling,
@@ -404,7 +433,13 @@ class Lead {
       'req_standees': reqStandees,
       'req_sms_blast': reqSmsBlast,
       'req_whatsapp_blast': reqWhatsappBlast,
-      // Add custom fields to toJson if needed for sending data back to server
+      'whatsapp_no': whatsappNo,
+      'phone': phone,
+      'industry': industry,
+      'market_segment': marketSegment,
+      'territory': territory,
+      'qualified_by': qualifiedBy,
+      'qualified_on': qualifiedOn?.toIso8601String(),
     };
   }
 }

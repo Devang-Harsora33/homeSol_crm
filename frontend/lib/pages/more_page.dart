@@ -12,20 +12,83 @@ import 'leave_page.dart';
 import 'payroll/salary_slips_page.dart';
 import 'channel_partner/channel_partner_list_page.dart';
 import 'sourcing/sourcing_main_page.dart';
+import 'stats/team_lead_stats_page.dart';
 import '../services/apis/leads/lead_service.dart'; // Import LeadService
 import '../services/apis/sourcing/sourcing_service.dart'; // Import SourcingService
 import 'auth/login_page.dart';
+import 'package:Homesol/pages/dashboard_page.dart';
+import 'admin/lead_transfer_list_page.dart';
+import 'admin/team_lead_dashboard_page.dart';
+import '../services/api_service.dart';
+import '../models/sales_team.dart';
+import 'finance/construction_finance_list_page.dart';
 
-class MorePage extends StatelessWidget {
+class MorePage extends StatefulWidget {
   final Function(int)? onNavigateToTab;
   final String? designation;
+  final String? developerId;
 
-  const MorePage({super.key, this.onNavigateToTab, this.designation});
+  const MorePage({super.key, this.onNavigateToTab, this.designation, this.developerId});
+
+  @override
+  State<MorePage> createState() => _MorePageState();
+}
+
+class _MorePageState extends State<MorePage> {
+  bool _isTeamLead = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkTeamLeadStatus();
+  }
+
+  Future<void> _checkTeamLeadStatus() async {
+    // 1. Check basic designation first
+    final dest = (widget.designation ?? '').trim().toLowerCase();
+    if (dest == 'team lead') {
+      if (mounted) setState(() => _isTeamLead = true);
+      return;
+    }
+
+    // 2. If not in designation, check SalesTeam assignments
+    try {
+      final profile = await AuthService.getMyProfile();
+      final userData = await AuthService.getUserData();
+      final currentUserEmail = userData?['email'];
+      final currentUserName = profile?.employeeName;
+      
+      if (currentUserEmail == null && currentUserName == null) return;
+
+      final List<SalesTeam> teams = await ApiService.fetchSalesTeams();
+      bool foundLeadRole = false;
+
+      for (final team in teams) {
+        for (final member in team.members) {
+          final isCurrentUser = member.employee == currentUserEmail || 
+                                member.userId == currentUserEmail || 
+                                (currentUserName != null && member.employeeName?.toLowerCase() == currentUserName.toLowerCase());
+                                
+          if (isCurrentUser && member.role == 'Team Lead') {
+            foundLeadRole = true;
+            break;
+          }
+        }
+        if (foundLeadRole) break;
+      }
+
+      if (mounted && foundLeadRole) {
+        setState(() => _isTeamLead = true);
+      }
+    } catch (e) {
+      print('Error checking SalesTeam role: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final navigateCallback = onNavigateToTab;
+    final navigateCallback = widget.onNavigateToTab;
     // final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
@@ -38,13 +101,30 @@ class MorePage extends StatelessWidget {
             Expanded(
               child: Builder(
                 builder: (context) {
-                  final dest = (designation ?? '').trim().toLowerCase();
+                  final dest = (widget.designation ?? '').trim().toLowerCase();
                   final isDeveloper = dest == 'property developer';
 
                   if (isDeveloper) {
                     return ListView(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                       children: [
+                        _MoreTile(
+                          icon: Icons.account_balance,
+                          title: 'Construction Finance Dashboard',
+                          onTap: () {
+                            if (widget.developerId != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ConstructionFinanceListPage(
+                                    developerId: widget.developerId!,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              CustomSnackBar.show(context, message: 'Developer ID not found', isError: true);
+                            }
+                          },
+                        ),
                         _MoreTile(
                           icon: Icons.support_agent,
                           title: 'Raise Ticket',
@@ -85,6 +165,18 @@ class MorePage extends StatelessWidget {
                         _buildClearCacheTile(context),
                         const SizedBox(height: 16),
                         _LogoutButton(theme: theme),
+                      const SizedBox(height: 30),
+                      Center(
+                        child: Text(
+                          'HomeSol Nexus v1.0.5(44)',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withOpacity(0.25),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
                       ],
                     );
                   }
@@ -101,7 +193,7 @@ class MorePage extends StatelessWidget {
                             dev_page.DevelopersPage.setSearchQuery('HomeSol');
                             
                             int devIndex = 2;
-                            final dest = (designation ?? '').trim().toLowerCase();
+                            final dest = (widget.designation ?? '').trim().toLowerCase();
                             if (dest == 'sales and sourcing' || dest == 'sales & sourcing') {
                               devIndex = 3;
                             }
@@ -121,21 +213,22 @@ class MorePage extends StatelessWidget {
                           }
                         },
                       ),
-                      _MoreTile(
-                        icon: Icons.group_add_outlined,
-                        title: 'Channel Partners',
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const ChannelPartnerListPage(),
-                            ),
-                          );
-                        },
-                      ),
+                      if (dest != 'lead caller')
+                        _MoreTile(
+                          icon: Icons.group_add_outlined,
+                          title: 'Channel Partners',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ChannelPartnerListPage(),
+                              ),
+                            );
+                          },
+                        ),
                       Builder(
                         builder: (context) {
-                          final dest = (designation ?? '').trim().toLowerCase();
-                          if (dest == 'sales and sourcing' || dest == 'sales & sourcing' || dest == 'sourcing') {
+                          final dest = (widget.designation ?? '').trim().toLowerCase();
+                          if (dest == 'sales and sourcing' || dest == 'sales & sourcing' || dest == 'sourcing' || dest == 'lead caller') {
                             // Show nothing here as it's already in main tabs or we want to hide it
                             return const SizedBox.shrink();
                           } else if (dest != 'sales representative') {
@@ -154,24 +247,26 @@ class MorePage extends StatelessWidget {
                           return const SizedBox.shrink();
                         },
                       ),
-                      _MoreTile(
-                        icon: Icons.wallet,
-                        title: 'Payroll',
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => SalarySlipsPage()),
-                          );
-                        },
-                      ),
-                      _MoreTile(
-                        icon: Icons.time_to_leave_outlined,
-                        title: 'Leave Management',
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const LeaveScreen()),
-                          );
-                        },
-                      ),
+                      if (dest != 'lead caller')
+                        _MoreTile(
+                          icon: Icons.wallet,
+                          title: 'Payroll',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => SalarySlipsPage()),
+                            );
+                          },
+                        ),
+                      if (dest != 'lead caller')
+                        _MoreTile(
+                          icon: Icons.time_to_leave_outlined,
+                          title: 'Leave Management',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const LeaveScreen()),
+                            );
+                          },
+                        ),
                       _MoreTile(
                         icon: Icons.support_agent,
                         title: 'Raise Ticket',
@@ -184,6 +279,42 @@ class MorePage extends StatelessWidget {
                           );
                         },
                       ),
+                       if (_isTeamLead)
+                        _MoreTile(
+                          icon: Icons.bar_chart_rounded,
+                          title: 'Performance Stats',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const TeamLeadStatsPage(),
+                              ),
+                            );
+                          },
+                        ),
+                       if (_isTeamLead)
+                        _MoreTile(
+                          icon: Icons.move_up,
+                          title: 'Lead Transfer Tool',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const LeadTransferListPage(),
+                              ),
+                            );
+                          },
+                        ),
+                      if (_isTeamLead)
+                        _MoreTile(
+                          icon: Icons.fact_check_outlined,
+                          title: 'Attendance Desk',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const TeamLeadDashboardPage(),
+                              ),
+                            );
+                          },
+                        ),
                       _MoreTile(
                         icon: Icons.bookmark_border,
                         title: 'BookMarks',
@@ -194,24 +325,14 @@ class MorePage extends StatelessWidget {
                         //   );
                         // },
                       ),
-                      _MoreTile(
-                        icon: Icons.quiz_outlined,
-                        title: 'Dashboard',
-                        onTap: null,
-                        // onTap: () {
-                        //   Navigator.of(context).push(
-                        //     MaterialPageRoute(
-                        //       builder: (_) => const BrokerDashboardPage(),
-                        //     ),
-                        //   );
-                        // },
-                      ),
+                     
                       _MoreTile(
                         icon: Icons.public,
                         title: 'HomeSol Networking',
                         // trailing: const Icon(Icons.keyboard_arrow_down),
                         onTap: null,
                       ),
+                    
                       _MoreTile(
                         icon: Icons.call,
                         title: 'Call Dashboard',
@@ -237,6 +358,18 @@ class MorePage extends StatelessWidget {
                       _buildClearCacheTile(context),
                       const SizedBox(height: 16),
                       _LogoutButton(theme: theme),
+                      const SizedBox(height: 30),
+                      Center(
+                        child: Text(
+                          'HomeSol Nexus v1.0.5(44)',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withOpacity(0.25),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
                     ],
                   );
                 },
