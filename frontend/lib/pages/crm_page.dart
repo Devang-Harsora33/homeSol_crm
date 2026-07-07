@@ -46,7 +46,7 @@ class _CRMPageState extends State<CRMPage> {
   List<String> campaigns = [];
   List<String> territories = [];
   List<SalesTeam> salesTeams = [];
-  bool isLoading = false;
+  bool isLoading = true;
   String? errorMessage;
   String? currentBrokerId;
   String? currentEmployeeId;
@@ -401,13 +401,26 @@ class _CRMPageState extends State<CRMPage> {
 
   Future<void> _loadSiteVisits({bool forceRefresh = false}) async {
     try {
-      final fetchedSiteVisits = (currentDesignation?.toLowerCase() == 'property developer' && widget.developerId != null)
-          ? await SiteVisitService.fetchDeveloperSiteVisits(widget.developerId!, forceRefresh: forceRefresh)
-          : await SiteVisitService.fetchMySiteVisits(forceRefresh: forceRefresh);
+      // 1. Instant Cache Load
+      final cachedSiteVisits = (currentDesignation?.toLowerCase() == 'property developer' && widget.developerId != null)
+          ? await SiteVisitService.fetchDeveloperSiteVisits(widget.developerId!, forceRefresh: false)
+          : await SiteVisitService.fetchMySiteVisits(forceRefresh: false);
       if (!mounted) return;
       setState(() {
-        siteVisits = fetchedSiteVisits;
+        siteVisits = cachedSiteVisits;
       });
+
+      // 2. Silent Background Sync
+      if (forceRefresh) {
+        final freshSiteVisits = (currentDesignation?.toLowerCase() == 'property developer' && widget.developerId != null)
+            ? await SiteVisitService.fetchDeveloperSiteVisits(widget.developerId!, forceRefresh: true)
+            : await SiteVisitService.fetchMySiteVisits(forceRefresh: true);
+        if (mounted) {
+          setState(() {
+            siteVisits = freshSiteVisits;
+          });
+        }
+      }
     } catch (e) {
       print('Error loading site visits: $e');
     }
@@ -415,11 +428,22 @@ class _CRMPageState extends State<CRMPage> {
 
   Future<void> _loadFollowUps({bool forceRefresh = false}) async {
     try {
-      final fetchedFollowUps = await LeadService.fetchMyFollowups(forceRefresh: forceRefresh);
+      // 1. Instant Cache Load
+      final cachedFollowUps = await LeadService.fetchMyFollowups(forceRefresh: false);
       if (!mounted) return;
       setState(() {
-        followUps = fetchedFollowUps;
+        followUps = cachedFollowUps;
       });
+
+      // 2. Silent Background Sync
+      if (forceRefresh) {
+        final freshFollowUps = await LeadService.fetchMyFollowups(forceRefresh: true);
+        if (mounted) {
+          setState(() {
+            followUps = freshFollowUps;
+          });
+        }
+      }
     } catch (e) {
       print('Error loading follow ups: $e');
     }
@@ -557,36 +581,40 @@ class _CRMPageState extends State<CRMPage> {
 
   Future<void> _loadLeads({bool forceRefresh = false}) async {
     if (!mounted) return;
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-
+    
     try {
       if (widget.developerId != null) {
-        // Fetch leads for a specific developer from API
+        setState(() {
+          isLoading = leads.isEmpty; 
+          errorMessage = null;
+        });
         final fetchedLeads = await LeadService.fetchLeadsByDeveloper(widget.developerId!);
         if (!mounted) return;
         setState(() {
           leads = fetchedLeads;
           isLoading = false;
         });
-        print('🔍 [CRM_PAGE] Loaded ${fetchedLeads.length} leads for developer ${widget.developerId} from API');
         return;
       }
 
-      // LeadService.fetchMyLeads handles local caching, connectivity checks, and sync
-      final fetchedLeads = await LeadService.fetchMyLeads(forceRefresh: forceRefresh);
-
+      // 1. Instant Cache Load
+      final cachedLeads = await LeadService.fetchMyLeads(forceRefresh: false);
       if (!mounted) return;
       setState(() {
-        leads = fetchedLeads;
-        isLoading = false;
+        leads = cachedLeads;
+        isLoading = leads.isEmpty; // Only show skeleton if cache is empty
+        errorMessage = null;
       });
-      print('🔍 [CRM_PAGE] Loaded ${fetchedLeads.length} leads');
-       for (var i = 0; i < fetchedLeads.length; i++) {
-         print('   Lead $i: ${fetchedLeads[i].name} - ${fetchedLeads[i].customerName}');
-       }
+
+      // 2. Silent Background Sync
+      if (forceRefresh) {
+        final freshLeads = await LeadService.fetchMyLeads(forceRefresh: true);
+        if (!mounted) return;
+        setState(() {
+          leads = freshLeads;
+          isLoading = false;
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {

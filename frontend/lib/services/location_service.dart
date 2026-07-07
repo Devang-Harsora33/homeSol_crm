@@ -10,7 +10,8 @@ class LocationService {
 
   LocationService._();
 
-  static const String _disclosureAcceptedKey = 'background_location_disclosure_accepted';
+  static const String _disclosureAcceptedKey =
+      'background_location_disclosure_accepted';
 
   Position? _currentPosition;
   bool _isLocationEnabled = false;
@@ -55,22 +56,30 @@ class LocationService {
   Future<Position?> getCurrentLocation() async {
     try {
       // Check if location service is enabled
-      final serviceEnabled = await isLocationServiceEnabled();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         print('Location service is disabled');
         return null;
       }
 
-      // Check permissions
-      final permission = await requestLocationPermission();
-      if (!permission) {
-        print('Location permission denied');
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Location permission denied');
+          return null;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        print('Location permissions are permanently denied');
         return null;
       }
 
       // Get current position
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: _getLocationSettings(timeLimit: const Duration(seconds: 10)),
+        locationSettings: _getLocationSettings(
+          timeLimit: const Duration(seconds: 30),
+        ),
       );
 
       _currentPosition = position;
@@ -147,13 +156,13 @@ class LocationService {
         timeLimit: timeLimit,
       );
     }
-    
+
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return AndroidSettings(
           accuracy: LocationAccuracy.high,
           distanceFilter: 10,
-          forceLocationManager: true, // Fix for NmeaClient native crash
+          forceLocationManager: false,
           timeLimit: timeLimit,
         );
       case TargetPlatform.iOS:

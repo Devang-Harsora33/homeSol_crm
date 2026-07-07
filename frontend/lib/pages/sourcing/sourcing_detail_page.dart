@@ -501,7 +501,7 @@ class _SourcingDetailPageState extends State<SourcingDetailPage> {
       stretch: true,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-        onPressed: () => Navigator.pop(context, true),
+        onPressed: () => Navigator.pop(context),
       ),
       actions: [
         if (_sourcing.docstatus == 0)

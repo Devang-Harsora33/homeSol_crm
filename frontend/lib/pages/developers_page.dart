@@ -408,7 +408,12 @@ class _DevelopersPageState extends State<DevelopersPage>
       overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
     );
 
-    Widget _rangeRow(String leftLabel, String leftVal, String rightLabel, String rightVal) {
+    Widget _rangeRow(
+      String leftLabel,
+      String leftVal,
+      String rightLabel,
+      String rightVal,
+    ) {
       return Row(
         children: [
           Expanded(
@@ -418,16 +423,37 @@ class _DevelopersPageState extends State<DevelopersPage>
                 color: kAccent.withOpacity(0.07),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(leftLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 2),
-                Text(leftVal, style: TextStyle(fontSize: 14, color: kAccent, fontWeight: FontWeight.w700)),
-              ]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    leftLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    leftVal,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: kAccent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.grey.shade400),
+            child: Icon(
+              Icons.arrow_forward_rounded,
+              size: 14,
+              color: Colors.grey.shade400,
+            ),
           ),
           Expanded(
             child: Container(
@@ -436,11 +462,28 @@ class _DevelopersPageState extends State<DevelopersPage>
                 color: kAccent.withOpacity(0.07),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(rightLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 2),
-                Text(rightVal, style: TextStyle(fontSize: 14, color: kAccent, fontWeight: FontWeight.w700)),
-              ]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    rightLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    rightVal,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: kAccent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -453,7 +496,14 @@ class _DevelopersPageState extends State<DevelopersPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Price Section ──
-          Text('Price Range', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+          Text(
+            'Price Range',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 10),
 
           _rangeRow(
@@ -468,8 +518,14 @@ class _DevelopersPageState extends State<DevelopersPage>
             data: sliderTheme,
             child: RangeSlider(
               values: RangeValues(
-                (_pPriceMinCr ?? _pGlobalPriceMinCr).clamp(_pGlobalPriceMinCr, _pGlobalPriceMaxCr),
-                (_pPriceMaxCr ?? _pGlobalPriceMaxCr).clamp(_pGlobalPriceMinCr, _pGlobalPriceMaxCr),
+                (_pPriceMinCr ?? _pGlobalPriceMinCr).clamp(
+                  _pGlobalPriceMinCr,
+                  _pGlobalPriceMaxCr,
+                ),
+                (_pPriceMaxCr ?? _pGlobalPriceMaxCr).clamp(
+                  _pGlobalPriceMinCr,
+                  _pGlobalPriceMaxCr,
+                ),
               ),
               min: _pGlobalPriceMinCr,
               max: _pGlobalPriceMaxCr,
@@ -483,7 +539,14 @@ class _DevelopersPageState extends State<DevelopersPage>
           const SizedBox(height: 20),
 
           // ── Size Section ──
-          Text('Size Range', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+          Text(
+            'Size Range',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 10),
 
           _rangeRow(
@@ -498,8 +561,14 @@ class _DevelopersPageState extends State<DevelopersPage>
             data: sliderTheme,
             child: RangeSlider(
               values: RangeValues(
-                (_pAreaMinSqft ?? _pGlobalAreaMinSqft).clamp(_pGlobalAreaMinSqft, _pGlobalAreaMaxSqft),
-                (_pAreaMaxSqft ?? _pGlobalAreaMaxSqft).clamp(_pGlobalAreaMinSqft, _pGlobalAreaMaxSqft),
+                (_pAreaMinSqft ?? _pGlobalAreaMinSqft).clamp(
+                  _pGlobalAreaMinSqft,
+                  _pGlobalAreaMaxSqft,
+                ),
+                (_pAreaMaxSqft ?? _pGlobalAreaMaxSqft).clamp(
+                  _pGlobalAreaMinSqft,
+                  _pGlobalAreaMaxSqft,
+                ),
               ),
               min: _pGlobalAreaMinSqft,
               max: _pGlobalAreaMaxSqft,
@@ -548,15 +617,23 @@ class _DevelopersPageState extends State<DevelopersPage>
       List<Developer> filteredDevelopers = developers;
       List<Project> filteredProjects = projects;
 
-      final isDeveloper = (widget.designation?.toLowerCase() ?? '').trim() == 'property developer';
+      final isDeveloper =
+          (widget.designation?.toLowerCase() ?? '').trim() ==
+          'property developer';
 
       if (isDeveloper) {
         if (widget.developerId != null) {
-          filteredDevelopers = developers.where((d) => d.id == widget.developerId).toList();
-          final dev = filteredDevelopers.isNotEmpty ? filteredDevelopers.first : null;
+          filteredDevelopers = developers
+              .where((d) => d.id == widget.developerId)
+              .toList();
+          final dev = filteredDevelopers.isNotEmpty
+              ? filteredDevelopers.first
+              : null;
           if (dev != null) {
             final projectIds = dev.projectsList.map((p) => p.project).toSet();
-            filteredProjects = projects.where((p) => projectIds.contains(p.id)).toList();
+            filteredProjects = projects
+                .where((p) => projectIds.contains(p.id))
+                .toList();
           } else {
             filteredProjects = [];
           }
@@ -567,11 +644,17 @@ class _DevelopersPageState extends State<DevelopersPage>
         }
       } else if (widget.developerId != null) {
         // Handle case where developerId is passed for other reasons (not common here)
-        filteredDevelopers = developers.where((d) => d.id == widget.developerId).toList();
-        final dev = filteredDevelopers.isNotEmpty ? filteredDevelopers.first : null;
+        filteredDevelopers = developers
+            .where((d) => d.id == widget.developerId)
+            .toList();
+        final dev = filteredDevelopers.isNotEmpty
+            ? filteredDevelopers.first
+            : null;
         if (dev != null) {
           final projectIds = dev.projectsList.map((p) => p.project).toSet();
-          filteredProjects = projects.where((p) => projectIds.contains(p.id)).toList();
+          filteredProjects = projects
+              .where((p) => projectIds.contains(p.id))
+              .toList();
         } else {
           filteredProjects = [];
         }
@@ -659,9 +742,12 @@ class _DevelopersPageState extends State<DevelopersPage>
 
   // Get projects for a specific developer
   List<Project> _getDeveloperProjects(String developerId) {
-    return _projects
-        .where((project) => project.developer == developerId)
-        .toList();
+    return _projects.where((project) {
+      final name = project.projectName.toLowerCase().trim();
+      return project.developer == developerId &&
+          name != 'bhavin steel' &&
+          name != 'parinee i';
+    }).toList();
   }
 
   // Calculate project statistics for a developer
@@ -772,16 +858,12 @@ class _DevelopersPageState extends State<DevelopersPage>
         'Certifications',
         'Year/Total',
       ],
-      'Project': [
-        'Price/Size',
-        'Location',
-        'Bedrooms',
-        'Status',
-        'Amenities',
-      ],
+      'Project': ['Price/Size', 'Location', 'Bedrooms', 'Status', 'Amenities'],
     };
 
-    String currentFilterType = _tabController.index == 0 ? 'Project' : 'Developer';
+    String currentFilterType = _tabController.index == 0
+        ? 'Project'
+        : 'Developer';
     String currentCategory = _tabController.index == 0
         ? categories['Project']!.first
         : categories['Developer']!.first;
@@ -802,7 +884,11 @@ class _DevelopersPageState extends State<DevelopersPage>
               if (currentCategory == 'Company') {
                 body = _buildCompanyFilter(theme, isDark, setSheetState);
               } else if (currentCategory == 'Specializations') {
-                body = _buildSpecializationsFilter(theme, isDark, setSheetState);
+                body = _buildSpecializationsFilter(
+                  theme,
+                  isDark,
+                  setSheetState,
+                );
               } else if (currentCategory == 'Certifications') {
                 body = _buildCertificationsFilter(theme, isDark, setSheetState);
               } else {
@@ -829,27 +915,36 @@ class _DevelopersPageState extends State<DevelopersPage>
                 body = StatusFilter(
                   isDark: isDark,
                   selectedStatuses: _pStatuses,
-                  options: const ['Active', 'Under Construction', 'Completed', 'Planning'],
+                  options: const [
+                    'Active',
+                    'Under Construction',
+                    'Completed',
+                    'Planning',
+                  ],
                   setSheetState: setSheetState,
                 );
               } else {
                 body = AmenitiesFilter(
                   isDark: isDark,
-                  amenities: (_projects
-                      .expand((p) => p.amenities.map((a) => a.data))
-                      .toSet()
-                      .toList()
-                    ..sort()),
+                  amenities:
+                      (_projects
+                          .expand((p) => p.amenities.map((a) => a.data))
+                          .toSet()
+                          .toList()
+                        ..sort()),
                   selectedAmenities: _pAmenities,
                   query: _pAmenitiesQuery,
-                  onQueryChanged: (v) => setSheetState(() => _pAmenitiesQuery = v),
+                  onQueryChanged: (v) =>
+                      setSheetState(() => _pAmenitiesQuery = v),
                   setSheetState: setSheetState,
                 );
               }
             }
 
             final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
-            final sidebarBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF7F5F0);
+            final sidebarBg = isDark
+                ? const Color(0xFF2C2C2E)
+                : const Color(0xFFF7F5F0);
 
             const devLabels = {
               'Company': 'Company',
@@ -864,14 +959,18 @@ class _DevelopersPageState extends State<DevelopersPage>
               'Status': 'Status',
               'Amenities': 'Amenities',
             };
-            final labelMap = currentFilterType == 'Developer' ? devLabels : projLabels;
+            final labelMap = currentFilterType == 'Developer'
+                ? devLabels
+                : projLabels;
             final catList = categories[currentFilterType]!;
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.88,
               decoration: BoxDecoration(
                 color: bgColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
               ),
               child: Column(
                 children: [
@@ -879,8 +978,12 @@ class _DevelopersPageState extends State<DevelopersPage>
                   Padding(
                     padding: const EdgeInsets.only(top: 12, bottom: 4),
                     child: Container(
-                      width: 40, height: 4,
-                      decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
 
@@ -891,21 +994,38 @@ class _DevelopersPageState extends State<DevelopersPage>
                       children: [
                         Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: kAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                          child: const Icon(Icons.tune_rounded, color: kAccent, size: 20),
+                          decoration: BoxDecoration(
+                            color: kAccent.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.tune_rounded,
+                            color: kAccent,
+                            size: 20,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('$currentFilterType Filters',
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
                               Text(
-                                _hasActiveFilters() ? 'Filters applied' : 'No filters applied',
+                                '$currentFilterType Filters',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              Text(
+                                _hasActiveFilters()
+                                    ? 'Filters applied'
+                                    : 'No filters applied',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: _hasActiveFilters() ? kAccent : Colors.grey.shade500,
+                                  color: _hasActiveFilters()
+                                      ? kAccent
+                                      : Colors.grey.shade500,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -938,9 +1058,18 @@ class _DevelopersPageState extends State<DevelopersPage>
                           },
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.red.shade400,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                           ),
-                          child: const Text('Clear All', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          child: const Text(
+                            'Clear All',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -958,7 +1087,14 @@ class _DevelopersPageState extends State<DevelopersPage>
                           width: 148,
                           decoration: BoxDecoration(
                             color: sidebarBg,
-                            border: Border(right: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 1)),
+                            border: Border(
+                              right: BorderSide(
+                                color: isDark
+                                    ? Colors.grey.shade800
+                                    : Colors.grey.shade200,
+                                width: 1,
+                              ),
+                            ),
                           ),
                           child: ListView(
                             padding: const EdgeInsets.symmetric(vertical: 10),
@@ -967,24 +1103,39 @@ class _DevelopersPageState extends State<DevelopersPage>
                               final String label = labelMap[k] ?? k;
                               return GestureDetector(
                                 behavior: HitTestBehavior.opaque,
-                                onTap: () => setSheetState(() => currentCategory = k),
+                                onTap: () =>
+                                    setSheetState(() => currentCategory = k),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 160),
                                   margin: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 12,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: selected ? (isDark ? kAccent.withOpacity(0.22) : const Color(0xFFF0EDE5)) : Colors.transparent,
+                                    color: selected
+                                        ? (isDark
+                                              ? kAccent.withOpacity(0.22)
+                                              : const Color(0xFFF0EDE5))
+                                        : Colors.transparent,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Row(
                                     children: [
                                       AnimatedContainer(
-                                        duration: const Duration(milliseconds: 160),
-                                        width: 3, height: 18,
+                                        duration: const Duration(
+                                          milliseconds: 160,
+                                        ),
+                                        width: 3,
+                                        height: 18,
                                         margin: const EdgeInsets.only(right: 8),
                                         decoration: BoxDecoration(
-                                          color: selected ? kAccent : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(2),
+                                          color: selected
+                                              ? kAccent
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            2,
+                                          ),
                                         ),
                                       ),
                                       Expanded(
@@ -992,8 +1143,14 @@ class _DevelopersPageState extends State<DevelopersPage>
                                           label,
                                           style: TextStyle(
                                             fontSize: 12.5,
-                                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                                            color: selected ? kAccent : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                                            fontWeight: selected
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                            color: selected
+                                                ? kAccent
+                                                : (isDark
+                                                      ? Colors.grey.shade300
+                                                      : Colors.grey.shade700),
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -1013,13 +1170,20 @@ class _DevelopersPageState extends State<DevelopersPage>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  14,
+                                  16,
+                                  6,
+                                ),
                                 child: Text(
                                   currentCategory,
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
-                                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+                                    color: isDark
+                                        ? Colors.grey.shade300
+                                        : Colors.grey.shade600,
                                     letterSpacing: 0.2,
                                   ),
                                 ),
@@ -1034,10 +1198,22 @@ class _DevelopersPageState extends State<DevelopersPage>
 
                   // ── Bottom Bar ──
                   Container(
-                    padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      12,
+                      16,
+                      MediaQuery.of(context).padding.bottom + 12,
+                    ),
                     decoration: BoxDecoration(
                       color: bgColor,
-                      border: Border(top: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 1)),
+                      border: Border(
+                        top: BorderSide(
+                          color: isDark
+                              ? Colors.grey.shade800
+                              : Colors.grey.shade200,
+                          width: 1,
+                        ),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -1046,28 +1222,53 @@ class _DevelopersPageState extends State<DevelopersPage>
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-                              side: BorderSide(color: isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+                              foregroundColor: isDark
+                                  ? Colors.grey.shade300
+                                  : Colors.grey.shade700,
+                              side: BorderSide(
+                                color: isDark
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade300,
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
-                            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            child: const Text(
+                              'Close',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           flex: 3,
                           child: ElevatedButton(
-                            onPressed: () { setState(() {}); Navigator.pop(context); },
+                            onPressed: () {
+                              setState(() {});
+                              Navigator.pop(context);
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: kAccent,
                               foregroundColor: Colors.white,
                               elevation: 2,
                               shadowColor: kAccent.withOpacity(0.4),
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
-                            child: const Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                            child: const Text(
+                              'Apply Filters',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -1082,14 +1283,25 @@ class _DevelopersPageState extends State<DevelopersPage>
     );
   }
 
-  Widget _buildCompanyFilter(ThemeData theme, bool isDark, void Function(void Function()) setSheetState) {
+  Widget _buildCompanyFilter(
+    ThemeData theme,
+    bool isDark,
+    void Function(void Function()) setSheetState,
+  ) {
     const kAccent = Color(0xFF675D40);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Company Size', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+          Text(
+            'Company Size',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -1098,30 +1310,67 @@ class _DevelopersPageState extends State<DevelopersPage>
               final selected = _selectedCompanySizes.contains(size);
               return GestureDetector(
                 onTap: () {
-                  setState(() => selected ? _selectedCompanySizes.remove(size) : _selectedCompanySizes.add(size));
+                  setState(
+                    () => selected
+                        ? _selectedCompanySizes.remove(size)
+                        : _selectedCompanySizes.add(size),
+                  );
                   setSheetState(() {});
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: selected ? kAccent.withOpacity(isDark ? 0.25 : 0.1) : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: selected ? kAccent.withOpacity(0.5) : Colors.transparent, width: 1.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 9,
                   ),
-                  child: Text(size, style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? kAccent : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
-                  )),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? kAccent.withOpacity(isDark ? 0.25 : 0.1)
+                        : (isDark
+                              ? Colors.grey.shade800
+                              : Colors.grey.shade100),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected
+                          ? kAccent.withOpacity(0.5)
+                          : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    size,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected
+                          ? kAccent
+                          : (isDark
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade700),
+                    ),
+                  ),
                 ),
               );
             }).toList(),
           ),
           const SizedBox(height: 16),
           ...([
-            ('Verified Only', _verifiedOnly, (bool v) { setState(() => _verifiedOnly = v); setSheetState(() {}); }),
-            ('Active Only', _activeOnly,   (bool v) { setState(() => _activeOnly = v);   setSheetState(() {}); }),
+            (
+              'Verified Only',
+              _verifiedOnly,
+              (bool v) {
+                setState(() => _verifiedOnly = v);
+                setSheetState(() {});
+              },
+            ),
+            (
+              'Active Only',
+              _activeOnly,
+              (bool v) {
+                setState(() => _activeOnly = v);
+                setSheetState(() {});
+              },
+            ),
           ].map((item) {
             final label = item.$1;
             final isChecked = item.$2;
@@ -1132,30 +1381,69 @@ class _DevelopersPageState extends State<DevelopersPage>
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 margin: const EdgeInsets.only(bottom: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 13,
+                ),
                 decoration: BoxDecoration(
-                  color: isChecked ? kAccent.withOpacity(isDark ? 0.2 : 0.07) : Colors.transparent,
+                  color: isChecked
+                      ? kAccent.withOpacity(isDark ? 0.2 : 0.07)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Row(children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 20, height: 20,
-                    decoration: BoxDecoration(
-                      color: isChecked ? kAccent : Colors.transparent,
-                      borderRadius: BorderRadius.circular(5),
-                      border: Border.all(color: isChecked ? kAccent : (isDark ? Colors.grey.shade600 : Colors.grey.shade300), width: 1.5),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: isChecked ? kAccent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(
+                          color: isChecked
+                              ? kAccent
+                              : (isDark
+                                    ? Colors.grey.shade600
+                                    : Colors.grey.shade300),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: isChecked
+                          ? const Icon(
+                              Icons.check_rounded,
+                              size: 13,
+                              color: Colors.white,
+                            )
+                          : null,
                     ),
-                    child: isChecked ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(child: Text(label, style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: isChecked ? FontWeight.w600 : FontWeight.w400,
-                    color: isChecked ? (isDark ? Colors.white : const Color(0xFF3D3420)) : (isDark ? Colors.grey.shade200 : Colors.grey.shade800),
-                  ))),
-                  if (isChecked) Icon(Icons.check_circle_rounded, size: 15, color: kAccent.withOpacity(0.5)),
-                ]),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: isChecked
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isChecked
+                              ? (isDark
+                                    ? Colors.white
+                                    : const Color(0xFF3D3420))
+                              : (isDark
+                                    ? Colors.grey.shade200
+                                    : Colors.grey.shade800),
+                        ),
+                      ),
+                    ),
+                    if (isChecked)
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 15,
+                        color: kAccent.withOpacity(0.5),
+                      ),
+                  ],
+                ),
               ),
             );
           })),
@@ -1164,231 +1452,453 @@ class _DevelopersPageState extends State<DevelopersPage>
     );
   }
 
-  Widget _buildSpecializationsFilter(ThemeData theme, bool isDark, void Function(void Function()) setSheetState) {
+  Widget _buildSpecializationsFilter(
+    ThemeData theme,
+    bool isDark,
+    void Function(void Function()) setSheetState,
+  ) {
     const kAccent = Color(0xFF675D40);
     final filtered = _allSpecializations
-        .where((s) => _devSpecQuery.isEmpty ? true : s.toLowerCase().contains(_devSpecQuery))
+        .where(
+          (s) => _devSpecQuery.isEmpty
+              ? true
+              : s.toLowerCase().contains(_devSpecQuery),
+        )
         .toList();
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-        child: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: TextField(
-            onChanged: (v) => setSheetState(() => _devSpecQuery = v.trim().toLowerCase()),
-            style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
-            decoration: InputDecoration(
-              hintText: 'Search specializations...',
-              hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-              prefixIcon: Icon(Icons.search_rounded, size: 18, color: Colors.grey.shade400),
-              filled: true, fillColor: Colors.transparent,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: TextField(
+              onChanged: (v) =>
+                  setSheetState(() => _devSpecQuery = v.trim().toLowerCase()),
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search specializations...',
+                hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  size: 18,
+                  color: Colors.grey.shade400,
+                ),
+                filled: true,
+                fillColor: Colors.transparent,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
             ),
           ),
         ),
-      ),
-      Expanded(child: filtered.isEmpty
-        ? Center(child: Text('No results found', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)))
-        : ListView.builder(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
-            itemCount: filtered.length,
-            itemBuilder: (_, i) {
-              final spec = filtered[i];
-              final selected = _selectedSpecializations.contains(spec);
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () { setState(() => selected ? _selectedSpecializations.remove(spec) : _selectedSpecializations.add(spec)); setSheetState(() {}); },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.only(bottom: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: selected ? kAccent.withOpacity(isDark ? 0.2 : 0.07) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Text(
+                    'No results found',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                   ),
-                  child: Row(children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: 20, height: 20,
-                      decoration: BoxDecoration(
-                        color: selected ? kAccent : Colors.transparent,
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: selected ? kAccent : (isDark ? Colors.grey.shade600 : Colors.grey.shade300), width: 1.5),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final spec = filtered[i];
+                    final selected = _selectedSpecializations.contains(spec);
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        setState(
+                          () => selected
+                              ? _selectedSpecializations.remove(spec)
+                              : _selectedSpecializations.add(spec),
+                        );
+                        setSheetState(() {});
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? kAccent.withOpacity(isDark ? 0.2 : 0.07)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: selected ? kAccent : Colors.transparent,
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: selected
+                                      ? kAccent
+                                      : (isDark
+                                            ? Colors.grey.shade600
+                                            : Colors.grey.shade300),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: selected
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      size: 13,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Text(
+                                spec,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: selected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: selected
+                                      ? (isDark
+                                            ? Colors.white
+                                            : const Color(0xFF3D3420))
+                                      : (isDark
+                                            ? Colors.grey.shade200
+                                            : Colors.grey.shade800),
+                                ),
+                              ),
+                            ),
+                            if (selected)
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 15,
+                                color: kAccent.withOpacity(0.5),
+                              ),
+                          ],
+                        ),
                       ),
-                      child: selected ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(child: Text(spec, style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      color: selected ? (isDark ? Colors.white : const Color(0xFF3D3420)) : (isDark ? Colors.grey.shade200 : Colors.grey.shade800),
-                    ))),
-                    if (selected) Icon(Icons.check_circle_rounded, size: 15, color: kAccent.withOpacity(0.5)),
-                  ]),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-      ),
-    ]);
-  }
-
-  Widget _buildCertificationsFilter(ThemeData theme, bool isDark, void Function(void Function()) setSheetState) {
-    const kAccent = Color(0xFF675D40);
-    final filtered = _allCertifications
-        .where((c) => _devCertQuery.isEmpty ? true : c.toLowerCase().contains(_devCertQuery))
-        .toList();
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-        child: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: TextField(
-            onChanged: (v) => setSheetState(() => _devCertQuery = v.trim().toLowerCase()),
-            style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
-            decoration: InputDecoration(
-              hintText: 'Search certifications...',
-              hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-              prefixIcon: Icon(Icons.search_rounded, size: 18, color: Colors.grey.shade400),
-              filled: true, fillColor: Colors.transparent,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-            ),
-          ),
         ),
-      ),
-      Expanded(child: filtered.isEmpty
-        ? Center(child: Text('No certifications found', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)))
-        : ListView.builder(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
-            itemCount: filtered.length,
-            itemBuilder: (_, i) {
-              final cert = filtered[i];
-              final selected = _selectedCertifications.contains(cert);
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () { setState(() => selected ? _selectedCertifications.remove(cert) : _selectedCertifications.add(cert)); setSheetState(() {}); },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.only(bottom: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: selected ? kAccent.withOpacity(isDark ? 0.2 : 0.07) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: 20, height: 20,
-                      decoration: BoxDecoration(
-                        color: selected ? kAccent : Colors.transparent,
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: selected ? kAccent : (isDark ? Colors.grey.shade600 : Colors.grey.shade300), width: 1.5),
-                      ),
-                      child: selected ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(child: Text(cert, style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      color: selected ? (isDark ? Colors.white : const Color(0xFF3D3420)) : (isDark ? Colors.grey.shade200 : Colors.grey.shade800),
-                    ))),
-                    if (selected) Icon(Icons.check_circle_rounded, size: 15, color: kAccent.withOpacity(0.5)),
-                  ]),
-                ),
-              );
-            },
-          ),
-      ),
-    ]);
-  }
-
-  Widget _buildYearTotalFilter(ThemeData theme, bool isDark, void Function(void Function()) setSheetState) {
-    const kAccent = Color(0xFF675D40);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Year Established', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildYearBadge('From', (_yearMin ?? _globalYearMin).toString(), kAccent, isDark),
-            Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.grey.shade400),
-            _buildYearBadge('To', (_yearMax ?? _globalYearMax).toString(), kAccent, isDark),
-          ],
-        ),
-        const SizedBox(height: 4),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: kAccent.withOpacity(0.7),
-            inactiveTrackColor: Colors.grey.shade200,
-            thumbColor: kAccent,
-            overlayColor: kAccent.withOpacity(0.12),
-            trackHeight: 4,
-          ),
-          child: RangeSlider(
-            values: RangeValues((_yearMin ?? _globalYearMin).toDouble(), (_yearMax ?? _globalYearMax).toDouble()),
-            min: _globalYearMin.toDouble(),
-            max: _globalYearMax.toDouble(),
-            onChanged: (values) => setSheetState(() {
-              _yearMin = values.start.round();
-              _yearMax = values.end.round();
-            }),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text('Minimum Projects', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: kAccent.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
-          child: Row(children: [
-            Icon(Icons.business_center_rounded, size: 16, color: kAccent),
-            const SizedBox(width: 8),
-            Text('${_minTotalProjects ?? 0} projects minimum',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kAccent)),
-          ]),
-        ),
-        const SizedBox(height: 4),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: kAccent.withOpacity(0.7),
-            inactiveTrackColor: Colors.grey.shade200,
-            thumbColor: kAccent,
-            overlayColor: kAccent.withOpacity(0.12),
-            trackHeight: 4,
-          ),
-          child: Slider(
-            value: (_minTotalProjects ?? 0).toDouble(),
-            min: 0,
-            max: _globalMaxTotalProjects.toDouble(),
-            onChanged: (v) => setSheetState(() => _minTotalProjects = v.round()),
-          ),
-        ),
-      ]),
+      ],
     );
   }
 
-  Widget _buildYearBadge(String label, String value, Color accent, bool isDark) {
-    return Column(children: [
-      Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
-      const SizedBox(height: 4),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(color: accent.withOpacity(isDark ? 0.2 : 0.1), borderRadius: BorderRadius.circular(8)),
-        child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: accent)),
+  Widget _buildCertificationsFilter(
+    ThemeData theme,
+    bool isDark,
+    void Function(void Function()) setSheetState,
+  ) {
+    const kAccent = Color(0xFF675D40);
+    final filtered = _allCertifications
+        .where(
+          (c) => _devCertQuery.isEmpty
+              ? true
+              : c.toLowerCase().contains(_devCertQuery),
+        )
+        .toList();
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: TextField(
+              onChanged: (v) =>
+                  setSheetState(() => _devCertQuery = v.trim().toLowerCase()),
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search certifications...',
+                hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  size: 18,
+                  color: Colors.grey.shade400,
+                ),
+                filled: true,
+                fillColor: Colors.transparent,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Text(
+                    'No certifications found',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final cert = filtered[i];
+                    final selected = _selectedCertifications.contains(cert);
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        setState(
+                          () => selected
+                              ? _selectedCertifications.remove(cert)
+                              : _selectedCertifications.add(cert),
+                        );
+                        setSheetState(() {});
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? kAccent.withOpacity(isDark ? 0.2 : 0.07)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: selected ? kAccent : Colors.transparent,
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: selected
+                                      ? kAccent
+                                      : (isDark
+                                            ? Colors.grey.shade600
+                                            : Colors.grey.shade300),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: selected
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      size: 13,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Text(
+                                cert,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: selected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: selected
+                                      ? (isDark
+                                            ? Colors.white
+                                            : const Color(0xFF3D3420))
+                                      : (isDark
+                                            ? Colors.grey.shade200
+                                            : Colors.grey.shade800),
+                                ),
+                              ),
+                            ),
+                            if (selected)
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 15,
+                                color: kAccent.withOpacity(0.5),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildYearTotalFilter(
+    ThemeData theme,
+    bool isDark,
+    void Function(void Function()) setSheetState,
+  ) {
+    const kAccent = Color(0xFF675D40);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Year Established',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildYearBadge(
+                'From',
+                (_yearMin ?? _globalYearMin).toString(),
+                kAccent,
+                isDark,
+              ),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 16,
+                color: Colors.grey.shade400,
+              ),
+              _buildYearBadge(
+                'To',
+                (_yearMax ?? _globalYearMax).toString(),
+                kAccent,
+                isDark,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: kAccent.withOpacity(0.7),
+              inactiveTrackColor: Colors.grey.shade200,
+              thumbColor: kAccent,
+              overlayColor: kAccent.withOpacity(0.12),
+              trackHeight: 4,
+            ),
+            child: RangeSlider(
+              values: RangeValues(
+                (_yearMin ?? _globalYearMin).toDouble(),
+                (_yearMax ?? _globalYearMax).toDouble(),
+              ),
+              min: _globalYearMin.toDouble(),
+              max: _globalYearMax.toDouble(),
+              onChanged: (values) => setSheetState(() {
+                _yearMin = values.start.round();
+                _yearMax = values.end.round();
+              }),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Minimum Projects',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: kAccent.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.business_center_rounded, size: 16, color: kAccent),
+                const SizedBox(width: 8),
+                Text(
+                  '${_minTotalProjects ?? 0} projects minimum',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: kAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: kAccent.withOpacity(0.7),
+              inactiveTrackColor: Colors.grey.shade200,
+              thumbColor: kAccent,
+              overlayColor: kAccent.withOpacity(0.12),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: (_minTotalProjects ?? 0).toDouble(),
+              min: 0,
+              max: _globalMaxTotalProjects.toDouble(),
+              onChanged: (v) =>
+                  setSheetState(() => _minTotalProjects = v.round()),
+            ),
+          ),
+        ],
       ),
-    ]);
+    );
+  }
+
+  Widget _buildYearBadge(
+    String label,
+    String value,
+    Color accent,
+    bool isDark,
+  ) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey.shade500,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: accent.withOpacity(isDark ? 0.2 : 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: accent,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   void _shareDeveloper(Developer developer) {
@@ -1419,61 +1929,16 @@ Download HomeSol App to connect with developers and explore projects!
     // Copy to clipboard and show message
     Clipboard.setData(ClipboardData(text: shareText));
     final theme = Theme.of(context);
-    CustomSnackBar.show(context, message: 'Developer details copied to clipboard!', isError: false, title: 'Notice');
+    CustomSnackBar.show(
+      context,
+      message: 'Developer details copied to clipboard!',
+      isError: false,
+      title: 'Notice',
+    );
   }
 
   Widget _buildTagAllProjectsButton(ThemeData theme) {
-    // Only show if there are filtered projects and filters are applied
-    if (_filteredProjects.isEmpty ||
-        _filteredProjects.length == _projects.length) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(left: 12),
-      child: ElevatedButton(
-        onPressed: () async {
-          try {
-            final broker = await AuthService.getUserData();
-            final brokerId = broker?['broker_id']?.toString();
-
-            if (brokerId == null) {
-              CustomSnackBar.show(context, message: 'Please log in to add enquiry', isError: false, title: 'Notice');
-              return;
-            }
-
-            // await AddEnquirySheet.show(
-            //   context,
-            //   projects: _filteredProjects,
-            //   brokerId: brokerId,
-            //   lockProjectSelection: true,
-            //   onCreated: () {
-            //     // Enquiry created successfully - no snackbar needed
-            //   },
-            // );
-          } catch (e) {
-            CustomSnackBar.show(context, message: 'Error: ${e.toString()}', isError: true, title: 'Error');
-          }
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.person_add_outlined, size: 16),
-            const SizedBox(width: 4),
-            Text(
-              'Tag Client to All (${_filteredProjects.length})',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 
   @override
@@ -1585,15 +2050,35 @@ Download HomeSol App to connect with developers and explore projects!
                   child: TextField(
                     controller: _searchController,
                     onChanged: (value) => setState(() => _searchQuery = value),
-                    style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
                     decoration: InputDecoration(
-                      hintText: isProjectTab ? 'Search projects...' : 'Search developers...',
-                      hintStyle: TextStyle(fontSize: 13.5, color: Colors.grey.shade400, fontWeight: FontWeight.w400),
-                      prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                      hintText: isProjectTab
+                          ? 'Search projects...'
+                          : 'Search developers...',
+                      hintStyle: TextStyle(
+                        fontSize: 13.5,
+                        color: Colors.grey.shade400,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: Colors.grey.shade400,
+                        size: 20,
+                      ),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? GestureDetector(
-                              onTap: () => setState(() { _searchQuery = ''; _searchController.clear(); }),
-                              child: Icon(Icons.close_rounded, color: Colors.grey.shade400, size: 18),
+                              onTap: () => setState(() {
+                                _searchQuery = '';
+                                _searchController.clear();
+                              }),
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: Colors.grey.shade400,
+                                size: 18,
+                              ),
                             )
                           : null,
                       filled: true,
@@ -1615,7 +2100,9 @@ Download HomeSol App to connect with developers and explore projects!
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: hasFilters ? kAccent : (isDark ? Colors.grey[800] : Colors.white),
+                    color: hasFilters
+                        ? kAccent
+                        : (isDark ? Colors.grey[800] : Colors.white),
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
@@ -1633,7 +2120,11 @@ Download HomeSol App to connect with developers and explore projects!
                     children: [
                       Icon(
                         Icons.tune_rounded,
-                        color: hasFilters ? Colors.white : (isDark ? Colors.grey.shade300 : Colors.grey.shade600),
+                        color: hasFilters
+                            ? Colors.white
+                            : (isDark
+                                  ? Colors.grey.shade300
+                                  : Colors.grey.shade600),
                         size: 22,
                       ),
                       if (hasFilters)
@@ -1646,7 +2137,10 @@ Download HomeSol App to connect with developers and explore projects!
                             decoration: BoxDecoration(
                               color: Colors.red.shade500,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.5),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
                             ),
                           ),
                         ),
@@ -1662,7 +2156,9 @@ Download HomeSol App to connect with developers and explore projects!
           Container(
             height: 44,
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey.shade800.withOpacity(0.6) : Colors.grey.shade100,
+              color: isDark
+                  ? Colors.grey.shade800.withOpacity(0.6)
+                  : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(14),
             ),
             child: TabBar(
@@ -1678,12 +2174,17 @@ Download HomeSol App to connect with developers and explore projects!
                     color: kAccent.withOpacity(0.3),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
-                  )
+                  ),
                 ],
               ),
               labelColor: Colors.white,
-              unselectedLabelColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+              unselectedLabelColor: isDark
+                  ? Colors.grey.shade400
+                  : Colors.grey.shade600,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13.5,
+              ),
               padding: const EdgeInsets.all(4),
               tabs: [
                 Tab(
@@ -1716,7 +2217,11 @@ Download HomeSol App to connect with developers and explore projects!
     );
   }
 
-  Widget _buildHeaderIconBtn({required IconData icon, required VoidCallback onTap, required bool isDark}) {
+  Widget _buildHeaderIconBtn({
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1733,7 +2238,11 @@ Download HomeSol App to connect with developers and explore projects!
             ),
           ],
         ),
-        child: Icon(icon, size: 19, color: isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+        child: Icon(
+          icon,
+          size: 19,
+          color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+        ),
       ),
     );
   }
@@ -1791,50 +2300,82 @@ Download HomeSol App to connect with developers and explore projects!
                 });
               },
               child: const Text('Clear Filters'),
-            )
+            ),
           ],
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-      itemCount: _filteredDevelopers.length,
-      itemBuilder: (context, index) {
-        final developer = _filteredDevelopers[index];
-        final developerProjects = _getDeveloperProjects(developer.id);
-        final projectStats = _getProjectStats(developer.id);
-        return GestureDetector(
-          onTap: () {
-            // Log developer view event
-            AnalyticsService.instance.logDeveloperView(
-              developer.id.toString(),
-              developer.developerName,
-            );
-            Navigator.of(context).push(
-             MaterialPageRoute(
-               builder: (context) => DeveloperDetailPage(
-                 developer: developer,
-                 projects: developerProjects,
-                 designation: widget.designation,
-               ),
-             ),
-            );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTablet = constraints.maxWidth > 600;
+
+        Widget buildItem(Developer developer) {
+          final developerProjects = _getDeveloperProjects(developer.id);
+          final projectStats = _getProjectStats(developer.id);
+          return GestureDetector(
+            onTap: () {
+              // Log developer view event
+              AnalyticsService.instance.logDeveloperView(
+                developer.id.toString(),
+                developer.developerName,
+              );
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => DeveloperDetailPage(
+                    developer: developer,
+                    projects: developerProjects,
+                    designation: widget.designation,
+                  ),
+                ),
+              );
             },
             child: _DeveloperCard(
-            developer: developer,
-            totalProjects: projectStats['total'] ?? 0,
-            activeProjects: projectStats['active'] ?? 0,
-            onShare: () => _shareDeveloper(developer),
-            designation: widget.designation,
-            ),        );
+              developer: developer,
+              totalProjects: projectStats['total'] ?? 0,
+              activeProjects: projectStats['active'] ?? 0,
+              onShare: () => _shareDeveloper(developer),
+              designation: widget.designation,
+            ),
+          );
+        }
+
+        if (!isTablet) {
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+            itemCount: _filteredDevelopers.length,
+            itemBuilder: (context, index) {
+              return buildItem(_filteredDevelopers[index]);
+            },
+          );
+        } else {
+          final crossAxisCount = constraints.maxWidth > 900 ? 3 : 2;
+          final spacing = 20.0;
+          final itemWidth = (constraints.maxWidth - 40 - (spacing * (crossAxisCount - 1))) / crossAxisCount;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+            child: Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: _filteredDevelopers.map((dev) {
+                return SizedBox(
+                  width: itemWidth,
+                  child: buildItem(dev),
+                );
+              }).toList(),
+            ),
+          );
+        }
       },
     );
   }
 
   // Helper method to get the list of filtered projects
   List<Project> get _filteredProjects {
-    Iterable<Project> list = _projects;
-
+    Iterable<Project> list = _projects.where((p) {
+      final name = p.projectName.toLowerCase().trim();
+      return name != 'bhavin steel' && name != 'parinee i';
+    });
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       final developerNames = Map.fromEntries(
@@ -1854,23 +2395,23 @@ Download HomeSol App to connect with developers and explore projects!
 
     // Statuses
     if (_pStatuses.isNotEmpty) {
-      list = list.where(
-        (p) {
-      for (final label in _pStatuses) {
-        if (p.constructionStatus.toLowerCase() == label.toLowerCase()) {
-          return true;
+      list = list.where((p) {
+        for (final label in _pStatuses) {
+          if (p.constructionStatus.toLowerCase() == label.toLowerCase()) {
+            return true;
+          }
         }
-      }
-      return false;
-    });
+        return false;
+      });
     }
 
     // Amenities
     if (_pAmenities.isNotEmpty) {
       list = list.where(
         (p) => _pAmenities.every(
-          (a) =>
-              p.amenities.map((e) => e.data.toLowerCase()).contains(a.toLowerCase()),
+          (a) => p.amenities
+              .map((e) => e.data.toLowerCase())
+              .contains(a.toLowerCase()),
         ),
       );
     }
@@ -1878,17 +2419,19 @@ Download HomeSol App to connect with developers and explore projects!
     // Bedrooms
     if (_pBedrooms.isNotEmpty) {
       list = list.where(
-        (p) => p.configurations.any(
-          (conf) {
-          final beds = int.tryParse(conf.name.replaceAll(RegExp(r'[^0-9]'),''));
+        (p) => p.configurations.any((conf) {
+          final beds = int.tryParse(
+            conf.name.replaceAll(RegExp(r'[^0-9]'), ''),
+          );
           return beds != null && _pBedrooms.contains(beds);
         }),
       );
     }
 
     // Price
-    bool isPriceFilterActive = (_pPriceMinCr != null && _pPriceMinCr != _pGlobalPriceMinCr) || 
-                               (_pPriceMaxCr != null && _pPriceMaxCr != _pGlobalPriceMaxCr);
+    bool isPriceFilterActive =
+        (_pPriceMinCr != null && _pPriceMinCr != _pGlobalPriceMinCr) ||
+        (_pPriceMaxCr != null && _pPriceMaxCr != _pGlobalPriceMaxCr);
     if (isPriceFilterActive) {
       list = list.where((p) {
         final minPrice = p.priceRangeMin.toDouble();
@@ -1900,8 +2443,9 @@ Download HomeSol App to connect with developers and explore projects!
     }
 
     // Area
-    bool isAreaFilterActive = (_pAreaMinSqft != null && _pAreaMinSqft != _pGlobalAreaMinSqft) || 
-                              (_pAreaMaxSqft != null && _pAreaMaxSqft != _pGlobalAreaMaxSqft);
+    bool isAreaFilterActive =
+        (_pAreaMinSqft != null && _pAreaMinSqft != _pGlobalAreaMinSqft) ||
+        (_pAreaMaxSqft != null && _pAreaMaxSqft != _pGlobalAreaMaxSqft);
     if (isAreaFilterActive) {
       list = list.where((p) {
         if (p.configurations.isEmpty) return false;
@@ -1951,19 +2495,14 @@ Download HomeSol App to connect with developers and explore projects!
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _fetchData,
-              child: const Text('Retry'),
-            ),
+            ElevatedButton(onPressed: _fetchData, child: const Text('Retry')),
           ],
         ),
       );
     }
 
     if (_projects.isEmpty) {
-      return const Center(
-        child: Text('No projects found.'),
-      );
+      return const Center(child: Text('No projects found.'));
     }
 
     // Use a getter to access the filtered list
@@ -1994,7 +2533,7 @@ Download HomeSol App to connect with developers and explore projects!
                 });
               },
               child: const Text('Clear Filters'),
-            )
+            ),
           ],
         ),
       );
@@ -2002,49 +2541,85 @@ Download HomeSol App to connect with developers and explore projects!
 
     return RefreshIndicator(
       onRefresh: _fetchData,
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-        itemCount: filteredProjects.length,
-        itemBuilder: (context, index) {
-          final project = filteredProjects[index];
-          final dev = _developers.firstWhere(
-            (d) => d.id == project.developer,
-            orElse: () => Developer(
-              id: '',
-              createdAt: '',
-              updatedAt: '',
-              username: '',
-              email: '',
-              developerName: 'Unknown Developer',
-              reraNumber: '',
-              gstNumber: '',
-              panNumber: '',
-              officeAddress: '',
-              contactPerson: '',
-              contactEmail: '',
-              contactPhone: '',
-              companySize: '',
-              specializations: [],
-              certifications: [],
-              bankDetails: BankDetails(accountNumber: '', ifscCode: '', bankName: ''),
-              kycStatus: '',
-              isVerified: false,
-              isActive: false,
-              websiteUrl: '',
-              logoUrl: '',
-              companyDescription: '',
-              yearEstablished: 0,
-              totalProjectsCompleted: 0,
-              currentProjectsCount: 0,
-              stories: [],
-              projectsList: [],
-            ),
-          );
-          return _ProjectCard(
-            project: project,
-            developer: dev,
-            designation: widget.designation,
-          );
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTablet = constraints.maxWidth > 600;
+
+          Widget buildItem(Project project) {
+            final dev = _developers.firstWhere(
+              (d) => d.id == project.developer,
+              orElse: () => Developer(
+                id: '',
+                createdAt: '',
+                updatedAt: '',
+                username: '',
+                email: '',
+                developerName: 'Unknown Developer',
+                reraNumber: '',
+                gstNumber: '',
+                panNumber: '',
+                officeAddress: '',
+                contactPerson: '',
+                contactEmail: '',
+                contactPhone: '',
+                companySize: '',
+                specializations: [],
+                certifications: [],
+                bankDetails: BankDetails(
+                  accountNumber: '',
+                  ifscCode: '',
+                  bankName: '',
+                ),
+                kycStatus: '',
+                isVerified: false,
+                isActive: false,
+                websiteUrl: '',
+                logoUrl: '',
+                companyDescription: '',
+                yearEstablished: 0,
+                totalProjectsCompleted: 0,
+                currentProjectsCount: 0,
+                stories: [],
+                projectsList: [],
+              ),
+            );
+            return _ProjectCard(
+              project: project,
+              developer: dev,
+              designation: widget.designation,
+            );
+          }
+
+          if (!isTablet) {
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+              itemCount: filteredProjects.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: buildItem(filteredProjects[index]),
+                );
+              },
+            );
+          } else {
+            final crossAxisCount = constraints.maxWidth > 900 ? 3 : 2;
+            final spacing = 20.0;
+            final itemWidth = (constraints.maxWidth - 40 - (spacing * (crossAxisCount - 1))) / crossAxisCount;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+              child: Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: filteredProjects.map((project) {
+                  return SizedBox(
+                    width: itemWidth,
+                    child: buildItem(project),
+                  );
+                }).toList(),
+              ),
+            );
+          }
         },
       ),
     );
@@ -2092,7 +2667,7 @@ class _DeveloperCard extends StatelessWidget {
               color: Colors.black.withOpacity(0.05),
               blurRadius: 15,
               offset: const Offset(0, 5),
-            )
+            ),
           ],
         ),
         child: Column(
@@ -2115,7 +2690,11 @@ class _DeveloperCard extends StatelessWidget {
                     children: [
                       Text(
                         developer.developerName,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -2127,7 +2706,10 @@ class _DeveloperCard extends StatelessWidget {
                 ),
                 if (developer.isVerified)
                   const Icon(Icons.verified, color: kAccent, size: 20),
-                IconButton(onPressed: onShare, icon: const Icon(Icons.share, color: Colors.grey)),
+                IconButton(
+                  onPressed: onShare,
+                  icon: const Icon(Icons.share, color: Colors.grey),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -2136,7 +2718,10 @@ class _DeveloperCard extends StatelessWidget {
               children: [
                 _buildStat('Total Projects', totalProjects.toString()),
                 _buildStat('Active Projects', activeProjects.toString()),
-                _buildStat('Completed', (totalProjects - activeProjects).toString()),
+                _buildStat(
+                  'Completed',
+                  (totalProjects - activeProjects).toString(),
+                ),
               ],
             ),
           ],
@@ -2148,7 +2733,10 @@ class _DeveloperCard extends StatelessWidget {
   Widget _buildStat(String label, String value) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 2),
         Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
@@ -2176,7 +2764,7 @@ class _DeveloperCardSkeleton extends StatelessWidget {
             color: Colors.black.withOpacity(0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -2184,10 +2772,7 @@ class _DeveloperCardSkeleton extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: skeletonColor,
-              ),
+              CircleAvatar(radius: 24, backgroundColor: skeletonColor),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -2240,7 +2825,15 @@ class _ProjectCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const kAccent = Color(0xFF675D40);
     return GestureDetector(
-      onTap: () => showDialog(context: context, builder: (context) => PropertyDetailPopup(project: project, developer: developer, designation: designation)),      child: Container(
+      onTap: () => showDialog(
+        context: context,
+        builder: (context) => PropertyDetailPopup(
+          project: project,
+          developer: developer,
+          designation: designation,
+        ),
+      ),
+      child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -2250,7 +2843,7 @@ class _ProjectCard extends StatelessWidget {
               color: Colors.black.withOpacity(0.05),
               blurRadius: 15,
               offset: const Offset(0, 5),
-            )
+            ),
           ],
         ),
         child: Column(
@@ -2260,11 +2853,15 @@ class _ProjectCard extends StatelessWidget {
               height: 180,
               width: double.infinity,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: CachedImage(
-                imageUrl: project.galleryImages.isNotEmpty ? buildImageUrl(project.galleryImages.first.images) : '',
-                fit: BoxFit.cover,
-              ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+                child: CachedImage(
+                  imageUrl: project.galleryImages.isNotEmpty
+                      ? buildImageUrl(project.galleryImages.first.images)
+                      : '',
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             Padding(
@@ -2274,22 +2871,37 @@ class _ProjectCard extends StatelessWidget {
                 children: [
                   Text(
                     project.projectName,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
                   ),
                   if (developer != null)
-                  Text(
-                    'by ${developer!.developerName}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
+                    Text(
+                      'by ${developer!.developerName}',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                      Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.grey[600],
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           project.locationDisplay,
-                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -2300,9 +2912,21 @@ class _ProjectCard extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _buildInfoChip(kAccent, Icons.construction, project.constructionStatus),
-                      _buildInfoChip(kAccent, Icons.business, project.propertyType),
-                      _buildInfoChip(kAccent, Icons.event, project.possessionDate),
+                      _buildInfoChip(
+                        kAccent,
+                        Icons.construction,
+                        project.constructionStatus,
+                      ),
+                      _buildInfoChip(
+                        kAccent,
+                        Icons.business,
+                        project.propertyType,
+                      ),
+                      _buildInfoChip(
+                        kAccent,
+                        Icons.event,
+                        project.possessionDate,
+                      ),
                     ],
                   ),
                 ],
@@ -2328,7 +2952,11 @@ class _ProjectCard extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             text,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -2355,7 +2983,7 @@ class _ProjectCardSkeleton extends StatelessWidget {
             color: Colors.black.withOpacity(0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -2366,7 +2994,9 @@ class _ProjectCardSkeleton extends StatelessWidget {
             height: 180,
             width: double.infinity,
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
               child: Container(color: skeletonColor),
             ),
           ),
@@ -2376,18 +3006,10 @@ class _ProjectCardSkeleton extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Project Name Skeleton
-                Container(
-                  width: 200,
-                  height: 18,
-                  color: skeletonColor,
-                ),
+                Container(width: 200, height: 18, color: skeletonColor),
                 const SizedBox(height: 8),
                 // Developer Name Skeleton
-                Container(
-                  width: 150,
-                  height: 14,
-                  color: skeletonColor,
-                ),
+                Container(width: 150, height: 14, color: skeletonColor),
                 const SizedBox(height: 8),
                 // Location Skeleton
                 Row(

@@ -350,7 +350,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                             const SizedBox(height: 30),
                             Center(
                               child: Text(
-                                'HomeSol Nexus v1.0.5(44)',
+                                'HomeSol Nexus v1.0.5(46)',
                                 style: TextStyle(
                                   color: (isDark ? Colors.white : Colors.black).withOpacity(0.25),
                                   fontSize: 11,

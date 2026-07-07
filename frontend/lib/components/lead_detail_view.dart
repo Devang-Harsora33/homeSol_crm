@@ -33,7 +33,14 @@ const kCardBorderRadius = 16.0;
 
 class LeadDetailView extends StatefulWidget {
   final Lead lead;
-  const LeadDetailView({super.key, required this.lead});
+  final List<SiteVisit>? siteVisitsOverride;
+  final List<FollowUp>? followUpsOverride;
+  const LeadDetailView({
+    super.key,
+    required this.lead,
+    this.siteVisitsOverride,
+    this.followUpsOverride,
+  });
 
   @override
   State<LeadDetailView> createState() => _LeadDetailViewState();
@@ -76,8 +83,8 @@ class _LeadDetailViewState extends State<LeadDetailView> {
       final updatedLead = await LeadService.fetchLead(_currentLead.name!);
       final projects = await ProjectService.syncProjects();
       final developers = await DeveloperService.syncDevelopers();
-      final siteVisits = await SiteVisitService.fetchMySiteVisits();
-      final followUps = await LeadService.fetchTeamFollowups(_currentLead.name!); 
+      final siteVisits = widget.siteVisitsOverride ?? await SiteVisitService.fetchMySiteVisits();
+      final followUps = widget.followUpsOverride ?? await LeadService.fetchTeamFollowups(_currentLead.name!); 
       // final activityLogs = await LeadService.fetchLeadActivityLogs(_currentLead.name!); // Hidden for now
       final linkedUnits = await PropertyUnitService.fetchPropertyUnitsForLead(_currentLead.name!);
 

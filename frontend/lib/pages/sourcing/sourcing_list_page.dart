@@ -47,8 +47,11 @@ const Color matteBlack = Color(0xFF1A1A1A);
 const Color offWhite = Color(0xFFF9F9F9);
 const Color kBackgroundColor = Color(0xFFF2F2F7);
 
-class SourcingListPageState extends State<SourcingListPage> {
-  Future<List<Sourcing>>? _future;
+class SourcingListPageState extends State<SourcingListPage> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  bool _isLoading = true;
+  String? _errorMessage;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedVisitFilters = {};
@@ -169,53 +172,84 @@ class SourcingListPageState extends State<SourcingListPage> {
   }
 
   Future<void> _load({bool forceRefresh = false}) async {
+    if (!mounted) return;
+    
+    // 1. Instant Cache Load
     try {
-      final Future<List<Sourcing>> sourcingFuture = widget.developerId != null
-          ? SourcingService.getSourcingByDeveloper(widget.developerId!, forceRefresh: forceRefresh)
-          : SourcingService.getMySources(forceRefresh: forceRefresh);
+      final cachedSources = await _fetchDataCore(false);
+      if (mounted) {
+        setState(() {
+          _isLoading = cachedSources.isEmpty;
+          _errorMessage = null;
+        });
+      }
+    } catch (e) {
+      print('Error during sourcing cache load: $e');
+    }
 
-      final results = await Future.wait([
-        sourcingFuture,
-        ProjectService.fetchProjectLocations(),
-        ChannelPartnerService.fetchAllChannelPartners(forceRefresh: forceRefresh),
-        ProjectService.fetchApiProjects(forceRefresh: forceRefresh),
-      ]);
-      
-      final sources = results[0] as List<Sourcing>;
-      final projectLocs = results[1] as List<Map<String, dynamic>>;
-      final partners = results[2] as List<ChannelPartner>;
-      final apiProjects = results[3] as List<Map<String, dynamic>>;
-      
-      final Map<String, Map<String, double>> locMap = {};
-      for (var loc in projectLocs) {
-        if (loc['project_id'] != null && loc['latitude'] != null && loc['longitude'] != null) {
-          locMap[loc['project_id'].toString()] = {
-            'lat': double.tryParse(loc['latitude'].toString()) ?? 0.0,
-            'lng': double.tryParse(loc['longitude'].toString()) ?? 0.0,
-          };
+    // 2. Silent Background Sync
+    if (forceRefresh) {
+      try {
+        await _fetchDataCore(true);
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Error: $e';
+            _isLoading = false;
+          });
         }
       }
+    }
+  }
 
-      final Map<String, String> pNames = {};
-      for (var p in apiProjects) {
-        if (p['id'] != null) {
-          pNames[p['id']!] = p['name'] ?? p['id']!;
-        }
+  Future<List<Sourcing>> _fetchDataCore(bool forceRefresh) async {
+    final Future<List<Sourcing>> sourcingFuture = widget.developerId != null
+        ? SourcingService.getSourcingByDeveloper(widget.developerId!, forceRefresh: forceRefresh)
+        : SourcingService.getMySources(forceRefresh: forceRefresh);
+
+    final results = await Future.wait([
+      sourcingFuture,
+      ProjectService.fetchProjectLocations(),
+      ChannelPartnerService.fetchAllChannelPartners(forceRefresh: forceRefresh),
+      ProjectService.fetchApiProjects(forceRefresh: forceRefresh),
+    ]);
+    
+    final sources = results[0] as List<Sourcing>;
+    final projectLocs = results[1] as List<Map<String, dynamic>>;
+    final partners = results[2] as List<ChannelPartner>;
+    final apiProjects = results[3] as List<Map<String, dynamic>>;
+    
+    final Map<String, Map<String, double>> locMap = {};
+    for (var loc in projectLocs) {
+      if (loc['project_id'] != null && loc['latitude'] != null && loc['longitude'] != null) {
+        locMap[loc['project_id'].toString()] = {
+          'lat': double.tryParse(loc['latitude'].toString()) ?? 0.0,
+          'lng': double.tryParse(loc['longitude'].toString()) ?? 0.0,
+        };
       }
+    }
 
+    final Map<String, String> pNames = {};
+    for (var p in apiProjects) {
+      if (p['name'] != null && p['project_name'] != null) {
+        pNames[p['name'].toString()] = p['project_name'].toString();
+      }
+    }
+    
+    if (mounted) {
       setState(() {
         _allSources = sources;
         _projectLocations = locMap;
         _channelPartners = partners;
         _projectNames = pNames;
-        _future = Future.value(sources);
-      });
-    } catch (e) {
-      print('Error loading sourcing data: $e');
-      setState(() {
-        _future = Future.error(e);
       });
     }
+    return sources;
   }
 
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -336,23 +370,24 @@ class SourcingListPageState extends State<SourcingListPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: kBackgroundColor,
-      body: FutureBuilder<List<Sourcing>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: goldAccent));
-          }
-          if (snapshot.hasError) {
-            return Center(
+      body: _isLoading 
+        ? ListView.builder(
+            padding: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 100),
+            itemCount: 5,
+            itemBuilder: (context, index) => const _SourcingCardSkeleton(),
+          )
+        : _errorMessage != null
+          ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.error_outline, size: 48, color: Colors.red),
                   const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}'),
+                  Text(_errorMessage!),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _load,
@@ -361,13 +396,11 @@ class SourcingListPageState extends State<SourcingListPage> {
                   ),
                 ],
               ),
-            );
-          }
-
-          final sources = snapshot.data ?? [];
-          final filteredSources = _filteredSources(sources);
-
-          return RefreshIndicator(
+            )
+          : Builder(
+              builder: (context) {
+                final filteredSources = _filteredSources(_allSources);
+                return RefreshIndicator(
             onRefresh: () => _load(forceRefresh: true),
             color: goldAccent,
             child: ListView.builder(
@@ -376,7 +409,7 @@ class SourcingListPageState extends State<SourcingListPage> {
               physics: const AlwaysScrollableScrollPhysics(),
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return _buildSearchAndOverview(filteredSources, isDark, filteredSources.length, sources.length);
+                  return _buildSearchAndOverview(filteredSources, isDark, filteredSources.length, _allSources.length);
                 }
 
                 if (filteredSources.isEmpty) {
@@ -1829,3 +1862,99 @@ class _LiveTimerButtonState extends State<_LiveTimerButton> {
     );
   }
 }
+
+class _SourcingCardSkeleton extends StatelessWidget {
+  const _SourcingCardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    Color? skeletonColor = isDark ? Colors.grey[800] : Colors.grey[300];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black.withOpacity(0.04)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left Accent Bar
+              Container(width: 4, color: skeletonColor),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(width: 120, height: 16, color: skeletonColor),
+                          Container(width: 60, height: 16, color: skeletonColor),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(width: 200, height: 24, color: skeletonColor),
+                      const SizedBox(height: 16),
+                      // Details
+                      Wrap(
+                        spacing: 24,
+                        runSpacing: 12,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(width: 16, height: 16, color: skeletonColor),
+                              const SizedBox(width: 8),
+                              Container(width: 80, height: 14, color: skeletonColor),
+                            ],
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(width: 16, height: 16, color: skeletonColor),
+                              const SizedBox(width: 8),
+                              Container(width: 80, height: 14, color: skeletonColor),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Divider(color: Colors.grey.shade200, thickness: 1, height: 1),
+                      const SizedBox(height: 12),
+                      // Footer
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(width: 100, height: 14, color: skeletonColor),
+                          Container(width: 80, height: 28, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(20))),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

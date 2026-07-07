@@ -6,6 +6,10 @@ import 'package:Homesol/models/admin/admin_stats.dart';
 import 'package:collection/collection.dart';
 import 'package:Homesol/services/apis/projects/project_service.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:Homesol/services/apis/leads/lead_service.dart';
+import 'package:Homesol/components/lead_detail_view.dart';
+import 'package:Homesol/models/site_visit.dart';
+import 'package:Homesol/models/follow_up.dart';
 
 const Color goldAccent = Color(0xFFD4AF37);
 const Color matteBlack = Color(0xFF2C2C2C);
@@ -32,6 +36,21 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   
   List<String> _selectedProjects = [];
   List<String> _selectedEmployees = [];
+  String _leadSearchQuery = '';
+  String _visitSearchQuery = '';
+  String _followupSearchQuery = '';
+
+  final TextEditingController _leadSearchController = TextEditingController();
+  final TextEditingController _visitSearchController = TextEditingController();
+  final TextEditingController _followupSearchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _leadSearchController.dispose();
+    _visitSearchController.dispose();
+    _followupSearchController.dispose();
+    super.dispose();
+  }
 
   // Extracted data for filters
   List<String> _availableProjects = []; // IDs
@@ -224,82 +243,87 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           )
         ],
       ),
-      body: Column(
-        children: [
-          // Sticky Header for Filters
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTimeRangeSelector(),
-                const SizedBox(height: 16),
-                Row(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: [
+              // Sticky Header for Filters
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: _buildMultiSelectButton(
-                        hint: 'All Employees',
-                        selectedItems: _selectedEmployees,
-                        items: _availableEmployees,
-                        icon: Icons.person_rounded,
-                        onTap: () => _showMultiSelectBottomSheet(
-                          title: 'Select Employees',
-                          items: _availableEmployees,
-                          selectedItems: _selectedEmployees,
-                          onSelectionChanged: (selected) {
-                            setState(() {
-                              _selectedEmployees = selected;
-                            });
-                          },
+                    _buildTimeRangeSelector(),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMultiSelectButton(
+                            hint: 'All Employees',
+                            selectedItems: _selectedEmployees,
+                            items: _availableEmployees,
+                            icon: Icons.person_rounded,
+                            onTap: () => _showMultiSelectBottomSheet(
+                              title: 'Select Employees',
+                              items: _availableEmployees,
+                              selectedItems: _selectedEmployees,
+                              onSelectionChanged: (selected) {
+                                setState(() {
+                                  _selectedEmployees = selected;
+                                });
+                              },
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMultiSelectButton(
-                        hint: 'All Projects',
-                        selectedItems: _selectedProjects,
-                        items: _availableProjects,
-                        icon: Icons.apartment_rounded,
-                        onTap: () => _showMultiSelectBottomSheet(
-                          title: 'Select Projects',
-                          items: _availableProjects,
-                          selectedItems: _selectedProjects,
-                          itemLabelBuilder: (id) => _getProjectName(id),
-                          onSelectionChanged: (selected) {
-                            setState(() {
-                              _selectedProjects = selected;
-                            });
-                          },
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMultiSelectButton(
+                            hint: 'All Projects',
+                            selectedItems: _selectedProjects,
+                            items: _availableProjects,
+                            icon: Icons.apartment_rounded,
+                            onTap: () => _showMultiSelectBottomSheet(
+                              title: 'Select Projects',
+                              items: _availableProjects,
+                              selectedItems: _selectedProjects,
+                              itemLabelBuilder: (id) => _getProjectName(id),
+                              onSelectionChanged: (selected) {
+                                setState(() {
+                                  _selectedProjects = selected;
+                                });
+                              },
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              
+              // Main Content
+              Expanded(
+                child: _isLoading 
+                    ? const Center(child: CircularProgressIndicator(color: goldAccent))
+                    : _errorMessage != null
+                        ? _buildErrorState()
+                        : _userActivities.isEmpty
+                            ? const Center(child: Text('No data available for the selected period.', style: TextStyle(color: Colors.grey)))
+                            : _buildDashboardContent(
+                                allLeads,
+                                allVisits,
+                                allFollowups,
+                                allSourcing,
+                                allCheckins,
+                                allCheckouts,
+                                allAttendance,
+                              ),
+              ),
+            ],
           ),
-          
-          // Main Content
-          Expanded(
-            child: _isLoading 
-                ? const Center(child: CircularProgressIndicator(color: goldAccent))
-                : _errorMessage != null
-                    ? _buildErrorState()
-                    : _userActivities.isEmpty
-                        ? const Center(child: Text('No data available for the selected period.', style: TextStyle(color: Colors.grey)))
-                        : _buildDashboardContent(
-                            allLeads,
-                            allVisits,
-                            allFollowups,
-                            allSourcing,
-                            allCheckins,
-                            allCheckouts,
-                            allAttendance,
-                          ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -592,6 +616,30 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     List<AdminCheckout> checkouts,
     List<AdminAttendance> attendance,
   ) {
+    final filteredLeads = leads.where((l) {
+      if (_leadSearchQuery.isEmpty) return true;
+      final q = _leadSearchQuery.toLowerCase();
+      return l.leadName.toLowerCase().contains(q) ||
+             l.mobileNo.contains(q) ||
+             _getProjectName(l.customInterestedProject).toLowerCase().contains(q);
+    }).toList();
+
+    final filteredVisits = visits.where((v) {
+      if (_visitSearchQuery.isEmpty) return true;
+      final q = _visitSearchQuery.toLowerCase();
+      return _getProjectName(v.project).toLowerCase().contains(q) ||
+             v.lead.toLowerCase().contains(q) ||
+             v.status.toLowerCase().contains(q);
+    }).toList();
+
+    final filteredFollowups = followups.where((f) {
+      if (_followupSearchQuery.isEmpty) return true;
+      final q = _followupSearchQuery.toLowerCase();
+      return _getLeadName(f.parent).toLowerCase().contains(q) ||
+             f.type.toLowerCase().contains(q) ||
+             f.status.toLowerCase().contains(q);
+    }).toList();
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
@@ -673,10 +721,20 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           _buildDetailSection(
             title: 'Leads Created',
             icon: Icons.person_add_rounded,
-            count: leads.length,
+            count: filteredLeads.length,
             color: Colors.blue,
             isEmpty: leads.isEmpty,
-            items: leads.map((l) => _buildDetailCard(
+            topWidget: _buildSearchBar(
+              hint: 'Search leads...',
+              query: _leadSearchQuery,
+              controller: _leadSearchController,
+              onChanged: (val) {
+                setState(() {
+                  _leadSearchQuery = val;
+                });
+              },
+            ),
+            items: filteredLeads.map((l) => _buildDetailCard(
               title: l.leadName,
               subtitle: _getProjectName(l.customInterestedProject),
               status: l.status,
@@ -688,23 +746,86 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                 if (l.emailId.isNotEmpty) 'Email: ${l.emailId}',
                 if (l.source.isNotEmpty) 'Source: ${l.source}',
                 if (l.customConfiguration != null && l.customConfiguration!.isNotEmpty) 'Config: ${l.customConfiguration}',
-              ]
+              ],
+              onTap: () async {
+                try {
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(child: CircularProgressIndicator(color: matteBlack)),
+                  );
+                  final leadObj = await LeadService.fetchLead(l.name);
+                  if (mounted) {
+                    Navigator.pop(context); // dismiss dialog
+                    if (leadObj != null) {
+                      final siteVisits = l.siteVisits.map((v) => SiteVisit(
+                        name: v.name,
+                        owner: v.owner,
+                        creation: v.creation,
+                        modified: '',
+                        modifiedBy: '',
+                        docstatus: 0,
+                        idx: 0,
+                        lead: v.lead,
+                        project: v.project,
+                        remark: v.remark,
+                        visitDate: v.visitDate,
+                        status: v.status,
+                        visitScheduledDatetime: v.visitScheduledDatetime,
+                        visitDuration: v.visitDuration,
+                        doctype: 'Site Visit',
+                      )).toList();
+                      
+                      final followUps = l.followups.map((f) => FollowUp(
+                        name: f.name,
+                        followUpDate: f.followUpDate,
+                        status: f.status,
+                        type: f.type,
+                        remarks: f.remarks,
+                        nextFollowUp: f.nextFollowUp,
+                        parent: f.parent,
+                        leadId: f.parent,
+                      )).toList();
+
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => LeadDetailView(
+                        lead: leadObj,
+                        siteVisitsOverride: siteVisits,
+                        followUpsOverride: followUps,
+                      )));
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not fetch lead details')));
+                    }
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    Navigator.pop(context); // dismiss dialog
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
+                }
+              },
             )).toList(),
           ),
           
           _buildDetailSection(
             title: 'Site Visits',
             icon: Icons.home_work_rounded,
-            count: visits.length,
+            count: filteredVisits.length,
             color: Colors.green,
             isEmpty: visits.isEmpty,
-            items: visits.map((v) => _buildDetailCard(
+            topWidget: _buildSearchBar(
+              hint: 'Search site visits...',
+              query: _visitSearchQuery,
+              controller: _visitSearchController,
+              onChanged: (val) => setState(() => _visitSearchQuery = val),
+            ),
+            items: filteredVisits.map((v) => _buildDetailCard(
               title: _getProjectName(v.project),
-              subtitle: v.lead.isNotEmpty ? 'Lead: ${v.lead}' : 'No Lead Data',
+              subtitle: v.lead.isNotEmpty ? 'Lead: ${_getLeadName(v.lead)}' : 'No Lead Data',
               status: v.status,
               date: v.visitDate,
               icon: Icons.apartment_rounded,
               color: Colors.green,
+              statusColor: _getStatusColor(v.status, Colors.green),
               extraDetails: [
                 if (v.visitDuration != null) 'Duration: ${v.visitDuration}',
                 if (v.remark.isNotEmpty) 'Remark: ${v.remark}',
@@ -715,10 +836,16 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           _buildDetailSection(
             title: 'Follow-ups',
             icon: Icons.phone_callback_rounded,
-            count: followups.length,
+            count: filteredFollowups.length,
             color: Colors.orange,
             isEmpty: followups.isEmpty,
-            items: followups.map((f) => _buildDetailCard(
+            topWidget: _buildSearchBar(
+              hint: 'Search follow-ups...',
+              query: _followupSearchQuery,
+              controller: _followupSearchController,
+              onChanged: (val) => setState(() => _followupSearchQuery = val),
+            ),
+            items: filteredFollowups.map((f) => _buildDetailCard(
               title: _getLeadName(f.parent),
               subtitle: f.type,
               status: f.status,
@@ -746,6 +873,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                 date: s.visitDate,
                 icon: Icons.handshake_rounded,
                 color: Colors.purple,
+                statusColor: _getStatusColor(s.visitStatus, Colors.purple),
                 extraDetails: [
                   if (s.mobileNumber.isNotEmpty) 'Contact: ${s.mobileNumber}',
                   'Meeting: ${s.meetingType ?? 'OBM'}',
@@ -1089,6 +1217,50 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     );
   }
 
+  Widget _buildSearchBar({
+    required String hint,
+    required String query,
+    required TextEditingController controller,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+          prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
+          suffixIcon: query.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.cancel_rounded, color: Colors.grey, size: 20),
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: Colors.grey.shade100,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: matteBlack, width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
   Widget _buildDetailSection({
     required String title,
     required IconData icon,
@@ -1096,6 +1268,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     required Color color,
     required bool isEmpty,
     required List<Widget> items,
+    Widget? topWidget,
   }) {
     if (isEmpty) return const SizedBox.shrink();
 
@@ -1146,13 +1319,18 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                   color: bgWhite,
                   borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
                 ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (_, index) => items[index],
+                child: Column(
+                  children: [
+                    if (topWidget != null) topWidget,
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (_, index) => items[index],
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1162,6 +1340,15 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     );
   }
 
+  Color _getStatusColor(String status, Color defaultColor) {
+    final s = status.toLowerCase();
+    if (s.contains('not interested') || s.contains('fail') || s.contains('cancel') || s.contains('lost') || s.contains('reject') || s.contains('fake')) return Colors.red;
+    if (s.contains('done') || s.contains('won') || s.contains('success') || s.contains('interested')) return Colors.green;
+    if (s.contains('progress') || s.contains('schedule') || s.contains('pending') || s.contains('callback') || s.contains('call back') || s.contains('follow up') || s.contains('ringing')) return Colors.orange;
+    if (s.contains('revisit')) return Colors.teal;
+    return defaultColor;
+  }
+
   Widget _buildDetailCard({
     required String title,
     required String subtitle,
@@ -1169,20 +1356,30 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     required String date,
     required IconData icon,
     required Color color,
+    Color? statusColor,
     List<String> extraDetails = const [],
+    VoidCallback? onTap,
   }) {
+    final sColor = statusColor ?? color;
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1206,12 +1403,12 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: sColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   status,
-                  style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800),
+                  style: TextStyle(color: sColor, fontSize: 10, fontWeight: FontWeight.w800),
                 ),
               )
             ],
@@ -1250,10 +1447,17 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                 _formatDate(date),
                 style: TextStyle(color: Colors.grey.shade500, fontSize: 11, fontWeight: FontWeight.w600),
               ),
+              if (onTap != null) ...[
+                const SizedBox(width: 12),
+                Icon(Icons.arrow_forward_ios_rounded, size: 12, color: color),
+              ],
             ],
           ),
         ],
       ),
-    );
-  }
+    ),
+  ),
+  ),
+);
+}
 }

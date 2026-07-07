@@ -27,11 +27,7 @@ class ProjectDatabase {
   Future<Database> _initDb() async {
     String path = await getDatabasesPath();
     String dbPath = join(path, 'homesol_projects.db');
-    return await openDatabase(
-      dbPath,
-      version: 1,
-      onCreate: _onCreate,
-    );
+    return await openDatabase(dbPath, version: 1, onCreate: _onCreate);
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -48,7 +44,9 @@ class ProjectDatabase {
     final db = await database;
     final String name = project['name'];
     final String modified = project['modified'];
-    final String data = json.encode(project); // Store the entire JSON object as a string
+    final String data = json.encode(
+      project,
+    ); // Store the entire JSON object as a string
 
     // Check if the record exists
     List<Map<String, dynamic>> existingProject = await db.query(
@@ -67,31 +65,18 @@ class ProjectDatabase {
       );
     } else {
       // Insert new record
-      await db.insert(
-        'projects',
-        {'name': name, 'modified': modified, 'data': data},
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await db.insert('projects', {
+        'name': name,
+        'modified': modified,
+        'data': data,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
   }
 
   Future<List<Map<String, dynamic>>> getAllProjects() async {
     final db = await database;
     final results = await db.query('projects');
-    return results.where((row) {
-      final name = row['name']?.toString().toLowerCase().trim() ?? '';
-      if (name == 'bhavin steel' || name == 'parinee i') return false;
-      
-      final dataStr = row['data'] as String?;
-      if (dataStr != null) {
-        try {
-          final data = json.decode(dataStr);
-          final projectName = data['project_name']?.toString().toLowerCase().trim() ?? '';
-          if (projectName == 'bhavin steel' || projectName == 'parinee i') return false;
-        } catch (e) {}
-      }
-      return true;
-    }).toList();
+    return results;
   }
 
   Future<Map<String, dynamic>?> getProjectByName(String name) async {
@@ -109,11 +94,7 @@ class ProjectDatabase {
 
   Future<void> deleteProject(String name) async {
     final db = await database;
-    await db.delete(
-      'projects',
-      where: 'name = ?',
-      whereArgs: [name],
-    );
+    await db.delete('projects', where: 'name = ?', whereArgs: [name]);
   }
 
   Future<void> deleteAllProjects() async {

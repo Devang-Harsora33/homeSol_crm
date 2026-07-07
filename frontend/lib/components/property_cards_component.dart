@@ -36,22 +36,50 @@ class PropertyCardsComponent extends StatelessWidget {
           ? projects!
           : _getFallbackProjects();
 
-      content = ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: displayProjects.length,
-        itemBuilder: (context, index) {
-          final project = displayProjects[index];
+      content = LayoutBuilder(
+        builder: (context, constraints) {
+          final isTablet = constraints.maxWidth > 600;
 
-          // Find the developer for this project
-          final developer =
-              developers?.firstWhere(
-                (dev) => dev.id == project.developer,
-                orElse: () => _getFallbackDeveloper(),
-              ) ??
-              _getFallbackDeveloper();
+          if (!isTablet) {
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: displayProjects.length,
+              itemBuilder: (context, index) {
+                final project = displayProjects[index];
+                final developer = developers?.firstWhere(
+                      (dev) => dev.id == project.developer,
+                      orElse: () => _getFallbackDeveloper(),
+                    ) ??
+                    _getFallbackDeveloper();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: HomeProjectCard(project: project, developer: developer),
+                );
+              },
+            );
+          } else {
+            // Tablet responsive grid using Wrap
+            final crossAxisCount = constraints.maxWidth > 900 ? 3 : 2;
+            final spacing = 16.0;
+            final itemWidth = (constraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
 
-          return HomeProjectCard(project: project, developer: developer);
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: displayProjects.map((project) {
+                final developer = developers?.firstWhere(
+                      (dev) => dev.id == project.developer,
+                      orElse: () => _getFallbackDeveloper(),
+                    ) ??
+                    _getFallbackDeveloper();
+                return SizedBox(
+                  width: itemWidth,
+                  child: HomeProjectCard(project: project, developer: developer),
+                );
+              }).toList(),
+            );
+          }
         },
       );
     }

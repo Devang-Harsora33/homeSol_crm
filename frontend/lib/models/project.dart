@@ -143,6 +143,7 @@ class Project {
   final String city;
   final String state;
   final String? location;
+  final String? loginCoordinates;
   final String nearbyLandmarks;
   final String projectApproval;
   final String developmentScheme;
@@ -182,6 +183,7 @@ class Project {
     required this.city,
     required this.state,
     this.location,
+    this.loginCoordinates,
     required this.nearbyLandmarks,
     required this.projectApproval,
     required this.developmentScheme,
@@ -223,6 +225,7 @@ class Project {
       city: json['city'] ?? '',
       state: json['state'] ?? '',
       location: json['location'],
+      loginCoordinates: json['login_coordinates'],
       nearbyLandmarks: json['nearby_landmarks'] ?? '',
       projectApproval: json['project_approval'] ?? '',
       developmentScheme: json['development_scheme'] ?? '',

@@ -108,23 +108,152 @@ class _MorePageState extends State<MorePage> {
                     return ListView(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                       children: [
-                        _MoreTile(
-                          icon: Icons.account_balance,
-                          title: 'Construction Finance Dashboard',
-                          onTap: () {
-                            if (widget.developerId != null) {
+                        _buildTilesLayout(context, [
+                          _MoreTile(
+                            icon: Icons.account_balance,
+                            title: 'Construction Finance Dashboard',
+                            onTap: () {
+                              if (widget.developerId != null) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => ConstructionFinanceListPage(
+                                      developerId: widget.developerId!,
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                CustomSnackBar.show(context, message: 'Developer ID not found', isError: true);
+                              }
+                            },
+                          ),
+                          _MoreTile(
+                            icon: Icons.support_agent,
+                            title: 'Raise Ticket',
+                            onTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => ConstructionFinanceListPage(
-                                    developerId: widget.developerId!,
+                                  builder: (_) => const TicketsListPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          _MoreTile(
+                            icon: Icons.bookmark_border,
+                            title: 'BookMarks',
+                            onTap: null,
+                          ),
+                          _MoreTile(
+                            icon: Icons.public,
+                            title: 'HomeSol Networking',
+                            onTap: null,
+                          ),
+                          _MoreTile(
+                            icon: Icons.call,
+                            title: 'Call Dashboard',
+                            onTap: null,
+                          ),
+                          _MoreTile(
+                            icon: Icons.help_outline,
+                            title: 'Help & Support',
+                            onTap: null,
+                          ),
+                          _MoreTile(
+                            icon: Icons.newspaper,
+                            title: 'News & Article',
+                            onTap: null,
+                          ),
+                        ]),
+                        const SizedBox(height: 16),
+                        _buildClearCacheTile(context),
+                        const SizedBox(height: 16),
+                        _LogoutButton(theme: theme),
+                        const SizedBox(height: 30),
+                        Center(
+                          child: Text(
+                            'HomeSol Nexus v1.0.5(46)',
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface.withOpacity(0.25),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                    children: [
+                      _buildTilesLayout(context, [
+                        _MoreTile(
+                          icon: Icons.home_work_outlined,
+                          title: 'HomeSol Launch - Projects',
+                          onTap: () {
+                            if (navigateCallback != null) {
+                              dev_page.DevelopersPage.setSearchQuery('HomeSol');
+                              int devIndex = 2;
+                              final dest = (widget.designation ?? '').trim().toLowerCase();
+                              if (dest == 'sales and sourcing' || dest == 'sales & sourcing') {
+                                devIndex = 3;
+                              }
+                              navigateCallback(devIndex);
+                            } else {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const dev_page.DevelopersPage(
+                                    initialSearchQuery: 'HomeSol',
                                   ),
                                 ),
                               );
-                            } else {
-                              CustomSnackBar.show(context, message: 'Developer ID not found', isError: true);
                             }
                           },
                         ),
+                        if (dest != 'lead caller')
+                          _MoreTile(
+                            icon: Icons.group_add_outlined,
+                            title: 'Channel Partners',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const ChannelPartnerListPage(),
+                                ),
+                              );
+                            },
+                          ),
+                        if (dest != 'sales and sourcing' && dest != 'sales & sourcing' && dest != 'sourcing' && dest != 'lead caller' && dest != 'sales representative')
+                          _MoreTile(
+                            icon: Icons.source_outlined,
+                            title: 'Sourcing',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const SourcingMainPage(),
+                                ),
+                              );
+                            },
+                          ),
+                        if (dest != 'lead caller')
+                          _MoreTile(
+                            icon: Icons.wallet,
+                            title: 'Payroll',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => SalarySlipsPage()),
+                              );
+                            },
+                          ),
+                        if (dest != 'lead caller')
+                          _MoreTile(
+                            icon: Icons.time_to_leave_outlined,
+                            title: 'Leave Management',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const LeaveScreen()),
+                              );
+                            },
+                          ),
                         _MoreTile(
                           icon: Icons.support_agent,
                           title: 'Raise Ticket',
@@ -136,6 +265,42 @@ class _MorePageState extends State<MorePage> {
                             );
                           },
                         ),
+                         if (_isTeamLead)
+                          _MoreTile(
+                            icon: Icons.bar_chart_rounded,
+                            title: 'Performance Stats',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const TeamLeadStatsPage(),
+                                ),
+                              );
+                            },
+                          ),
+                         if (_isTeamLead)
+                          _MoreTile(
+                            icon: Icons.move_up,
+                            title: 'Lead Transfer Tool',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const LeadTransferListPage(),
+                                ),
+                              );
+                            },
+                          ),
+                        if (_isTeamLead)
+                          _MoreTile(
+                            icon: Icons.fact_check_outlined,
+                            title: 'Attendance Desk',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const TeamLeadDashboardPage(),
+                                ),
+                              );
+                            },
+                          ),
                         _MoreTile(
                           icon: Icons.bookmark_border,
                           title: 'BookMarks',
@@ -161,199 +326,7 @@ class _MorePageState extends State<MorePage> {
                           title: 'News & Article',
                           onTap: null,
                         ),
-                        const SizedBox(height: 16),
-                        _buildClearCacheTile(context),
-                        const SizedBox(height: 16),
-                        _LogoutButton(theme: theme),
-                      const SizedBox(height: 30),
-                      Center(
-                        child: Text(
-                          'HomeSol Nexus v1.0.5(44)',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface.withOpacity(0.25),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                      ],
-                    );
-                  }
-
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                    children: [
-                      _MoreTile(
-                        icon: Icons.home_work_outlined,
-                        title: 'HomeSol Launch - Projects',
-                        onTap: () {
-                          if (navigateCallback != null) {
-                            // Set the search query for HomeSol
-                            dev_page.DevelopersPage.setSearchQuery('HomeSol');
-                            
-                            int devIndex = 2;
-                            final dest = (widget.designation ?? '').trim().toLowerCase();
-                            if (dest == 'sales and sourcing' || dest == 'sales & sourcing') {
-                              devIndex = 3;
-                            }
-                            
-                            navigateCallback(
-                              devIndex,
-                            ); // Navigate to developers tab
-                          } else {
-                            // Fallback to push navigation if callback not provided
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const dev_page.DevelopersPage(
-                                  initialSearchQuery: 'HomeSol',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                      if (dest != 'lead caller')
-                        _MoreTile(
-                          icon: Icons.group_add_outlined,
-                          title: 'Channel Partners',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ChannelPartnerListPage(),
-                              ),
-                            );
-                          },
-                        ),
-                      Builder(
-                        builder: (context) {
-                          final dest = (widget.designation ?? '').trim().toLowerCase();
-                          if (dest == 'sales and sourcing' || dest == 'sales & sourcing' || dest == 'sourcing' || dest == 'lead caller') {
-                            // Show nothing here as it's already in main tabs or we want to hide it
-                            return const SizedBox.shrink();
-                          } else if (dest != 'sales representative') {
-                            return _MoreTile(
-                              icon: Icons.source_outlined,
-                              title: 'Sourcing',
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const SourcingMainPage(),
-                                  ),
-                                );
-                              },
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                      if (dest != 'lead caller')
-                        _MoreTile(
-                          icon: Icons.wallet,
-                          title: 'Payroll',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => SalarySlipsPage()),
-                            );
-                          },
-                        ),
-                      if (dest != 'lead caller')
-                        _MoreTile(
-                          icon: Icons.time_to_leave_outlined,
-                          title: 'Leave Management',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const LeaveScreen()),
-                            );
-                          },
-                        ),
-                      _MoreTile(
-                        icon: Icons.support_agent,
-                        title: 'Raise Ticket',
-                        // onTap: null,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const TicketsListPage(),
-                            ),
-                          );
-                        },
-                      ),
-                       if (_isTeamLead)
-                        _MoreTile(
-                          icon: Icons.bar_chart_rounded,
-                          title: 'Performance Stats',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const TeamLeadStatsPage(),
-                              ),
-                            );
-                          },
-                        ),
-                       if (_isTeamLead)
-                        _MoreTile(
-                          icon: Icons.move_up,
-                          title: 'Lead Transfer Tool',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const LeadTransferListPage(),
-                              ),
-                            );
-                          },
-                        ),
-                      if (_isTeamLead)
-                        _MoreTile(
-                          icon: Icons.fact_check_outlined,
-                          title: 'Attendance Desk',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const TeamLeadDashboardPage(),
-                              ),
-                            );
-                          },
-                        ),
-                      _MoreTile(
-                        icon: Icons.bookmark_border,
-                        title: 'BookMarks',
-                        onTap: null,
-                        // onTap: () {
-                        //   Navigator.of(context).push(
-                        //     MaterialPageRoute(builder: (_) => const BookmarkPage()),
-                        //   );
-                        // },
-                      ),
-                     
-                      _MoreTile(
-                        icon: Icons.public,
-                        title: 'HomeSol Networking',
-                        // trailing: const Icon(Icons.keyboard_arrow_down),
-                        onTap: null,
-                      ),
-                    
-                      _MoreTile(
-                        icon: Icons.call,
-                        title: 'Call Dashboard',
-                        onTap: null,
-                      ),
-
-                      // _MoreTile(
-                      //   icon: Icons.group_add_outlined,
-                      //   title: 'Refer Home Buying Clients',
-                      //   onTap: () {},
-                      // ),
-                      _MoreTile(
-                        icon: Icons.help_outline,
-                        title: 'Help & Support',
-                        onTap: null,
-                      ),
-                      _MoreTile(
-                        icon: Icons.newspaper,
-                        title: 'News & Article',
-                        onTap: null,
-                      ),
+                      ]),
                       const SizedBox(height: 16),
                       _buildClearCacheTile(context),
                       const SizedBox(height: 16),
@@ -361,7 +334,7 @@ class _MorePageState extends State<MorePage> {
                       const SizedBox(height: 30),
                       Center(
                         child: Text(
-                          'HomeSol Nexus v1.0.5(44)',
+                          'HomeSol Nexus v1.0.5(46)',
                           style: TextStyle(
                             color: theme.colorScheme.onSurface.withOpacity(0.25),
                             fontSize: 11,
@@ -378,6 +351,33 @@ class _MorePageState extends State<MorePage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTilesLayout(BuildContext context, List<Widget> tiles) {
+    // Filter out SizedBox.shrink() to avoid empty gaps in the grid
+    final validTiles = tiles.where((t) {
+      if (t is SizedBox && t.width == 0.0 && t.height == 0.0) return false;
+      return true;
+    }).toList();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTablet = constraints.maxWidth > 600;
+        if (!isTablet) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: validTiles,
+          );
+        }
+        
+        final itemWidth = (constraints.maxWidth - 16) / 2; // 16 for gap between columns
+        return Wrap(
+          spacing: 16,
+          runSpacing: 0,
+          children: validTiles.map((t) => SizedBox(width: itemWidth, child: t)).toList(),
+        );
+      }
     );
   }
 

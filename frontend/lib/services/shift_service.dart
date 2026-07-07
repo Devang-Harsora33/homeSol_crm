@@ -24,12 +24,14 @@ class ShiftService {
 
     try {
       final cookie = await AuthService.getCookie();
-      final response = await http.get(
-        Uri.parse(
-          '${AuthService.baseUrl}/api/method/homesol_app.api.get_shift_types',
-        ),
-        headers: {'Cookie': cookie ?? ''},
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            Uri.parse(
+              '${AuthService.baseUrl}/api/method/homesol_app.api.get_shift_types',
+            ),
+            headers: {'Cookie': cookie ?? ''},
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final List<dynamic> shiftTypes = jsonDecode(response.body)['message'];
@@ -85,8 +87,8 @@ class ShiftService {
       }
 
       // Get current location
-      final Position? currentPosition =
-          await LocationService.instance.getCurrentLocation();
+      final Position? currentPosition = await LocationService.instance
+          .getCurrentLocation();
       if (currentPosition == null) {
         print('Could not get current location');
         return {'success': false, 'message': 'Could not get current location'};
@@ -111,15 +113,19 @@ class ShiftService {
         print('User is not assigned to any projects');
         return {
           'success': false,
-          'message': 'User is not assigned to any projects'
+          'message': 'User is not assigned to any projects',
         };
       }
 
       // Check if user is within range of any assigned project
       for (var projectId in userProjects) {
+        print('DEBUG CHECKIN: Checking project $projectId');
         final project = await ProjectService.fetchProject(projectId);
-        if (project != null && project.location != null) {
-          final locationData = json.decode(project.location!);
+        final targetGeoStr = project?.loginCoordinates ?? project?.location;
+        if (project != null &&
+            targetGeoStr != null &&
+            targetGeoStr.isNotEmpty) {
+          final locationData = json.decode(targetGeoStr);
           final features = locationData['features'] as List<dynamic>? ?? [];
 
           for (var feature in features) {
@@ -127,7 +133,7 @@ class ShiftService {
               final geometry = feature['geometry'];
               final type = geometry['type'];
               final coordinates = geometry['coordinates'];
-              
+
               List<Map<String, double>> pointsToCheck = [];
 
               if (type == 'Point') {
@@ -146,6 +152,10 @@ class ShiftService {
                 }
               }
 
+              print(
+                'DEBUG CHECKIN: Found ${pointsToCheck.length} points to check for $projectId (Type: $type)',
+              );
+
               for (var p in pointsToCheck) {
                 final double projectLat = p['lat']!;
                 final double projectLng = p['lng']!;
@@ -157,8 +167,15 @@ class ShiftService {
                   projectLng,
                 );
 
+                print(
+                  'DEBUG CHECKIN: Checking coordinate ($projectLat, $projectLng) - Distance: $distance km',
+                );
+
                 if (distance <= 0.35) {
                   // 350 meters
+                  print(
+                    'DEBUG CHECKIN: ✅ MATCH FOUND! Picking coordinate ($projectLat, $projectLng) for $projectId. Distance is $distance km (<= 0.35 km)',
+                  );
                   return WorkforceService.markAttendance(
                     logType,
                     currentPosition.latitude,
@@ -170,7 +187,9 @@ class ShiftService {
                 }
               }
             } catch (e) {
-              print('Error parsing feature coordinates for project $projectId: $e');
+              print(
+                'Error parsing feature coordinates for project $projectId: $e',
+              );
             }
           }
         }
@@ -180,7 +199,7 @@ class ShiftService {
       return {
         'success': false,
         'message':
-            'You are not within the 350-meter radius of any assigned project.'
+            'You are not within the 350-meter radius of any assigned project.',
       };
     } catch (e) {
       print('Error during check-$logType: $e');

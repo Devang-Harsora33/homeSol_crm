@@ -30,7 +30,9 @@ class ChannelPartnerListPage extends StatefulWidget {
   State<ChannelPartnerListPage> createState() => _ChannelPartnerListPageState();
 }
 
-class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
+class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   List<ChannelPartner> _channelPartners = [];
   List<ChannelPartner> _filteredPartners = [];
   List<Project> _projects = [];
@@ -49,7 +51,7 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
   void initState() {
     super.initState();
     // ScreenProtector.preventScreenshotOn();
-    _fetchChannelPartners();
+    _fetchChannelPartners(forceRefresh: true);
     _fetchProfile();
     _searchController.addListener(_filterPartners);
   }
@@ -676,47 +678,57 @@ class _ChannelPartnerListPageState extends State<ChannelPartnerListPage> {
 
   Future<void> _fetchChannelPartners({bool forceRefresh = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    
+    // 1. Instant Cache Load
     try {
-      // Sync Leads and Site Visits as requested, but don't let them block channel partners if they fail
-      try {
-        await LeadService.syncMyLeads().timeout(const Duration(seconds: 10));
-      } catch (e) {
-        print('Lead sync failed during CP fetch: $e');
-      }
-      
-      try {
-        await SiteVisitService.fetchMySiteVisits(forceRefresh: forceRefresh).timeout(const Duration(seconds: 10));
-      } catch (e) {
-        print('Site visit sync failed during CP fetch: $e');
-      }
-      
-      final partners = await ChannelPartnerService.fetchAllChannelPartners(forceRefresh: forceRefresh);
-      final projects = await ProjectService.fetchProjects();
+      final cachedPartners = await ChannelPartnerService.fetchAllChannelPartners(forceRefresh: false);
+      final cachedProjects = await ProjectService.fetchProjects();
       if (mounted) {
         setState(() {
-          _channelPartners = partners;
-          _filteredPartners = partners;
-          _projects = projects;
-          _isLoading = false;
+          _channelPartners = cachedPartners;
+          _projects = cachedProjects;
+          _isLoading = cachedPartners.isEmpty; // Show skeleton only if completely empty
+          _errorMessage = null;
         });
+        _filterPartners(); // Apply any existing search/filters
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = "Failed to load channel partners. Please swipe down to refresh.";
-          _isLoading = false;
-        });
+      print('Error during CP cache load: $e');
+    }
+
+    // 2. Silent Background Sync
+    if (forceRefresh) {
+      try {
+        // Sync Leads and Site Visits in background silently as originally requested, but don't block
+        LeadService.syncMyLeads().catchError((e) => print('Lead sync failed: $e'));
+        SiteVisitService.fetchMySiteVisits(forceRefresh: true).catchError((e) => print('Site visit sync failed: $e'));
+        
+        final freshPartners = await ChannelPartnerService.fetchAllChannelPartners(forceRefresh: true);
+        final freshProjects = await ProjectService.fetchProjects(forceRefresh: true); // Optionally refresh projects too
+        
+        if (mounted) {
+          setState(() {
+            _channelPartners = freshPartners;
+            _projects = freshProjects;
+            _isLoading = false;
+          });
+          _filterPartners(); // Re-apply filters with fresh data
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = "Failed to load channel partners. Please swipe down to refresh.";
+            _isLoading = false;
+          });
+        }
+        print('Error fetching channel partners from API: $e');
       }
-      print('Error fetching channel partners: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 

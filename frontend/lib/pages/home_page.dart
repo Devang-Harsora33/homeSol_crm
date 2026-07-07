@@ -81,6 +81,13 @@ class _HomePageState extends State<HomePage> {
       _lastPunchTime = widget.initialLastPunchTime;
     }
 
+    final initialButtonStates = _calculateButtonStates(
+      _userShift,
+      _attendanceStatus,
+    );
+    _isCheckInButtonEnabled = initialButtonStates['checkIn']!;
+    _isCheckOutButtonEnabled = initialButtonStates['checkOut']!;
+
     // Load cached status first so UI doesn't blink
     _loadCachedAttendanceStatus();
 
@@ -91,7 +98,10 @@ class _HomePageState extends State<HomePage> {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       // Recalculate button states periodically, but don't re-fetch attendance status
-      final newButtonStates = _calculateButtonStates(_userShift, _attendanceStatus);
+      final newButtonStates = _calculateButtonStates(
+        _userShift,
+        _attendanceStatus,
+      );
       if (newButtonStates['checkIn'] != _isCheckInButtonEnabled ||
           newButtonStates['checkOut'] != _isCheckOutButtonEnabled) {
         setState(() {
@@ -107,7 +117,10 @@ class _HomePageState extends State<HomePage> {
     super.didUpdateWidget(oldWidget);
     if (widget.userShift != oldWidget.userShift) {
       _userShift = widget.userShift;
-      final buttonStates = _calculateButtonStates(_userShift, _attendanceStatus);
+      final buttonStates = _calculateButtonStates(
+        _userShift,
+        _attendanceStatus,
+      );
       setState(() {
         _isCheckInButtonEnabled = buttonStates['checkIn']!;
         _isCheckOutButtonEnabled = buttonStates['checkOut']!;
@@ -136,7 +149,10 @@ class _HomePageState extends State<HomePage> {
           if (cachedTime != null) {
             _lastPunchTime = DateTime.tryParse(cachedTime);
           }
-          final buttonStates = _calculateButtonStates(_userShift, _attendanceStatus);
+          final buttonStates = _calculateButtonStates(
+            _userShift,
+            _attendanceStatus,
+          );
           _isCheckInButtonEnabled = buttonStates['checkIn']!;
           _isCheckOutButtonEnabled = buttonStates['checkOut']!;
         });
@@ -157,29 +173,31 @@ class _HomePageState extends State<HomePage> {
 
   // --- Start of new method to fetch initial attendance status ---
   Future<void> _fetchAndSetInitialAttendanceStatus() async {
-    if (widget.employeeId == null || 
-        (widget.designation?.toLowerCase() ?? '') == 'property developer' || 
-        (widget.designation?.toLowerCase() ?? '') == 'lead caller') return;
-    
+    if (widget.employeeId == null ||
+        (widget.designation?.toLowerCase() ?? '') == 'property developer' ||
+        (widget.designation?.toLowerCase() ?? '') == 'lead caller')
+      return;
+
     // We can just rely on the same robust logic in _refreshAttendanceStatus
     // which now checks specifically for today's logs.
     await _refreshAttendanceStatus();
   }
   // --- End of new method to fetch initial attendance status ---
 
- void _toggleSidebar() {
-
+  void _toggleSidebar() {
     setState(() => _isSidebarOpen = !_isSidebarOpen);
-
   }
 
   void _closeSidebar() {
     setState(() => _isSidebarOpen = false);
   }
-  
+
   // --- Start of logic moved from MainNavigation ---
 
-  Map<String, bool> _calculateButtonStates(Map<String, dynamic>? userShift, String attendanceStatus) {
+  Map<String, bool> _calculateButtonStates(
+    Map<String, dynamic>? userShift,
+    String attendanceStatus,
+  ) {
     if (userShift == null) {
       return {'checkIn': false, 'checkOut': false};
     }
@@ -194,7 +212,8 @@ class _HomePageState extends State<HomePage> {
       effectiveEndTime = endTime.add(const Duration(days: 1));
     }
     final isCurrentlyCheckedIn = attendanceStatus == 'IN';
-    final newCheckInState = !isCurrentlyCheckedIn &&
+    final newCheckInState =
+        !isCurrentlyCheckedIn &&
         now.isAfter(startTime.subtract(const Duration(minutes: 60))) &&
         now.isBefore(effectiveEndTime);
     final newCheckOutState = isCurrentlyCheckedIn;
@@ -205,8 +224,14 @@ class _HomePageState extends State<HomePage> {
     try {
       final parts = timeString.split(':');
       final now = DateTime.now();
-      return DateTime(now.year, now.month, now.day, int.parse(parts[0]),
-          int.parse(parts[1]), int.parse(parts[2]));
+      return DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+        int.parse(parts[2]),
+      );
     } catch (e) {
       return null;
     }
@@ -243,26 +268,44 @@ class _HomePageState extends State<HomePage> {
       remark = await _showLateRemarkPopup(context, newType);
       if (remark == null || remark.trim().isEmpty) {
         if (mounted) {
-          CustomSnackBar.show(context, message: "Remark cannot be empty for late attendance.", isError: false, title: 'Notice');
+          CustomSnackBar.show(
+            context,
+            message: "Remark cannot be empty for late attendance.",
+            isError: false,
+            title: 'Notice',
+          );
         }
         return;
       }
     }
-    
-    if (widget.employeeId != null) {
-      final locationResult = await _checkEmployeeLocation(widget.employeeId!, newType);
 
-      if (!locationResult['inRange']) {
+    if (widget.employeeId != null) {
+      final locationResult = await _checkEmployeeLocation(
+        widget.employeeId!,
+        newType,
+      );
+
+      if (locationResult['error'] != null) {
         if (mounted) {
-          CustomSnackBar.show(context, message: 
-                "You are out of range: ${locationResult['distance'].toStringAsFixed(2)} km away from project.",
-                isError: false, title: 'Notice');
+          CustomSnackBar.show(
+            context,
+            message: "${locationResult['error']}",
+            isError: true,
+            title: 'Location Error',
+          );
         }
         return;
       }
-       if (locationResult['error'] != null) {
+
+      if (!locationResult['inRange']) {
         if (mounted) {
-          CustomSnackBar.show(context, message: "Location Error: ${locationResult['error']}", isError: true, title: 'Error');
+          CustomSnackBar.show(
+            context,
+            message:
+                "You are out of range: ${locationResult['distance'].toStringAsFixed(2)} km away from project.",
+            isError: false,
+            title: 'Notice',
+          );
         }
         return;
       }
@@ -271,8 +314,18 @@ class _HomePageState extends State<HomePage> {
     await _performAttendanceAction(newType, remark);
   }
 
-  Future<Map<String, dynamic>> _checkEmployeeLocation(String employeeId, String logType) async {
+  Future<Map<String, dynamic>> _checkEmployeeLocation(
+    String employeeId,
+    String logType,
+  ) async {
     try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception(
+          'Location services are disabled. Please turn on GPS in your device settings.',
+        );
+      }
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -286,52 +339,135 @@ class _HomePageState extends State<HomePage> {
 
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 30),
       );
 
-      final assignedProject = widget.projects.isNotEmpty ? widget.projects.first : null;
-
-      if (assignedProject == null || assignedProject.location == null) {
-        print("Employee is not assigned to a project with location data.");
+      if (widget.projects.isEmpty) {
+        print("Employee is not assigned to a project.");
         return {'inRange': true, 'distance': 0.0};
       }
 
-      double projectLat = 0.0;
-      double projectLon = 0.0;
-      try {
-        final projectLocationJson = jsonDecode(assignedProject.location!) as Map<String, dynamic>;
-        final coordinates = projectLocationJson['features'][0]['geometry']['coordinates'] as List<dynamic>;
-        projectLon = coordinates[0];
-        projectLat = coordinates[1];
-      } catch (e) {
-        print("Error parsing project location: $e");
-        return {'inRange': true, 'distance': 0.0};
+      double closestOverallDistance = double.infinity;
+      bool inRangeOverall = false;
+
+      for (final assignedProject in widget.projects) {
+        print('DEBUG CHECKIN: Checking project ${assignedProject.projectName}');
+
+        final targetGeoStr =
+            assignedProject.loginCoordinates ?? assignedProject.location;
+
+        if (targetGeoStr == null || targetGeoStr.isEmpty) {
+          print("Project ${assignedProject.projectName} has no location data.");
+          continue;
+        }
+
+        try {
+          final projectLocationJson =
+              jsonDecode(targetGeoStr) as Map<String, dynamic>;
+          final features =
+              projectLocationJson['features'] as List<dynamic>? ?? [];
+
+          for (var feature in features) {
+            final geometry = feature['geometry'];
+            final type = geometry['type'];
+            final coordinates = geometry['coordinates'];
+
+            List<Map<String, double>> pointsToCheck = [];
+
+            if (type == 'Point') {
+              pointsToCheck.add({
+                'lat': (coordinates[1] as num).toDouble(),
+                'lng': (coordinates[0] as num).toDouble(),
+              });
+            } else if (type == 'Polygon') {
+              for (var ring in coordinates) {
+                for (var point in ring) {
+                  pointsToCheck.add({
+                    'lat': (point[1] as num).toDouble(),
+                    'lng': (point[0] as num).toDouble(),
+                  });
+                }
+              }
+            }
+
+            print(
+              'DEBUG CHECKIN: Found ${pointsToCheck.length} points to check for ${assignedProject.projectName} (Type: $type)',
+            );
+
+            for (var p in pointsToCheck) {
+              final double projectLat = p['lat']!;
+              final double projectLon = p['lng']!;
+
+              double distanceInMeters = Geolocator.distanceBetween(
+                position.latitude,
+                position.longitude,
+                projectLat,
+                projectLon,
+              );
+              double distanceInKm = distanceInMeters / 1000;
+
+              print(
+                'DEBUG CHECKIN: Checking coordinate ($projectLat, $projectLon) - Distance: $distanceInKm km',
+              );
+
+              if (distanceInKm < closestOverallDistance) {
+                closestOverallDistance = distanceInKm;
+              }
+
+              if (distanceInKm <= 0.35) {
+                // 350 meters
+                print(
+                  'DEBUG CHECKIN: ✅ MATCH FOUND! Picking coordinate ($projectLat, $projectLon) for ${assignedProject.projectName}. Distance is $distanceInKm km (<= 0.35 km)',
+                );
+                inRangeOverall = true;
+                break;
+              }
+            }
+            if (inRangeOverall) break;
+          }
+        } catch (e) {
+          print("Error parsing project location: $e");
+        }
+
+        if (inRangeOverall) break;
       }
 
-      double distanceInMeters = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
-        projectLat,
-        projectLon,
+      print(
+        "Closest distance to any assigned project: $closestOverallDistance km",
       );
 
-      double distanceInKm = distanceInMeters / 1000;
-      print("Project ${assignedProject.projectName} Location: $projectLat, $projectLon");
-      print("Distance to Project ${assignedProject.projectName}: $distanceInKm km");
-
-      const double allowedCheckinRangeKm = 0.35; // 350 meters
-      bool inRange = distanceInKm <= allowedCheckinRangeKm;
-
-      return {'inRange': inRange, 'distance': distanceInKm};
+      return {
+        'inRange': inRangeOverall,
+        'distance': closestOverallDistance == double.infinity
+            ? 0.0
+            : closestOverallDistance,
+      };
     } catch (e) {
       print("Error checking employee location: $e");
-      return {'inRange': false, 'distance': 0.0, 'error': e.toString()};
+      String errorMsg = e.toString();
+      if (errorMsg.contains('TimeoutException')) {
+        errorMsg =
+            'Timeout while getting location. Please make sure your device GPS is turned on and try again.';
+      } else if (errorMsg.contains('Location services are disabled')) {
+        errorMsg = 'Please turn on GPS in your device settings.';
+      } else if (errorMsg.startsWith('Exception: ')) {
+        errorMsg = errorMsg.replaceFirst('Exception: ', '');
+      }
+      return {'inRange': false, 'distance': 0.0, 'error': errorMsg};
     }
   }
 
-
-  Future<String?> _showLateRemarkPopup(BuildContext context, String type) async {
+  Future<String?> _showLateRemarkPopup(
+    BuildContext context,
+    String type,
+  ) async {
     final remarkController = TextEditingController();
-    final List<String> quickReasons = ['Traffic', 'Public Transport Delay', 'Medical Emergency', 'Meeting'];
+    final List<String> quickReasons = [
+      'Traffic',
+      'Public Transport Delay',
+      'Medical Emergency',
+      'Meeting',
+    ];
 
     return showDialog<String>(
       context: context,
@@ -343,7 +479,9 @@ class _HomePageState extends State<HomePage> {
             final isCheckIn = type == 'IN';
 
             return Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               backgroundColor: const Color(0xFFFFFFFF),
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
@@ -359,7 +497,11 @@ class _HomePageState extends State<HomePage> {
                             color: Colors.orange.withOpacity(0.15),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.access_time_filled_rounded, color: Colors.orange, size: 28),
+                          child: const Icon(
+                            Icons.access_time_filled_rounded,
+                            color: Colors.orange,
+                            size: 28,
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -375,7 +517,8 @@ class _HomePageState extends State<HomePage> {
                               Text(
                                 'Please provide a reason.',
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.6),
                                 ),
                               ),
                             ],
@@ -386,7 +529,10 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 20),
                     Text(
                       'Quick Select',
-                      style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold, color: theme.hintColor),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.hintColor,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -396,19 +542,27 @@ class _HomePageState extends State<HomePage> {
                         return InkWell(
                           onTap: () {
                             remarkController.text = reason;
-                            setState(() {}); 
+                            setState(() {});
                           },
                           borderRadius: BorderRadius.circular(20),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFFFFF),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: theme.dividerColor.withOpacity(0.2)),
+                              border: Border.all(
+                                color: theme.dividerColor.withOpacity(0.2),
+                              ),
                             ),
                             child: Text(
                               reason,
-                              style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         );
@@ -424,7 +578,10 @@ class _HomePageState extends State<HomePage> {
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: 'Type your reason here...',
-                        hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 14),
+                        hintStyle: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 14,
+                        ),
                         filled: true,
                         fillColor: const Color.fromARGB(255, 244, 244, 244),
                         contentPadding: const EdgeInsets.all(12),
@@ -434,7 +591,10 @@ class _HomePageState extends State<HomePage> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+                          borderSide: BorderSide(
+                            color: theme.colorScheme.primary,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
@@ -445,19 +605,27 @@ class _HomePageState extends State<HomePage> {
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
                           style: TextButton.styleFrom(
-                            foregroundColor: theme.colorScheme.onSurface.withOpacity(0.7),
+                            foregroundColor: theme.colorScheme.onSurface
+                                .withOpacity(0.7),
                           ),
                           child: const Text('Cancel'),
                         ),
                         const SizedBox(width: 8),
                         FilledButton(
                           onPressed: isSubmitEnabled
-                              ? () => Navigator.of(context).pop(remarkController.text)
+                              ? () => Navigator.of(
+                                  context,
+                                ).pop(remarkController.text)
                               : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF1A1A1A),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
                           ),
                           child: const Text('Submit'),
                         ),
@@ -491,12 +659,23 @@ class _HomePageState extends State<HomePage> {
       }
       Map<String, dynamic> result;
       if (newType == 'IN') {
-        result = await ShiftService.checkIn(deviceId, deviceType, remark: remark);
+        result = await ShiftService.checkIn(
+          deviceId,
+          deviceType,
+          remark: remark,
+        );
       } else {
-        result = await ShiftService.checkOut(deviceId, deviceType, remark: remark);
+        result = await ShiftService.checkOut(
+          deviceId,
+          deviceType,
+          remark: remark,
+        );
       }
       if (result['success'] && mounted) {
-        final optimisticButtonStates = _calculateButtonStates(_userShift, newType);
+        final optimisticButtonStates = _calculateButtonStates(
+          _userShift,
+          newType,
+        );
         final newLastPunchTime = DateTime.now();
         _cacheAttendanceStatus(newType, newLastPunchTime);
         setState(() {
@@ -506,13 +685,23 @@ class _HomePageState extends State<HomePage> {
           _isCheckOutButtonEnabled = optimisticButtonStates['checkOut']!;
         });
       } else {
-         if (mounted && result['message'] != null) {
-          CustomSnackBar.show(context, message: "Error: ${result['message']}", isError: true, title: 'Error');
+        if (mounted && result['message'] != null) {
+          CustomSnackBar.show(
+            context,
+            message: "Error: ${result['message']}",
+            isError: true,
+            title: 'Error',
+          );
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomSnackBar.show(context, message: "An error occurred: $e", isError: true, title: 'Error');
+        CustomSnackBar.show(
+          context,
+          message: "An error occurred: $e",
+          isError: true,
+          title: 'Error',
+        );
       }
     } finally {
       if (mounted) setState(() => _isAttendanceLoading = false);
@@ -525,13 +714,15 @@ class _HomePageState extends State<HomePage> {
       final cookie = await AuthService.getCookie();
       final realEmployeeId = await WorkforceService.getTrueEmployeeId();
 
-      final logUrl = Uri.parse('${AuthService.baseUrl}/api/method/homesol_app.api.get_team_checkins?days=0');
+      final logUrl = Uri.parse(
+        '${AuthService.baseUrl}/api/method/homesol_app.api.get_team_checkins?days=0',
+      );
       var logRes = await http.get(logUrl, headers: {'Cookie': cookie ?? ''});
 
       if (logRes.statusCode == 200) {
         var logData = jsonDecode(logRes.body);
         final checkins = logData['message'] as List?;
-        
+
         if (mounted && checkins != null && checkins.isNotEmpty) {
           final profile = await AuthService.getMyProfile();
           String currentDeviceId = '';
@@ -545,27 +736,50 @@ class _HomePageState extends State<HomePage> {
               currentDeviceId = iosInfo.identifierForVendor ?? '';
             }
           } catch (_) {}
-          
-          final myCheckins = checkins.where((log) => 
-            (log['owner'] != null && profile?.userId != null && profile!.userId.isNotEmpty && log['owner'] == profile.userId) ||
-            (log['employee'] != null && log['employee'] == profile?.name) ||
-            (log['employee'] != null && log['employee'] == realEmployeeId) ||
-            (log['employee'] != null && log['employee'] == widget.employeeId) ||
-            (log['employee_name'] != null && profile?.employeeName != null && log['employee_name'] == profile?.employeeName) ||
-            (log['employee_name'] != null && profile?.firstName != null && profile!.firstName.isNotEmpty && 
-             log['employee_name'].toString().toLowerCase().contains(profile.firstName.toLowerCase()) &&
-             (profile.lastName == null || profile.lastName!.isEmpty || log['employee_name'].toString().toLowerCase().contains(profile.lastName!.toLowerCase()))) ||
-            (currentDeviceId.isNotEmpty && log['device_id'] == currentDeviceId)
-          ).toList();
+
+          final myCheckins = checkins
+              .where(
+                (log) =>
+                    (log['owner'] != null &&
+                        profile?.userId != null &&
+                        profile!.userId.isNotEmpty &&
+                        log['owner'] == profile.userId) ||
+                    (log['employee'] != null &&
+                        log['employee'] == profile?.name) ||
+                    (log['employee'] != null &&
+                        log['employee'] == realEmployeeId) ||
+                    (log['employee'] != null &&
+                        log['employee'] == widget.employeeId) ||
+                    (log['employee_name'] != null &&
+                        profile?.employeeName != null &&
+                        log['employee_name'] == profile?.employeeName) ||
+                    (log['employee_name'] != null &&
+                        profile?.firstName != null &&
+                        profile!.firstName.isNotEmpty &&
+                        log['employee_name'].toString().toLowerCase().contains(
+                          profile.firstName.toLowerCase(),
+                        ) &&
+                        (profile.lastName == null ||
+                            profile.lastName!.isEmpty ||
+                            log['employee_name']
+                                .toString()
+                                .toLowerCase()
+                                .contains(profile.lastName!.toLowerCase()))) ||
+                    (currentDeviceId.isNotEmpty &&
+                        log['device_id'] == currentDeviceId),
+              )
+              .toList();
 
           if (myCheckins.isNotEmpty) {
-            myCheckins.sort((a, b) => b['time'].toString().compareTo(a['time'].toString()));
+            myCheckins.sort(
+              (a, b) => b['time'].toString().compareTo(a['time'].toString()),
+            );
             final lastLog = myCheckins.first;
-            
+
             final lastLogTime = lastLog['time'] != null
                 ? DateTime.parse(lastLog['time'])
                 : null;
-            
+
             // Verify the last log occurred today
             bool isToday = false;
             if (lastLogTime != null) {
@@ -580,7 +794,7 @@ class _HomePageState extends State<HomePage> {
             final newStatus = isToday ? (lastLog['log_type'] ?? 'OUT') : 'OUT';
             final newLastPunchTime = isToday ? lastLogTime : null;
             final buttonStates = _calculateButtonStates(_userShift, newStatus);
-            
+
             _cacheAttendanceStatus(newStatus, newLastPunchTime);
             setState(() {
               _attendanceStatus = newStatus;
@@ -589,10 +803,10 @@ class _HomePageState extends State<HomePage> {
               _isCheckOutButtonEnabled = buttonStates['checkOut']!;
             });
           } else {
-             final buttonStates = _calculateButtonStates(_userShift, 'OUT');
-             
-             _cacheAttendanceStatus('OUT', null);
-             setState(() {
+            final buttonStates = _calculateButtonStates(_userShift, 'OUT');
+
+            _cacheAttendanceStatus('OUT', null);
+            setState(() {
               _attendanceStatus = 'OUT';
               _lastPunchTime = null;
               _isCheckInButtonEnabled = buttonStates['checkIn']!;
@@ -627,10 +841,14 @@ class _HomePageState extends State<HomePage> {
                       onRefresh: widget.onRefresh,
                     ),
                   ),
-                  
-                  if (widget.employeeId != null && 
-                      (widget.designation?.toLowerCase() ?? '') != 'property developer' &&
-                      (widget.designation?.toLowerCase() ?? '') != 'lead caller')
+
+                  if (widget.employeeId != null &&
+                      (widget.designation?.toLowerCase() ?? '') !=
+                          'property developer' &&
+                      (widget.designation?.toLowerCase() ?? '') !=
+                          'lead caller' &&
+                      (widget.designation?.toLowerCase() ?? '') !=
+                          'admin')
                     SliverToBoxAdapter(
                       child: _AttendanceCard(
                         status: _attendanceStatus,
@@ -641,49 +859,70 @@ class _HomePageState extends State<HomePage> {
                         isCheckOutEnabled: _isCheckOutButtonEnabled,
                       ),
                     ),
-                    SliverToBoxAdapter(
-                      child: Builder(
-                        builder: (context) {
-                          final isPropertyDeveloper = (widget.designation?.toLowerCase() ?? '') == 'property developer';
-                          final bannerAssets = widget.appAssets
-                              .where((asset) => asset.assetCategory == 'Banner')
-                              .toList();
+                  SliverToBoxAdapter(
+                    child: Builder(
+                      builder: (context) {
+                        final isPropertyDeveloper =
+                            (widget.designation?.toLowerCase() ?? '') ==
+                            'property developer';
+                        final bannerAssets = widget.appAssets
+                            .where((asset) => asset.assetCategory == 'Banner')
+                            .toList();
 
-                          if (isPropertyDeveloper) {
-                            bannerAssets.insert(0, AppAsset(
+                        if (isPropertyDeveloper) {
+                          bannerAssets.insert(
+                            0,
+                            AppAsset(
                               name: 'FUND_RAISING',
                               assetName: 'Fund Raising Application',
                               assetCategory: 'Banner',
                               assetFile: '',
                               fullUrl: '',
-                            ));
-                          }
-
-                          return _BannerCarousel(
-                            banners: bannerAssets,
-                            onBannerTap: (banner) {
-                              if (banner.name == 'FUND_RAISING') {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ConstructionFinanceFormPage(
-                                      developerId: widget.developerId ?? '',
-                                      projects: widget.projects ?? [],
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
+                            ),
                           );
                         }
-                      ),
+
+                        return _BannerCarousel(
+                          banners: bannerAssets,
+                          onBannerTap: (banner) {
+                            if (banner.name == 'FUND_RAISING') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      ConstructionFinanceFormPage(
+                                        developerId: widget.developerId ?? '',
+                                        projects: widget.projects.where((p) {
+                                          final name = p.projectName
+                                              .toLowerCase()
+                                              .trim();
+                                          return name != 'bhavin steel' &&
+                                              name != 'parinee i';
+                                        }).toList(),
+                                      ),
+                                ),
+                              );
+                            }
+                          },
+                        );
+                      },
                     ),
+                  ),
                   const SliverToBoxAdapter(child: SizedBox(height: 1)),
                   SliverToBoxAdapter(
-                    child: PropertyCardsComponent(
-                      projects: widget.projects,
-                      developers: widget.developers,
-                      isLoading: widget.isLoadingData,
+                    child: Builder(
+                      builder: (context) {
+                        final visibleProjectsForUI = widget.projects.where((p) {
+                          final name = p.projectName.toLowerCase().trim();
+                          return name != 'bhavin steel' && name != 'parinee i';
+                        }).toList();
+
+                        return PropertyCardsComponent(
+                          projects: visibleProjectsForUI,
+                          developers: widget.developers,
+                          isLoading: widget.isLoadingData,
+                        );
+                      },
                     ),
                   ),
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -721,11 +960,7 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              Image.asset(
-                'assets/logo/logo.png',
-                width: 32,
-                height: 32,
-              ),
+              Image.asset('assets/logo/logo.png', width: 32, height: 32),
               const SizedBox(width: 12),
               Text(
                 'HomeSol',
@@ -765,17 +1000,26 @@ class _Header extends StatelessWidget {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: hasUnread 
-                                ? const Color(0xFFddbe6c).withOpacity(0.15) 
+                            color: hasUnread
+                                ? const Color(0xFFddbe6c).withOpacity(0.15)
                                 : onSurface.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(20),
-                            border: hasUnread 
-                                ? Border.all(color: const Color(0xFFddbe6c).withOpacity(0.3), width: 1)
+                            border: hasUnread
+                                ? Border.all(
+                                    color: const Color(
+                                      0xFFddbe6c,
+                                    ).withOpacity(0.3),
+                                    width: 1,
+                                  )
                                 : null,
                           ),
                           child: Icon(
-                            hasUnread ? Icons.notifications_active : Icons.notifications_outlined,
-                            color: hasUnread ? const Color(0xFFddbe6c) : onSurface.withOpacity(0.9),
+                            hasUnread
+                                ? Icons.notifications_active
+                                : Icons.notifications_outlined,
+                            color: hasUnread
+                                ? const Color(0xFFddbe6c)
+                                : onSurface.withOpacity(0.9),
                             size: 22,
                           ),
                         ),
@@ -789,7 +1033,10 @@ class _Header extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: const Color(0xFFddbe6c),
                               shape: BoxShape.circle,
-                              border: Border.all(color: theme.scaffoldBackgroundColor, width: 2),
+                              border: Border.all(
+                                color: theme.scaffoldBackgroundColor,
+                                width: 2,
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.1),
@@ -1001,9 +1248,16 @@ class _BannerCarouselState extends State<_BannerCarousel> {
 
     return Column(
       children: [
-        SizedBox(
-          height: 180,
-          child: PageView.builder(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            double bannerHeight = 180;
+            if (constraints.maxWidth > 600) {
+              bannerHeight = constraints.maxWidth / 2.5;
+              if (bannerHeight > 400) bannerHeight = 400; // Cap max height
+            }
+            return SizedBox(
+              height: bannerHeight,
+              child: PageView.builder(
             controller: _pageController,
             onPageChanged: (index) {
               setState(() {
@@ -1014,7 +1268,10 @@ class _BannerCarouselState extends State<_BannerCarousel> {
             itemBuilder: (context, index) {
               final banner = widget.banners[index];
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
                 child: GestureDetector(
                   onTap: () {
                     if (widget.onBannerTap != null) {
@@ -1046,7 +1303,9 @@ class _BannerCarouselState extends State<_BannerCarousel> {
                                     height: 120,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary.withOpacity(0.2),
                                     ),
                                   ),
                                 ),
@@ -1059,29 +1318,39 @@ class _BannerCarouselState extends State<_BannerCarousel> {
                                     child: Icon(
                                       Icons.domain_add_rounded,
                                       size: 140,
-                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary.withOpacity(0.15),
                                     ),
                                   ),
                                 ),
                                 // Content
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24.0,
+                                    vertical: 20.0,
+                                  ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Row(
                                         children: [
                                           Icon(
                                             Icons.auto_graph_rounded,
-                                            color: Theme.of(context).colorScheme.primary,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
                                             size: 20,
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
                                             'EXCLUSIVE',
                                             style: TextStyle(
-                                              color: Theme.of(context).colorScheme.primary,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
                                               letterSpacing: 1.5,
@@ -1092,28 +1361,42 @@ class _BannerCarouselState extends State<_BannerCarousel> {
                                       const SizedBox(height: 8),
                                       Text(
                                         'Project Finance',
-                                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                          fontWeight: FontWeight.w900,
-                                          color: Colors.white,
-                                          height: 1.1,
-                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w900,
+                                              color: Colors.white,
+                                              height: 1.1,
+                                            ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         'Fast-track capital for your next big build.',
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Colors.white70,
-                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: Colors.white70),
                                       ),
                                       const Spacer(),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: Theme.of(context).colorScheme.primary,
-                                          borderRadius: BorderRadius.circular(30),
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          borderRadius: BorderRadius.circular(
+                                            30,
+                                          ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withOpacity(0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 4),
                                             ),
@@ -1125,7 +1408,9 @@ class _BannerCarouselState extends State<_BannerCarousel> {
                                             Text(
                                               'Apply Now',
                                               style: TextStyle(
-                                                color: Theme.of(context).colorScheme.onPrimary,
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onPrimary,
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 13,
                                               ),
@@ -1134,7 +1419,9 @@ class _BannerCarouselState extends State<_BannerCarousel> {
                                             Icon(
                                               Icons.arrow_forward_rounded,
                                               size: 16,
-                                              color: Theme.of(context).colorScheme.onPrimary,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary,
                                             ),
                                           ],
                                         ),
@@ -1151,7 +1438,9 @@ class _BannerCarouselState extends State<_BannerCarousel> {
                             placeholder: (context, url) => Container(
                               color: Colors.grey.withOpacity(0.1),
                               child: const Center(
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                             ),
                             errorWidget: (context, url, error) => Container(
@@ -1164,8 +1453,10 @@ class _BannerCarouselState extends State<_BannerCarousel> {
               );
             },
           ),
-        ),
-        Row(
+        );
+      },
+    ),
+    Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: widget.banners.asMap().entries.map((entry) {
             return Container(
@@ -1175,8 +1466,8 @@ class _BannerCarouselState extends State<_BannerCarousel> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Theme.of(context).colorScheme.primary.withOpacity(
-                      _currentPage == entry.key ? 0.9 : 0.2,
-                    ),
+                  _currentPage == entry.key ? 0.9 : 0.2,
+                ),
               ),
             );
           }).toList(),

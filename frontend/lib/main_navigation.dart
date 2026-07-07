@@ -60,6 +60,7 @@ class _MainNavigationState extends State<MainNavigation> {
   Map<String, dynamic>? _userShift;
 
   bool _isLoadingData = true; // Start with loading state for initial fetch
+  final List<bool> _initializedTabs = List.generate(10, (index) => false);
 
   @override
   void initState() {
@@ -90,7 +91,7 @@ class _MainNavigationState extends State<MainNavigation> {
         projects: _projects,
         developers: _developers,
         appAssets: _appAssets,
-        onRefresh: _refreshData,
+        onRefresh: () => _refreshData(forceRefresh: true),
         employeeId: _employeeId,
         designation: _designation,
         developerId: _developerId,
@@ -104,7 +105,7 @@ class _MainNavigationState extends State<MainNavigation> {
     final dest = (_designation ?? '').trim().toLowerCase();
 
     if (dest == 'admin') {
-      pages.add(const DevelopersPage());
+      pages.add(DevelopersPage(designation: _designation));
       pages.add(const AdminStatsPage());
     } else if (dest == 'property developer') {
       // Show leads (CRM) and sourcing for this developer
@@ -124,7 +125,7 @@ class _MainNavigationState extends State<MainNavigation> {
         // Default / Sales Representative
         pages.add(const CRMPage());
       }
-      pages.add(const DevelopersPage());
+      pages.add(DevelopersPage(designation: _designation));
     }
 
     if (dest != 'property developer' && dest != 'lead caller' && dest != 'admin') {
@@ -140,7 +141,7 @@ class _MainNavigationState extends State<MainNavigation> {
     return pages;
   }
 
-  Future<void> _refreshData() async {
+  Future<void> _refreshData({bool forceRefresh = false}) async {
     // Only set isLoadingData to true if it's not the initial initialization
     // The initial initialization shows the LoaderVideoScreen, so no need for skeleton
     if (!_isInitializing) {
@@ -154,33 +155,33 @@ class _MainNavigationState extends State<MainNavigation> {
     try {
       // Fetch all data in parallel with catchError to handle network failures
       final results = await Future.wait([
-        ProjectService.syncProjects(forceRefresh: true).catchError((e) {
-          print('Error during project sync: $e');
-          return ProjectService.fetchProjects(); // Fallback to local DB
+        ProjectService.fetchProjects(forceRefresh: forceRefresh).catchError((e) {
+          print('Error during project fetch: $e');
+          return <Project>[]; 
         }),
-        DeveloperService.syncDevelopers(forceRefresh: true).catchError((e) {
-          print('Error during developer sync: $e');
-          return DeveloperService.fetchDevelopers(); // Fallback to local DB
+        DeveloperService.fetchDevelopers(forceRefresh: forceRefresh).catchError((e) {
+          print('Error during developer fetch: $e');
+          return <Developer>[];
         }),
-        UserService.syncUserProfile(forceRefresh: true).catchError((e) {
-          print('Error during user profile sync: $e');
-          return UserService.fetchUserProfile(); // Fallback to local DB
+        UserService.fetchUserProfile(forceRefresh: forceRefresh).catchError((e) {
+          print('Error during user profile fetch: $e');
+          return null;
         }),
         ShiftService.getShiftTypes().catchError((e) {
           print('Error during shift types fetch: $e');
           return <dynamic>[]; // ShiftService.getShiftTypes already handles internal cache
         }),
-        ApiService.syncSalesTeams(forceRefresh: true).catchError((e) {
-          print('Error during sales team sync: $e');
-          return ApiService.fetchSalesTeams(); // Fallback to local DB
+        ApiService.fetchSalesTeams(forceRefresh: forceRefresh).catchError((e) {
+          print('Error during sales team fetch: $e');
+          return <SalesTeam>[];
         }),
         AuthService.getMyProfile().catchError((e) {
           print('Error fetching full profile: $e');
           return null;
         }),
-        AssetService.fetchAppAssets(forceRefresh: true).catchError((e) {
-          print('Error during app assets sync: $e');
-          return AssetService.fetchAppAssets(); // Fallback to local DB
+        AssetService.fetchAppAssets(forceRefresh: forceRefresh).catchError((e) {
+          print('Error during app assets fetch: $e');
+          return <AppAsset>[];
         }),
       ]);
 
@@ -472,7 +473,15 @@ class _MainNavigationState extends State<MainNavigation> {
     return Scaffold(
       extendBody: true, // Required for curved nav bar to look correct
       backgroundColor: Colors.transparent,
-      body: IndexedStack(index: safeIndex, children: _pages),
+      body: IndexedStack(
+        index: safeIndex,
+        children: List.generate(_pages.length, (index) {
+          if (index == safeIndex) {
+            _initializedTabs[index] = true;
+          }
+          return _initializedTabs[index] ? _pages[index] : const SizedBox.shrink();
+        }),
+      ),
       bottomNavigationBar: Offstage(
         offstage: isKeyboardOpen,
         child: CurvedNavigationBar(

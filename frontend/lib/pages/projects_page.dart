@@ -110,8 +110,13 @@ class _ProjectsPageState extends State<ProjectsPage> {
       print('Developers fetched: ${results[1].length}');
 
       final rawProjects = results[0] as List<Project>;
-      // Deduplicate projects by ID
-      final deduplicatedProjects = {for (var p in rawProjects) p.id: p}.values.toList();
+      // Deduplicate projects by ID and filter out hidden UI projects
+      final deduplicatedProjects = {for (var p in rawProjects) p.id: p}.values
+          .where((p) {
+            final name = p.projectName.toLowerCase().trim();
+            return name != 'bhavin steel' && name != 'parinee i';
+          })
+          .toList();
 
       setState(() {
         _projects = deduplicatedProjects;
@@ -1048,15 +1053,9 @@ class _ProjectsPageState extends State<ProjectsPage> {
 
   ${project.configurations.isNotEmpty ? '🏘️ Available Configurations:' : ''}
   ${project.configurations.take(3).map((config) {
-        final formattedPrice = config.price == 0 
-            ? 'Price on Request' 
-            : (config.price < 10 
-                ? '${config.price.toStringAsFixed(2)} Cr' 
-                : (config.price < 10000 
-                    ? '${(config.price / 100).toStringAsFixed(2)} Cr' 
-                    : '${(config.price / 10000000).toStringAsFixed(2)} Cr'));
-        return '• ${config.name} - ${config.carpetArea.toInt()} sq.ft - $formattedPrice';
-      }).join('\n')}
+          final formattedPrice = config.price == 0 ? 'Price on Request' : (config.price < 10 ? '${config.price.toStringAsFixed(2)} Cr' : (config.price < 10000 ? '${(config.price / 100).toStringAsFixed(2)} Cr' : '${(config.price / 10000000).toStringAsFixed(2)} Cr'));
+          return '• ${config.name} - ${config.carpetArea.toInt()} sq.ft - $formattedPrice';
+        }).join('\n')}
 
   ${project.campaigns.isNotEmpty ? '🔥 Special Offers Available!' : ''}
 
@@ -1068,7 +1067,12 @@ class _ProjectsPageState extends State<ProjectsPage> {
     // Copy to clipboard and show message
     Clipboard.setData(ClipboardData(text: shareText));
     final theme = Theme.of(context);
-    CustomSnackBar.show(context, message: 'Project details copied to clipboard!', isError: false, title: 'Notice');
+    CustomSnackBar.show(
+      context,
+      message: 'Project details copied to clipboard!',
+      isError: false,
+      title: 'Notice',
+    );
   }
 
   bool _hasActiveFilters() {
@@ -1104,7 +1108,12 @@ class _ProjectsPageState extends State<ProjectsPage> {
               final brokerId = broker?['broker_id']?.toString();
 
               if (brokerId == null) {
-                CustomSnackBar.show(context, message: 'Please log in to add enquiry', isError: false, title: 'Notice');
+                CustomSnackBar.show(
+                  context,
+                  message: 'Please log in to add enquiry',
+                  isError: false,
+                  title: 'Notice',
+                );
                 return;
               }
 
@@ -1114,15 +1123,22 @@ class _ProjectsPageState extends State<ProjectsPage> {
                 brokerId: brokerId,
                 lockProjectSelection: true,
                 onCreated: () {
-                  CustomSnackBar.show(context, 
-                    message: 'Enquiry added for ${_visibleProjects.length} projects!',
-                    isError: false, 
-                    title: 'Notice'
+                  CustomSnackBar.show(
+                    context,
+                    message:
+                        'Enquiry added for ${_visibleProjects.length} projects!',
+                    isError: false,
+                    title: 'Notice',
                   );
                 },
               );
             } catch (e) {
-              CustomSnackBar.show(context, message: 'Error: ${e.toString()}', isError: true, title: 'Error');
+              CustomSnackBar.show(
+                context,
+                message: 'Error: ${e.toString()}',
+                isError: true,
+                title: 'Error',
+              );
             }
           },
           style: ElevatedButton.styleFrom(
